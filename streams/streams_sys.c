@@ -2331,7 +2331,10 @@ runqueues(void)
 #else /* !KERNEL */
 		static void do_runqueues(void*);
 		static int isrunning = 0;
+		extern int in_timeout;
 
+		if(in_timeout)
+			return;
 		if(isrunning++) {
 			--isrunning;
 			return;

@@ -341,40 +341,43 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	/* Returning "+" in the first position means keep the new connection. */ 
 	/* Return "-" to keep the old connection. */
 	/* Return "=" to call back. */
-
 	if(conn->state == c_forceoff) {
 		dropgrab(cg);
 		*ret = "-COLLISION 1a";
 		return conn;
 	}
-	if(conn->state == c_going_down) {
-		dropgrab(cg);
-		*ret = "+COLLISION 1b";
-		return conn;
-	}
-	if((cg->flags & F_FORCEOUT) && (cg->flags & F_INCOMING)) {
-		*ret = "=CALLBACK";
-		dropgrab(cg);
-		return conn;
+	if(conn->cg != cg) {
+		if(conn->state == c_going_down) {
+			dropgrab(cg);
+			*ret = "+COLLISION 1b";
+			return conn;
+		}
+		if((cg->flags & F_FORCEOUT) && (cg->flags & F_INCOMING)) {
+			*ret = "=CALLBACK";
+			dropgrab(cg);
+			return conn;
+		}
+		if(conn->state > c_going_down) {
+			if(cg->flags & F_INCOMING) {
+				if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
+					*ret = "-COLL 1Cc";
+				if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
+					*ret = "-COLL 1Cd";
+			} else {
+				printf("Collision in startconn out, should not happen!\n");
+				if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
+					*ret = "+COLL 1Ce";
+				if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
+					*ret = "+COLL 1Cf";
+			}
+			if(*ret != NULL) {
+				dropgrab(cg);
+				return conn;
+			}
+		}
 	}
 	if(conn->state > c_going_down) {
-		*ret = "-COLLISION 1c";
-		if(conn->flags & cg->flags & (F_INCOMING|F_OUTGOING))
-			**ret = '+'; /* the two beasts are going in the same direction */
-		if(cg->flags & F_INCOMING) {
-			**ret = '+';
-			if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
-				**ret = '-';
-			if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
-				**ret = '-';
-		} else {
-			printf("Collision in startconn out, should not happen!\n");
-			if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
-				**ret = '+';
-			if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
-				**ret = '+';
-		}
-		dropgrab(cg);
+		/* *ret = "+EXISTS"; */
 		return conn;
 	}
 

@@ -197,6 +197,10 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 		} else
 			timer(CAPI_TWAITLOCAL,conn);
 		break;
+	case 7:
+		if(conn->waitflags & 1<<WF_PROTOCOLS)
+			isdn3_setup_conn (conn, EST_SETUP);
+		break;
 	case 99:
 		timer(CAPI_TFOO,conn);
 		break;
@@ -229,7 +233,10 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 			if(!(conn->minorstate & MS_BCHAN)) {
 				conn->minorstate |= MS_BCHAN;
 				conn->talk->chanmask |= 1<<(conn->bchan-1);
-				isdn3_setup_conn (conn, EST_SETUP);
+				if(conn->state != 6)
+					isdn3_setup_conn (conn, EST_SETUP);
+				else
+					isdn3_setup_conn (conn, EST_NO_CHANGE);
 			} else
 				isdn3_setup_conn (conn, EST_NO_CHANGE);
 		}
@@ -994,7 +1001,7 @@ send_dialout(isdn3_conn conn)
 	if((err = capi_send(conn->talk,conn->talk->tappl[info->subcard],CAPI_CONNECT_REQ,m2,conn->conni[WF_CONNECT_CONF]=newmsgid(conn->talk))) < 0) 
 		freemsg(m2);
 	else {
-		conn->waitflags  = 1<<WF_CONNECT_CONF;
+		conn->waitflags |= 1<<WF_CONNECT_CONF;
 		conn->waitflags |= 1<<WF_PROTOCOLS;
 		setstate(conn,2);
 	}
@@ -2388,8 +2395,9 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				return -EINVAL;
 			}
 			conn->minorstate |= MS_WANTCONN;
-			conn->waitflags = 1<<WF_PROTOCOLS;
-            isdn3_setup_conn (conn, EST_SETUP);
+			conn->waitflags |= 1<<WF_PROTOCOLS;
+			if(conn->state == 7)
+            	isdn3_setup_conn (conn, EST_SETUP);
 			err = 0;
 		}
 		break;
@@ -2624,26 +2632,25 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 			}
 		}
 		conn->modlist[0] = *data;
-		if((err = setup_complete(conn)) >= 0) {
-			*data = NULL;
-			if(err > 0) {
-				if ((conn->waitflags & (1<<WF_PROTOCOLS))) {
-					conn->waitflags &=~ (1<<WF_PROTOCOLS);
-					if(conn->waitflags == 0) {
-						err = send_setup(conn);
-						if(err < 0)
-							*data = mb;
-					}
-				}
-			}
-		}
+		*data = NULL;
 		if(err < 0)
 			conn->modlist[0] = NULL;
 
 		break;
+	/* case PROTO_MODULE -- none yet */
 	}
 	
-	return err;
+	if((err = setup_complete(conn)) > 0) {
+		if ((conn->waitflags & (1<<WF_PROTOCOLS))) {
+			conn->waitflags &=~ (1<<WF_PROTOCOLS);
+			if(conn->waitflags == 0) {
+				err = send_setup(conn);
+				if(err < 0)
+					*data = mb;
+			}
+		}
+	}
+	return 0;
 }
 
 
