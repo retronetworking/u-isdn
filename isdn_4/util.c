@@ -119,6 +119,13 @@ pluscat(char *a, char *b)
 	}
 }
 
+
+ulong_t
+maskmatch(ulong_t a, ulong_t b)
+{
+	return a & b;
+}
+
 /* "abc" "bcd" -> "bc" */
 /* "abc+bc" "bcd+b" -> "bc+bc+b" */
 /* "abc+bc" "bcd+d" -> NULL */

@@ -42,6 +42,7 @@ char *
 pmatch1 (cf prot, conngrab *cgm)
 {
 	char *sit, *pro, *cla, *car;
+	ulong_t sub;
 	char first = 1;
 	conngrab cg = *cgm;
 
@@ -51,12 +52,14 @@ pmatch1 (cf prot, conngrab *cgm)
 	pro = wildmatch(cg->protocol,prot->protocol);if(pro == NULL) return "6ERR Match PROTOCOL";
 	car = wildmatch(cg->card,    prot->card);    if(car == NULL) return "6ERR Match CARD";
 	cla =classmatch(cg->cclass,  prot->cclass);  if(cla == NULL) return "6ERR Match CLASS";
+	sub = maskmatch(cg->mask,    prot->mask);    if(sub == 0)    return "6ERR Match SUBCARD";
 
 	/* OK, that fits. Make a copy to assign the values to. */
 	cg = newgrab(cg);
 	if(cg == NULL)
 		return "0OUT OF MEMORY";
 	cg->site = sit; cg->protocol = pro; cg->card = car; cg->cclass = cla;
+	cg->mask = sub;
 
 	/* Now scan this line's, and all matching followup lines', flags. */
 	for (first = 1; prot != NULL; prot = prot->next, first = 0) {
@@ -82,6 +85,7 @@ pmatch1 (cf prot, conngrab *cgm)
 			pro = wildmatch(cg->protocol,prot->protocol);if(pro==NULL) continue;
 			car = wildmatch(cg->card,    prot->card);    if(car==NULL) continue;
 			cla =classmatch(cg->cclass,  prot->cclass);  if(cla==NULL) continue;
+			sub = maskmatch(cg->mask,    prot->mask);    if(sub==0)    continue;
 		}
 		/* Now make another copy for the parameters. If they don't fit
 		   we'll have to undo everything. */
@@ -92,6 +96,7 @@ pmatch1 (cf prot, conngrab *cgm)
 		}
 		if(!first) {
 			cgc->site = sit; cgc->protocol = pro; cgc->card = car; cgc->cclass = cla;
+			cgc->mask = sub;
 		}
 		if(cgc->par_out == NULL) { /* No outgoing parameter list? Yet! */
 			if ((cgc->par_out = allocb(256,BPRI_LO)) == NULL) {
@@ -401,7 +406,7 @@ pmatch (conngrab *cgm)
 
 /* Scan the configuration, incorporate matching entries into *foo. */
 char *
-findsite (conngrab *foo)
+findsite (conngrab *foo, int ignbusy)
 {
 	cf dp = NULL;
 	cf dl = NULL;
@@ -417,6 +422,7 @@ findsite (conngrab *foo)
 	for (dl = cf_DL; dl != NULL; dl = dl->next) { /* find a matching local number. */
 		char *matcrd;
 		char *matclass;
+		ulong_t matsub;
 
 if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 
@@ -424,17 +430,24 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			continue;
 		if ((matcrd = wildmatch (cg->card, dl->card)) == NULL)
 			continue;
+		if ((matsub = maskmatch (cg->mask, dl->mask)) == 0)
+			continue;
 		if(!(cg->flags & F_LEASED)) { /* ... and a working dial prefix. */
 			char *crd;
+			ulong_t sub;
 			for (dp = cf_DP; dp != NULL; dp = dp->next) {
-				if ((crd = wildmatch (cg->card, dp->card)) != NULL)
-					break;
+				if ((crd = wildmatch (cg->card, dp->card)) == NULL)
+					continue;
+				if ((sub = maskmatch (cg->mask, dp->mask)) == 0)
+					continue;
+				break;
 			}
 			if (dp == NULL) {
 				errstr = "9CARD UNKNOWN";
 				continue;
 			}
 			matcrd = crd;
+			matsub = sub;
 		} /* if everybody had DSS1, we could skip the prefix nonsense... */
 
 		/* Now find a site to call out to. */
@@ -450,6 +463,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			char *matsit;
 			char *matcar;
 			char *matpro;
+			ulong_t matsub;
 
 			if(d == NULL) {
 				numwrap = 0;
@@ -473,6 +487,8 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			if((matcar = wildmatch(matcrd,d->card)) == NULL) continue;
 			if((matcla = classmatch(cg->cclass,d->cclass)) == NULL) continue;
 			if((matcla = classmatch(matcla,matclass)) == NULL) continue;
+			if((matsub = maskmatch(cg->mask,d->mask)) == 0) continue;
+			if((matsub = maskmatch(matsub,matsub)) == 0) continue;
 			if(!matchflag(cg->flags,d->type)) continue;
 
 			/* Preliminary match OK, remember the data so far. */
@@ -482,6 +498,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 
 			cg->site = matsit; cg->cclass = matcla;
 			cg->card = matcar; cg->protocol = matpro;
+			cg->mask = matsub;
 			if(0)printf("%s...",matsit);
 
 			if(!(cg->flags & F_LEASED)) {
@@ -530,19 +547,11 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			}
 
 			/* Do we have a matching P line? */
-			if ((errstrx = pmatch (&cg)) == NULL) {	/* We have what we need. Now figure out if we can use it. */
-				struct conninfo *conn;
+			if ((errstrx = pmatch (&cg)) == NULL) {
+			/* We have what we need. Now figure out if we can use it. */
 				cf cl = NULL;
-				int nrconn = 0, naconn = 0;
 				int nrbchan = 0;
 
-				/* Check if there's a limiter. */
-				for(cl = cf_CL; cl != NULL; cl = cl->next) {
-					if(classmatch(cg->cclass,cl->cclass) == NULL)
-						continue;
-					if(wildmatch(cg->card, cl->card))
-						break;
-				}
 				/* Check if we know how many B channels the card has */
 				{
 					struct isdncard *ca;
@@ -554,28 +563,73 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 						}
 					}
 				}
-				for(conn = theconn; conn != NULL; conn = conn->next) {
-					if(conn->ignore || !conn->cg)
-						continue;
-					if(wildmatch(conn->cg->site,cg->site) &&
-							wildmatch(conn->cg->protocol,cg->protocol))
-						continue;
-					if((conn->state >= c_going_up) && wildmatch(conn->cg->card, cg->card)) {
-						nrconn ++;
-						if(!(conn->flags & F_IGNORELIMIT))
-							naconn++;
+
+				if((nrbchan > 0) && !ignbusy) {
+					int nrconn = 0;
+					struct conninfo *conn;
+					for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+						if(conn->ignore || !conn->cg)
+							continue;
+						if(conn->state >= c_going_up) {
+							if(wildmatch(conn->cg->card, cg->card) == NULL)
+								continue;
+							nrconn ++;
+						}
+					}
+					if(nrconn >= nrbchan) {
+						errstr = "0BUSY";
+						dropgrab(errcg); errcg = cg; cg->refs++;
+						continue; /* try the next D line */
 					}
 				}
-				if(((nrbchan > 0) && (nrconn >= nrbchan)) || ((cl != NULL) && (naconn >= cl->num) && !(cg->flags & F_IGNORELIMIT))) {
-					errstr = "0BUSY";
-					dropgrab(errcg); errcg = cg; cg->refs++;
-					continue;
+				/* Check if there's a limiter. Actually, there may be more
+				   than one. */
+				for(cl = ignbusy ? NULL : cf_CL; cl != NULL; cl = cl->next) {
+					struct conninfo *conn;
+					int naconn = 0;
+
+					if(classmatch(cg->cclass,cl->cclass) == NULL)
+						continue;
+					if(wildmatch(cg->card, cl->card) == NULL)
+						continue;
+					if(wildmatch(cg->site, cl->site) == NULL)
+						continue;
+					if(wildmatch(cg->protocol, cl->protocol) == NULL)
+						continue;
+					if(maskmatch(cg->mask, cl->mask) == 0)
+						continue;
+					
+					for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+						if(conn->ignore || !conn->cg)
+							continue;
+						if(conn->state >= c_going_up) {
+							if(wildmatch(conn->cg->card, cl->card) == NULL)
+								continue;
+							if(wildmatch(conn->cg->protocol, cl->protocol) == NULL)
+								continue;
+							if(wildmatch(conn->cg->site, cl->site) == NULL)
+								continue;
+							if(classmatch(conn->cg->cclass, cl->cclass) == NULL)
+								continue;
+							if(maskmatch(conn->cg->mask,cl->mask) == 0)
+								continue;
+							if(!(conn->flags & F_IGNORELIMIT))
+								naconn++;
+						}
+					}
+					if((cl != NULL) && (naconn >= cl->num) && !(cg->flags & F_IGNORELIMIT)) {
+						errstr = "0BUSY";
+						dropgrab(errcg); errcg = cg; cg->refs++;
+						break;
+					}
 				}
-				if (cg->par_out != NULL && strchr(d->type, 'H') != NULL && !(cg->flags & F_OUTCOMPLETE))
-					m_putsx (cg->par_out, ARG_SUPPRESS);
-				dropgrab(errcg);
-				dropgrab(*foo); *foo = cg;
-				return NULL;
+				if(cl == NULL) { /* checked all of them */ 
+					if (cg->par_out != NULL && strchr(d->type, 'H') != NULL && !(cg->flags & F_OUTCOMPLETE))
+						m_putsx (cg->par_out, ARG_SUPPRESS);
+					dropgrab(errcg);
+					dropgrab(*foo); *foo = cg;
+					return NULL;
+				}
 			}
 			/* No go. Remember the error, if appropriate. */
 			if(*errstr > *errstrx) {
@@ -597,7 +651,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 /* Wrapper stuff. Take numbers out of the incoming argument vector, find
    the card, et al. */
 char *
-findit (conngrab *foo)
+findit (conngrab *foo, int ignbusy)
 {
 	ushort_t id;
 	mblk_t *p;
@@ -618,6 +672,7 @@ findit (conngrab *foo)
 		streamchar *olds = p->b_rptr;
 		char st[MAXNR + 2];
 		char *card;
+		long x;
 
 		while (m_getsx (p, &id) == 0) {
 			switch (id) {
@@ -640,6 +695,10 @@ findit (conngrab *foo)
 					return "CARD MISMATCH";
 				}
 				break;
+			case ARG_SUBCARD:
+				if((m_geti(p,&x) == 0) && (x > 0))
+					cg->mask = 1<<(x-1);
+				break;
 			}
 		}
 		p->b_rptr = olds;
@@ -651,41 +710,53 @@ findit (conngrab *foo)
 
 	if(isdn4_card != NULL) {
 		for(c = isdn4_card; (c != NULL) || (cardlim < cardidx); c = c->next) {
-			cf crd;
-
-			cardlim++;
-
 			if(c == NULL) { /* Wraparound */
 				c = isdn4_card;
 				if(cardlim < cardidx)
-					cardidx %= cardlim;
+					cardidx %= (cardlim+1);
 			}
-			if(!wildmatch(card,c->name))
+			if(!wildmatch(card,c->name))  {
+				cardlim += c->nrdchan;
 				continue;
+			}
+
+			cg->card = c->name;
+			cg->mask = 1;
+		  redo:
+		  	cardlim++;
 			if(cg->flags & F_INCOMING) /* never skip */
 				cardidx = 1;
-			if(cardlim < cardidx)
-				continue;
-			cg->card = c->name;
-			if ((errstrx = findsite (&cg)) == NULL) { /* Found it */
-				cardidx++;
-				dropgrab(*foo);
-				*foo = cg;
-				cg->flags |= F_OUTCOMPLETE;
-				if(c->cap & CHM_INTELLIGENT)
-					return NULL;
-				for (crd = cf_CM; crd != NULL; crd = crd->next) {
-					if (!wildmatch (c->name, crd->card))
-						continue;
-					return NULL;
+			if(cardlim >= cardidx)  {
+				if ((errstrx = findsite (&cg,ignbusy)) == NULL) { /* Found it */
+					cf crd;
+					cardidx++;
+					cg->flags |= F_OUTCOMPLETE;
+					if(c->cap & CHM_INTELLIGENT) {
+						dropgrab(*foo);
+						*foo = cg;
+						return NULL;
+					}
+					for (crd = cf_CM; crd != NULL; crd = crd->next) {
+						if (!wildmatch (c->name, crd->card))
+							continue;
+						dropgrab(*foo);
+						*foo = cg;
+						return NULL;
+					}
+					errstrx = "0CM line missing";
 				}
-				errstrx = "0CM line missing";
+				if(*errstrx < *errstr) {
+					errstr = errstrx;
+					dropgrab(errcg); errcg = cg;
+					errcg->refs++;
+				}
 			}
-			if(*errstrx < *errstr) {
-				errstr = errstrx;
-				dropgrab(errcg); errcg = cg;
-				errcg->refs++;
-			}
+			cg->mask <<= 1;
+			if(cg->mask == 0)
+				continue;
+			if(!(c->mask & cg->mask))
+				continue;
+			goto redo;
 		}
 	} else 
 		errstr = "0No card in the system";

@@ -231,7 +231,10 @@ dump_one_hdr (isdn23_hdr hdr)
 				hdr->hdr_detach.error,hdr->hdr_detach.perm);
 		break;
 	case HDR_CARD:
-		printf ("Card %d online (%d B channels, flag 0%o)", hdr->hdr_card.card, hdr->hdr_card.bchans,hdr->hdr_card.flags);
+		printf ("Card %d online (%d D channels, %d B channels, flag 0%o)",
+				hdr->hdr_card.card,
+				hdr->hdr_card.dchans,hdr->hdr_card.bchans,
+				hdr->hdr_card.flags);
 		break;
 	case HDR_NOCARD:
 		printf ("Card %d offline.", hdr->hdr_nocard.card);

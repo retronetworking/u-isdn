@@ -125,7 +125,8 @@
 #endif
 #define ARG_CONNREF  CHAR2 ('C','r')	/* uchar refnum for a connection.  */
 #define ARG_CARD     CHAR2 ('c','d')	/* ident Card */
-#define ARG_CHANNEL  CHAR2 ('b','c')	/* uchar B channel to use */
+#define ARG_SUBCARD  CHAR2 ('c','s')	/* D channel on card */
+#define ARG_CHANNEL  CHAR2 ('b','c')	/* B channel to use */
 #define ARG_ASSOC    CHAR2 ('a','=')	/* associate card IDs */
 #define ARG_LISTEN   CHAR2 ('l','p')    /* listen params */
 
@@ -134,6 +135,7 @@
 #define ARG_FMINOR   CHAR2 ('m','f')	/* uchar minor number of command
 										 * connection */
 #define ARG_CALLREF  CHAR2 ('c','r')	/* long call reference number */
+#define ARG_PBX      CHAR2 ('p','b')    /* behave like a PBX */
 #define ARG_EAZ      CHAR2 ('e','a')	/* map EAZ to local phone nr */
 #define ARG_LNUMBER  CHAR2 ('l','r')	/* local phone nr */
 #define ARG_NUMBER   CHAR2 ('n','r')	/* remote phone nr */

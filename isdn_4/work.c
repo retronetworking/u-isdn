@@ -19,7 +19,7 @@ deadkid (void)
 		printf ("\n* PID %d died, %x\n", pid, val);
 
 		chkall();
-		for (conn = theconn; conn != NULL; conn = conn ? conn->next : NULL) {
+		for (conn = isdn4_conn; conn != NULL; conn = conn ? conn->next : NULL) {
 			if(conn->ignore)
 				continue;
 			if (conn->pid == pid) {
@@ -82,6 +82,7 @@ pushprot (conngrab cg, int minor, char update)
 		if (!wildmatch (cg->site, prot->site)) continue;
 		if (!wildmatch (cg->protocol, prot->protocol)) continue;
 		if (!wildmatch (cg->card, prot->card)) continue;
+		if (!maskmatch (cg->mask, prot->mask)) continue;
 		if (!classmatch (cg->cclass, prot->cclass)) continue;
 		break;
 	}
@@ -146,6 +147,7 @@ pushprot (conngrab cg, int minor, char update)
 				if (!wildmatch (cg->site, cm->site)) continue;
 				if (!wildmatch (cg->protocol, cm->protocol)) continue;
 				if (!wildmatch (cg->card, cm->card)) continue;
+				if (!maskmatch (cg->mask, cm->mask)) continue;
 				if (!classmatch (cg->cclass, cm->cclass)) continue;
 				if (!wildmatch (sp1, cm->arg)) continue;
 
@@ -252,6 +254,7 @@ pushcardprot (conngrab cg, int minor)
 		if (!wildmatch (cg->site, prot->site)) continue;
 		if (!wildmatch (cg->protocol, prot->protocol)) continue;
 		if (!wildmatch (cg->card, prot->card)) continue;
+		if (!maskmatch (cg->mask, prot->mask)) continue;
 		if (!classmatch (cg->cclass, prot->cclass)) continue;
 
 		if(card->cap & CHM_INTELLIGENT) {
@@ -259,6 +262,7 @@ pushcardprot (conngrab cg, int minor)
 		} else {
 			for (cmod = cf_CM; cmod != NULL; cmod = cmod->next) {
 				if (!wildmatch (cg->card, cmod->card)) continue;
+				if (!maskmatch (cg->mask, cmod->mask)) continue;
 				if (!wildmatch(prot->arg,cmod->arg)) continue;
 				break;
 			}
@@ -313,10 +317,14 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 
 	if(ret == NULL)
 		ret = &str;
+	if(cg->mask == 0) {
+		*ret = "Internal error: bad mask";
+		return NULL;
+	}
 	*ret = NULL;
 	chkall();
 	cg->refs++;
-	for(conn = theconn; conn != NULL; conn = conn->next) {
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 		if(conn->ignore)
 			continue;
 		if(conn->minor == 0)
@@ -325,8 +333,9 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 			break;
 	}
 	if(conn == NULL) {
-		for(conn = theconn; conn != NULL; conn = conn->next) {
+		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 			char *sit,*pro,*car,*cla;
+			ulong_t sub;
 
 			if(conn->ignore)
 				continue;
@@ -339,13 +348,15 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 			if((sit = wildmatch(conn->cg->site,cg->site)) == NULL) continue;
 			if((pro = wildmatch(conn->cg->protocol,cg->protocol)) == NULL) continue;
 			if((car = wildmatch(conn->cg->card,cg->card)) == NULL) continue;
+			if((sub = maskmatch(conn->cg->mask,cg->mask)) == 0) continue;
 			if((cla = classmatch(conn->cg->cclass,cg->cclass)) == NULL) continue;
 			cg->site = sit; cg->protocol = pro; cg->card = car; cg->cclass = cla;
+			cg->mask = sub;
 			break;
 		}
 	}
 	if(conn == NULL) {
-		for(conn = theconn; conn != NULL; conn = conn->next) {
+		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 			char *sit,*pro;
 
 			if(conn->ignore)
@@ -396,7 +407,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 	}
 
 printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
-	if(((*ret) = findit (&cg)) != NULL) {
+	if(((*ret) = findit (&cg,0)) != NULL) {
 		dropgrab(cg);
 		chkall();
 		return NULL;
@@ -428,7 +439,7 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 			*ret = "COLLISION 2";
 			return conn;
 		}
-		/* setconnref(conn,connref); */
+		setconnref(conn,connref);
 	}
 	
 	m_putsx (&yy, ARG_MINOR);
@@ -474,6 +485,13 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 	}
 	m_putsx (&yy, ARG_CARD);
 	m_putsz (&yy, cg->card);
+	{
+		ulong_t m;
+		int i;
+		for(i=1,m=1;(i < 33) && !(cg->mask & m);m<<=1,i++) ;
+		m_putsx (&yy, ARG_SUBCARD);
+		m_puti (&yy, i);
+	}
 #if 0
 	if (strchr (type, 'H') != NULL)
 		m_putsx (&yy, ARG_SUPPRESS);
@@ -574,7 +592,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 		{
 			char *err;
 
-			if((err = findit (foo)) != NULL) {
+			if((err = findit (foo,0)) != NULL) {
 				if(conn != NULL)
 					free(conn);
 				return err;
@@ -591,8 +609,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				conn->seqnum = ++connseq;
 				conn->state = c_down;
 				conn->cause = 999999;
-				conn->next = theconn;
-				theconn = conn;
+				conn->next = isdn4_conn; isdn4_conn = conn;
 			}
 			cg->refs++;
 			dropgrab(conn->cg);
@@ -995,9 +1012,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 					else
 						cg->delay = 0;
 				}
-				if(startconn(conn->cg,0,0, &msg) == conn) 
-					setconnstate(conn,c_going_up);
-				else {
+				if(startconn(conn->cg,0,0, &msg) != conn) {
 					syslog(LOG_CRIT,"Bug in runprog->startconn (%s) for %s:%s",msg ? msg : "(unknown reason)", cg->site,cg->protocol);
 					dropgrab(conn->cg);
 					conn->cg = NULL;
@@ -1055,6 +1070,7 @@ kill_rp(struct conninfo *conn, char whatnot)
 		if(wildmatch(pro->site,conn->cg->site) == NULL) continue;
 		if(wildmatch(pro->protocol,conn->cg->protocol) == NULL) continue;
 		if(wildmatch(pro->card,conn->cg->card) == NULL) continue;
+		if(maskmatch(pro->mask,conn->cg->mask) == 0) continue;
 		if(classmatch(pro->cclass,conn->cg->cclass) == NULL) continue;
 
 		xconn = malloc(sizeof(*xconn));
@@ -1067,8 +1083,7 @@ kill_rp(struct conninfo *conn, char whatnot)
 			conn->cg->refs++;
 			/* dropgrab(conn->cg; ** is new anyway */
 			xconn->cg = conn->cg;
-			xconn->next = theconn;
-			theconn = xconn;
+			xconn->next = isdn4_conn; isdn4_conn = xconn;
 			dropconn(xconn);
 		}
 		if(strchr(pro->type,'s') == NULL)
@@ -1085,20 +1100,23 @@ run_rp(struct conninfo *conn, char what)
 	struct proginfo *pr;
 	for(cfr = cf_RP; cfr != NULL; cfr = cfr->next) {
 		char *sit,*pro,*car,*cla;
+		ulong_t sub;
 
 		if(strchr(cfr->type,what) == NULL) continue;
 		if((sit = wildmatch(conn->cg->site,cfr->site)) == NULL) continue;
 		if((pro = wildmatch(conn->cg->protocol,cfr->protocol)) == NULL) continue;
 		if((car = wildmatch(conn->cg->card,cfr->card)) == NULL) continue;
+		if((sub = maskmatch(conn->cg->mask,cfr->mask)) == 0) continue;
 		if((cla = classmatch(conn->cg->cclass,cfr->cclass)) == NULL) continue;
 
 		for(pr = conn->run; pr != NULL; pr = pr->next) {
 			struct conninfo *xconn;
 			if(strchr(pr->type,what) == NULL) continue;
-			if(wildmatch(pr->site,cfr->site) == NULL) continue;
-			if(wildmatch(pr->protocol,cfr->protocol) == NULL) continue;
-			if(wildmatch(pr->card,cfr->card) == NULL) continue;
-			if(classmatch(pr->cclass,cfr->cclass) == NULL) continue;
+			if(wildmatch(pr->site,sit) == NULL) continue;
+			if(wildmatch(pr->protocol,pro) == NULL) continue;
+			if(wildmatch(pr->card,car) == NULL) continue;
+			if(maskmatch(pr->mask,sub) == 0) continue;
+			if(classmatch(pr->cclass,cla) == NULL) continue;
 
 			xconn = malloc(sizeof(*xconn));
 			if(xconn != NULL) {
@@ -1110,8 +1128,7 @@ run_rp(struct conninfo *conn, char what)
 				conn->cg->refs++;
 				/* dropgrab(conn->cg; ** is new anyway */
 				xconn->cg = conn->cg;
-				xconn->next = theconn;
-				theconn = xconn;
+				xconn->next = isdn4_conn; isdn4_conn = xconn;
 				dropconn(xconn);
 			}
 			if(strchr(pr->type,'s') == NULL)
@@ -1156,7 +1173,7 @@ printf("StoredErr; ");
 		if(strchr(what->type,'B') != NULL || strchr(what->type,'p') != NULL) {
 			struct conninfo *conn;
 
-			for(conn = theconn; conn != NULL; conn = conn->next) {
+			for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 				if(conn->ignore || (conn->cg == NULL))
 					continue;
 				if(strcmp(conn->cg->site,what->site))
@@ -1181,6 +1198,8 @@ printf("run %s:%s; ",what->site,what->protocol);
 					cg->flags |= F_OUTGOING;
 				err = runprog(what,&conn,&cg);
 				if(conn != NULL) {
+					conn->cardname = what->card;
+					conn->classname = what->cclass;
 					kill_rp(conn,'t');
 					run_rp(conn,'i');
 				}
@@ -1219,7 +1238,7 @@ has_progs(void)
 	struct conninfo *conn;
 	if(!quitnow)
 		return 1;
-	for(conn = theconn; conn != NULL; conn = conn->next) {
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 		if(conn->ignore)
 			continue;
 		if(conn->pid != 0)
@@ -1237,7 +1256,7 @@ kill_progs(struct conninfo *xconn)
 	struct conninfo *conn, *nconn;
 	if(!quitnow)
 		in_boot = 1;
-	for(conn = theconn; conn != NULL; conn = nconn) {
+	for(conn = isdn4_conn; conn != NULL; conn = nconn) {
 		nconn = conn->next;
 		if(conn->ignore)
 			continue;

@@ -174,12 +174,12 @@ report_adddate (mblk_t * mb, uchar_t * data, int len)
 	int qd_len;
 	uchar_t *qd_data;
 
-	qd_data = qd_find (data, len, 6, PT_N6_Date, &qd_len);
+	qd_data = qd_find (data, len, 6, PT_N6_date, &qd_len);
 	if (qd_data == NULL)
 		return;
 	if (qd_len < 1)
 		return;
-	m_putsx (mb, ID_N6_Date);
+	m_putsx (mb, ID_N6_date);
 	m_puts (mb, qd_data, qd_len);
 }
 
@@ -204,12 +204,12 @@ report_addstatus (mblk_t * mb, uchar_t * data, int len)
 	int qd_len;
 	uchar_t *qd_data;
 
-	qd_data = qd_find (data, len, 6, PT_N6_StatusCalled, &qd_len);
+	qd_data = qd_find (data, len, 6, PT_N6_statusCalled, &qd_len);
 	if (qd_data == NULL)
 		return;
 	if (qd_len < 1)
 		return;
-	m_putsx (mb, ID_N6_StatusCalled);
+	m_putsx (mb, ID_N6_statusCalled);
 	switch (*qd_data) {
 	case N1_St_Unknown:
 		m_putsx2 (mb, ID_N1_St_Unknown);
@@ -223,7 +223,8 @@ report_addstatus (mblk_t * mb, uchar_t * data, int len)
 	m_puts (mb, qd_data, qd_len);
 }
 
-ushort_t n1_causetoid(uchar_t id)
+ushort_t
+n1_causetoid(uchar_t id)
 {
 	switch(id) {
 		default:					return CHAR2('?','?');
@@ -258,7 +259,8 @@ ushort_t n1_causetoid(uchar_t id)
 	}
 }
 
-uchar_t n1_idtocause(ushort_t id)
+uchar_t
+n1_idtocause(ushort_t id)
 {
 	switch(id) {
 		default:						return 0;
@@ -293,7 +295,8 @@ uchar_t n1_idtocause(ushort_t id)
 	}
 }
 
-ushort_t n1_facsubtoid(uchar_t id)
+ushort_t
+n1_facsubtoid(uchar_t id)
 {
 	switch(id) {
 		default:					return CHAR2('?','?');
@@ -304,7 +307,8 @@ ushort_t n1_facsubtoid(uchar_t id)
 	}
 }
 
-ushort_t n1_factoid(uchar_t id)
+ushort_t
+n1_factoid(uchar_t id)
 {
 	switch(id) {
 		default:						return CHAR2('?','?');
@@ -330,7 +334,8 @@ ushort_t n1_factoid(uchar_t id)
 	}
 }
 
-uchar_t n1_idtofacsub(ushort_t id)
+uchar_t
+n1_idtofacsub(ushort_t id)
 {
 	switch(id) {
 		default:						return 0;
@@ -341,7 +346,8 @@ uchar_t n1_idtofacsub(ushort_t id)
 	}
 }
 
-uchar_t n1_idtofac(ushort_t id)
+uchar_t
+n1_idtofac(ushort_t id)
 {
 	switch(id) {
 		default:							return 0;

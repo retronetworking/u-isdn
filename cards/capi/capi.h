@@ -9,7 +9,7 @@
 # define _APIDEF_H_
 /* static char _sccsid_apidef_h[] = "@(#)apidef.h	1.28"; */
 
-#if defined __GNUC__
+#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 6))
 # define PACK __attribute__ ((packed))
 # define _PACK
 #else
@@ -107,56 +107,117 @@
 /*              CAPI error codes                                        */
 /*                                                                      */
 /************************************************************************/
+#define   ID_E_REGISTER 					CHAR2('%','Y')
 #define CAPI_E_REGISTER                  0x1001
+#define   ID_E_APPLICATION 					CHAR2('%','X')
 #define CAPI_E_APPLICATION               0x1002
+#define   ID_E_MSGLENGTH 					CHAR2('%','W')
 #define CAPI_E_MSGLENGTH                 0x1003
+#define   ID_E_COMMAND 						CHAR2('%','V')
 #define CAPI_E_COMMAND                   0x1004
+#define   ID_E_QUEUEFULL 					CHAR2('%','U')
 #define CAPI_E_QUEUEFULL                 0x1005
+#define   ID_E_NOMSG 						CHAR2('%','T')
 #define CAPI_E_NOMSG                     0x1006
+#define   ID_E_MSGOVERFLOW 					CHAR2('%','S')
 #define CAPI_E_MSGOVERFLOW               0x1007
+#define   ID_E_DEINSTALL 					CHAR2('%','R')
 #define CAPI_E_DEINSTALL                 0x1008
+#define   ID_E_CONTROLLER 					CHAR2('%','Q')
 #define CAPI_E_CONTROLLER                0x2001
+#define   ID_E_PLCI 						CHAR2('%','P')
 #define CAPI_E_PLCI                      0x2002
+#define   ID_E_NCCI 						CHAR2('%','O')
 #define CAPI_E_NCCI                      0x2003
+#define   ID_E_TYPE     					CHAR2('%','4')
+#define CAPI_E_TYPE                      0x2004
+#define   ID_E_BCHANNEL 					CHAR2('%','N')
 #define CAPI_E_BCHANNEL                  0x3101
+#define   ID_E_INFOMASK 					CHAR2('%','M')
 #define CAPI_E_INFOMASK                  0x3102
+#define   ID_E_EAZMASK 						CHAR2('%','L')
 #define CAPI_E_EAZMASK                   0x3103
+#define   ID_E_SIMASK 						CHAR2('%','K')
 #define CAPI_E_SIMASK                    0x3104
+#define   ID_E_B2PROTO 						CHAR2('%','J')
 #define CAPI_E_B2PROTO                   0x3105
+#define   ID_E_DLPD 						CHAR2('%','I')
 #define CAPI_E_DLPD                      0x3106
+#define   ID_E_B3PROTO 						CHAR2('%','H')
 #define CAPI_E_B3PROTO                   0x3107
+#define   ID_E_NCPD 						CHAR2('%','G')
 #define CAPI_E_NCPD                      0x3108
+#define   ID_E_NCPI 						CHAR2('%','F')
 #define CAPI_E_NCPI                      0x3109
+#define   ID_E_DATAB3FLAGS 					CHAR2('%','E')
 #define CAPI_E_DATAB3FLAGS               0x310a
+#define   ID_E_CONTROLLERFAILED 			CHAR2('%','D')
 #define CAPI_E_CONTROLLERFAILED          0x3201
+#define   ID_E_REGCONFLICT 					CHAR2('%','C')
 #define CAPI_E_REGCONFLICT               0x3202
+#define   ID_E_CMDNOTSUPPORTED 				CHAR2('%','B')
 #define CAPI_E_CMDNOTSUPPORTED           0x3203
+#define   ID_E_PLCIACT 						CHAR2('%','A')
 #define CAPI_E_PLCIACT                   0x3204
+#define   ID_E_NCCIACT 						CHAR2('%','z')
 #define CAPI_E_NCCIACT                   0x3205
+#define   ID_E_B2NOTSUPPORT 				CHAR2('%','y')
 #define CAPI_E_B2NOTSUPPORT              0x3206
+#define   ID_E_B2STATE 						CHAR2('%','x')
 #define CAPI_E_B2STATE                   0x3207
+#define   ID_E_B3NOTSUPPORT 				CHAR2('%','w')
 #define CAPI_E_B3NOTSUPPORT              0x3208
+#define   ID_E_B3STATE 						CHAR2('%','v')
 #define CAPI_E_B3STATE                   0x3209
+#define   ID_E_B2DLPDPARA 					CHAR2('%','u')
 #define CAPI_E_B2DLPDPARA                0x320a
+#define   ID_E_B3NCPDPARA 					CHAR2('%','t')
 #define CAPI_E_B3NCPDPARA                0x320b
+#define   ID_E_B3NCPIPARA 					CHAR2('%','5')
+#define CAPI_E_B3NCPIPARA                0x320c
+#define   ID_E_DATALEN 						CHAR2('%','s')
 #define CAPI_E_DATALEN                   0x320d
+#define   ID_E_DTMF 						CHAR2('%','q')
 #define CAPI_E_DTMF                      0x320e
+#define   ID_E_NOL1 						CHAR2('%','p')
 #define CAPI_E_NOL1                      0x3301
+#define   ID_E_NOL2 						CHAR2('%','o')
 #define CAPI_E_NOL2                      0x3302
+#define   ID_E_SETUPBCHANLAYER1 			CHAR2('%','n')
 #define CAPI_E_SETUPBCHANLAYER1          0x3303
+#define   ID_E_SETUPBCHANLAYER2 			CHAR2('%','m')
 #define CAPI_E_SETUPBCHANLAYER2          0x3304
+#define   ID_E_ABORTDCHANLAYER1 			CHAR2('%','1')
+#define CAPI_E_ABORTDCHANLAYER1          0x3305
+#define   ID_E_ABORTDCHANLAYER2 			CHAR2('%','2')
+#define CAPI_E_ABORTDCHANLAYER2          0x3306
+#define   ID_E_ABORTDCHANLAYER3 			CHAR2('%','3')
+#define CAPI_E_ABORTDCHANLAYER3          0x3307
+#define   ID_E_ABORTBCHANLAYER1 			CHAR2('%','l')
 #define CAPI_E_ABORTBCHANLAYER1          0x3308
+#define   ID_E_ABORTBCHANLAYER2 			CHAR2('%','k')
 #define CAPI_E_ABORTBCHANLAYER2          0x3309
+#define   ID_E_ABORTBCHANLAYER3 			CHAR2('%','j')
 #define CAPI_E_ABORTBCHANLAYER3          0x330a
+#define   ID_E_REBCHANLAYER2 				CHAR2('%','6')
+#define CAPI_E_REBCHANLAYER2             0x330b
+#define   ID_E_REBCHANLAYER3 				CHAR2('%','i')
 #define CAPI_E_REBCHANLAYER3             0x330c
-
+#define   ID_E_NOFAX 						CHAR2('%','h')
 #define CAPI_E_NOFAX                     0x4001
+#define   ID_E_BADLINE 						CHAR2('%','g')
 #define CAPI_E_BADLINE                   0x4004
+#define   ID_E_NOANSWER 					CHAR2('%','f')
 #define CAPI_E_NOANSWER                  0x4008
+#define   ID_E_REMDISC 						CHAR2('%','e')
 #define CAPI_E_REMDISC                   0x4009
+#define   ID_E_NOCMD 						CHAR2('%','d')
 #define CAPI_E_NOCMD                     0x400a
+#define   ID_E_INCOMPAT 					CHAR2('%','c')
 #define CAPI_E_INCOMPAT                  0x400b
+#define   ID_E_BADDATA 						CHAR2('%','b')
 #define CAPI_E_BADDATA                   0x400c
+#define   ID_E_PROTO 						CHAR2('%','a')
 #define CAPI_E_PROTO                     0x400d
 
 

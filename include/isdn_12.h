@@ -67,9 +67,9 @@ typedef int (*C_data) (struct _isdn1_card * card, short channel, mblk_t * data);
 typedef int (*C_flush) (struct _isdn1_card * card, short channel);
 
 struct _isdn1_card {
-	ushort nr_chans;			  /* Basic access has 2, cheap cards have just
-								   * one. */
-	void *ctl;				  /* Pointer for L1 data structures, card
+	uchar_t nr_chans;			  /* total per card */
+	uchar_t nr_dchans;			  /* zero == one. */
+	void *ctl;				  /* Pointer for L2 data structures, card
 								   * drivers must not touch this. */
 #if 0
 	struct _isdn_chan *chan;		  /* Pointer to array. First is the D channel. */
@@ -105,6 +105,11 @@ extern int isdn2_unregister (struct _isdn1_card *card);
  * Report change of level 1 state. Zero is down.
  */
 extern void isdn2_new_state (struct _isdn1_card *card, char state);
+
+/*
+ * Report errors / changes in card state, for intelligent cards
+ */
+extern void isdn2_chstate (struct _isdn1_card *card, uchar_t ind, short add);
 
 /*
  * Callback to test availability of queue space. Cards are not required to call

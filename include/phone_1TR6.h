@@ -128,14 +128,14 @@
 #define ID_N6_serviceInd CHAR2('s','I')
 #define PT_N6_chargingInfo 0x02
 #define ID_N6_chargingInfo CHAR2('C','I')
-#define PT_N6_Date 0x03
-#define ID_N6_Date CHAR2('D','a')
-#define PT_N6_FacSelect 0x05
-#define ID_N6_FacSelect CHAR2('F','S')
-#define PT_N6_FacStatus 0x06
-#define ID_N6_FacStatus CHAR2('F','s')
-#define PT_N6_StatusCalled 0x07
-#define ID_N6_StatusCalled CHAR2('S','C')
+#define PT_N6_date 0x03
+#define ID_N6_date CHAR2('D','a')
+#define PT_N6_facSelect 0x05
+#define ID_N6_facSelect CHAR2('F','S')
+#define PT_N6_facStatus 0x06
+#define ID_N6_facStatus CHAR2('F','s')
+#define PT_N6_statusCalled 0x07
+#define ID_N6_statusCalled CHAR2('S','C')
 #define PT_N6_addTransAttr 0x08
 #define ID_N6_addTransAttr CHAR2('t','A')
 

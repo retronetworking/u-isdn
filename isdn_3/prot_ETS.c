@@ -437,6 +437,12 @@ printf("FacL 8 is %d %d\n",ilen,nlen);
 					ilen--;
 				}
 
+#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 6))
+#define UNUSED __attribute__((unused))
+#else
+#define UNUSED
+#endif
+
 #define FOO1(s,a,b) \
 				while(nlen > 1) {									\
 					int ilen = qd_data[1];							\
@@ -446,7 +452,7 @@ printf("FooL" ##s " is %d,%d\n",nlen,ilen); 						\
 					}												\
 					nlen -= ilen+2;									\
 					if((*qd_data & 0xFF) == (a)) {					\
-						int nlen __attribute__((unused)) = ilen;	\
+						int nlen UNUSED = ilen;						\
 						qd_data += 2;								\
 						b;											\
 					} else {										\
@@ -668,20 +674,29 @@ get_ET_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t *nrpos, uchar_t wha
 	if (qd_len < 1)
 		return 0;
 	switch(*qd_data & 0x70) {
-	case 0x00:
-		              break; /* unknown */
-	case 0x10:
-		*nrpos++='+'; break; /* international */
-	case 0x20:
-		*nrpos++='='; break; /* national */
-	case 0x30:
-		              break; /* network specific */
-	case 0x40:
-		*nrpos++='-'; break; /* subscriber */
-	case 0x60:
-		*nrpos++='.'; break; /* abbreviated */
-	case 0x70:
-		*nrpos++='x'; break; /* extension */
+	case 0x00: /* unknown */
+		if(qd_data[0] == 0x00 && qd_data[1] == 0x83)
+			*nrpos++ = '='; /* at least one PBX is stupid */
+		else if(qd_data[0] == 0x81)
+			*nrpos++='.'; /* the very same PBX */
+		break;
+	case 0x10: /* international */
+		*nrpos++='+';
+		break;
+	case 0x20: /* national */
+		*nrpos++='=';
+		break;
+	case 0x30: /* network specific */
+		break;
+	case 0x40: /* subscriber */
+		*nrpos++='-';
+		break;
+	case 0x60: /* abbreviated */
+		*nrpos++='.';
+		break;
+	case 0x70: /* extension */
+		*nrpos++='.';
+		break;
 	}
 	while (qd_len-- > 0 && (*qd_data++ & 0x80) == 0) ;
 	if (qd_len < 1)

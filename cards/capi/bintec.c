@@ -32,6 +32,7 @@
 #include <sys/sysmacros.h>
 #include <stddef.h>
 #include "loader.h"
+#include "kernel.h"
 
 #ifdef linux
 #include <asm/byteorder.h> /* htons and friends */
@@ -316,12 +317,15 @@ printf("d");
 	switch(bp->type) {
 	case BOARD_ID_PMX:
 		bp->card.nr_chans = 30;
+		bp->card.nr_dchans = 1;
 		break;
 	case BOARD_ID_BRI:
 		bp->card.nr_chans = 2;
+		bp->card.nr_dchans = 1;
 		break;
 	case BOARD_ID_BRI4:
 		bp->card.nr_chans = 8;
+		bp->card.nr_dchans = 4;
 		break;
 	default:
 		printf("BINTEC: unknown board ID %d\n",bp->type);
@@ -455,7 +459,7 @@ putstart(struct _bintec *bp, int len)
 		splx(ms);
 		return -EAGAIN;
 	}
-	DEBUG(capiout) printf("BINTEC write %d bytes at %d, free %d\n",len,wi,space);
+	if(0)DEBUG(capiout) printf("BINTEC write %d bytes at %d, free %d\n",len,wi,space);
 	bp->sndoffset = wi;
 	bp->sndbufsize = sz;
 	bp->sndend = (wi+len+2) % sz;
@@ -589,7 +593,7 @@ getstart(struct _bintec *bp)
 		bp->rcvoffset = sz;
 		return -EFAULT;
 	}
-	DEBUG(capi) printf("BINTEC: reading %d bytes at %d\n",len,ri);
+	if(0)DEBUG(capi) printf("BINTEC: reading %d bytes at %d\n",len,ri);
 	bp->rcvend = (ri + len + 2) % sz;
 	return len;
 }
@@ -925,11 +929,18 @@ sendone(struct _bintec *bp, int thechan)
 	else
 		len += 2;
 	DEBUG(capiout) {
+		if(thechan == 0) {
+			struct CAPI_every_header *capi;
+			capi = ((typeof(capi))mb->b_rptr);
+			if(capi->PRIM_type == CAPI_ALIVE_RESP)
+				goto foo;
+		}
 		printf("BINTEC: Send %d bytes on chan %d",len,thechan);
 		if(thechan == 0)
 			log_printmsg(NULL,": ",mb,">>");
 		else
 			printf("\n");
+		foo:;
 	}
 	err = putstart(bp,len > MAXSEND ? MAXSEND : len ); /* auto-puts the length */
 	if(err >= 0) {
@@ -1025,14 +1036,20 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 	int err;
 	struct CAPI_every_header *capi;
 
-	DEBUG(capi) log_printmsg(NULL,"BINTEC read packet:",mb,"> ");
-
 	capi = (typeof(capi))mb->b_rptr;
+
+	DEBUG(capi) if(capi->PRIM_type != CAPI_ALIVE_IND) log_printmsg(NULL,"BINTEC read packet:",mb,"> ");
+
 	switch(capi->PRIM_type) {
 	case CAPI_ALIVE_IND:
 		err = 0;
 		capi->PRIM_type = CAPI_ALIVE_RESP;
-		S_enqueue(&bp->chan[0].q_out,mb);
+		if(bp->chan[0].q_out.nblocks < 100)
+			S_enqueue(&bp->chan[0].q_out,mb);
+		else {
+			isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
+			return -EIO;
+		}
 		if(bp->chan[0].q_out.nblocks == 1)
 			sendone(bp,0);
 		break;
@@ -1058,8 +1075,15 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 				chan = &bp->chan[ch];
 			else
 				return -ERESTART;
-			S_enqueue(&chan->q_in,mb);
-			if(chan->q_out.nblocks == 1)
+			if(chan->q_in.nblocks < 200)
+				S_enqueue(&chan->q_in,mb);
+			else {
+				freemsg(mb);
+				/* TODO: Throw the connection away. Right now we kill the
+				   card instead. */
+				isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
+			}
+			if(chan->q_in.nblocks == 1)
 				pushone(bp,ch);
 		}
 		break;
@@ -1093,7 +1117,12 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 	default:
 		if(!isdn2_canrecv(&bp->card,0)) {
 			printf("BINTEC read: cannot accept packet\n");
-			S_enqueue(&bp->chan[0].q_in,mb);
+			if(bp->chan[0].q_in.nblocks < 100)
+				S_enqueue(&bp->chan[0].q_in,mb);
+			else {
+				printf("BINTEC: incoming queue full\n");
+				isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
+			}
 			return 0;
 		} else if((err = isdn2_recv(&bp->card,0,mb)) != 0) {
 			printf("BINTEC read error: err %d\n",err);
@@ -1188,8 +1217,8 @@ DoIRQ(struct _bintec *bp)
 		err = getstart(bp);
 		if(err >= 0) {
 			int len = err;
-			if(err < 4) {
-				if(bp->waitmsg > 0) {
+			if((err < 4) || (bp->waitmsg > 0)) {
+				if((err == 1) && (bp->waitmsg > 0)) {
 					if(!--bp->waitmsg) {
 						DEBUG(info) printf("BINTEC: card is online\n");
 						isdn2_new_state(&bp->card,1);
@@ -1199,7 +1228,6 @@ DoIRQ(struct _bintec *bp)
 				err = getend(bp);
 				continue;
 			}
-			/* XXX figure out the channel, use a smaller offset */
 			err = get16(bp);
 			len -= 2;
 			if(err == htons(1)) {
@@ -1257,6 +1285,10 @@ DoIRQ(struct _bintec *bp)
 							linkb(mb,m2);
 						}
 					}
+				} else if(len < capilen) {
+					DEBUG(info)printf("BINTEC:read: want %d bytes, got %d\n",capilen,len),
+					freemsg(mb);
+					continue;
 				}
 				switch(capi->PRIM_type) {
 				case CAPI_DATAB3_CONF:
@@ -1269,7 +1301,18 @@ DoIRQ(struct _bintec *bp)
 				if(err >= 0) {
 					err = postproc(bp,mb,ch);
 					if(err == -ERESTART) {
-						S_enqueue(&bp->q_unknown,mb);
+						static int prcnt;
+						if(bp->q_unknown.nblocks > 100) {
+							if(prcnt < 3) {
+								prcnt++;
+								DEBUG(info)printf("BINTEC:read: 'unknown data' queue full\n");
+							}
+							freemsg(mb);
+						} else {
+							S_enqueue(&bp->q_unknown,mb);
+							if(prcnt)
+								prcnt--;
+						}
 						err = 0;
 					}
 				}

@@ -274,7 +274,7 @@ log_printmsg (void *xlog, const char *text, mblk_t * mp, const char *prefix)
 
 				printf ("%s%03x ",pprefix,i);
 #ifdef KERNEL
-				if(i >= 3*BLOCKSIZE && l > 4*BLOCKSIZE) { /* Skip the stuff in the middle */
+				if(i >= 4*BLOCKSIZE && l > 4*BLOCKSIZE) { /* Skip the stuff in the middle */
 					l -= 3*BLOCKSIZE + (l % BLOCKSIZE);
 					printf("[... %d bytes (0x%x) skipped ...]\n",l,l);
 					dp += l;

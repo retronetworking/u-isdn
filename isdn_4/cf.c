@@ -102,6 +102,27 @@ skipword (char **li)
 }
 #endif
 
+void
+do_subclass(cf c)
+{
+	char *info;
+	if((info = strchr(c->card,'/')) != NULL) {
+		int x = 0;
+		*info++ = '\0';
+		c->mask = 0;
+		while(*info != 0) {
+			if(*info >= '0' && *info <= '9') {
+				x = x * 10 + *info - '0';
+			} else if(x != 0) {
+				c->mask = 1<<(x-1);
+				x = 0;
+			}
+			info++;
+		}
+	} else 
+		c->mask = ~0;
+}
+
 /* Read a config file */
 void
 read_file (FILE * ffile, char *errf)
@@ -124,6 +145,7 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->type = li;
 			if (skipsp (&li)) c->args = ""; else c->args = li;
+			do_subclass(c);
 			chkone(c);
 			c->protocol = str_enter(c->protocol);
 			c->site     = str_enter(c->site);
@@ -150,6 +172,7 @@ read_file (FILE * ffile, char *errf)
 						break;
 				}
 			}
+			do_subclass(c);
 			chkone(c);
 			c->protocol = str_enter(c->protocol);
 			c->site     = str_enter(c->site);
@@ -170,6 +193,7 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->arg = li;
 			if (skipsp (&li)) break; c->args = li;
 			chkone(c);
+			do_subclass(c);
 			c->protocol = str_enter(c->protocol);
 			c->site     = str_enter(c->site);
 			c->cclass   = str_enter(c->cclass);
@@ -190,6 +214,7 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->type = li;
 			if (!skipsp (&li)) c->arg = li;
 			chkone(c);
+			do_subclass(c);
 			c->protocol = str_enter(c->protocol);
 			c->site     = str_enter(c->site);
 			c->cclass   = str_enter(c->cclass);
@@ -205,6 +230,7 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->arg = li;
 			if (skipsp (&li)) c->args = ""; else c->args = li;
 			chkone(c);
+			do_subclass(c);
 			c->cclass   = str_enter(c->cclass);
 			c->card     = str_enter(c->card);
 			c->arg      = str_enter(c->arg);
@@ -218,6 +244,7 @@ read_file (FILE * ffile, char *errf)
 			if (!skipsp (&li)) c->args = li; else c->args = c->arg;
 			if(c->args[0] == '\0') c->args = c->arg;
 			chkone(c);
+			do_subclass(c);
 			c->card     = str_enter(c->card);
 			c->arg      = str_enter(c->arg);
 			c->args     = str_enter(c->args);
@@ -240,6 +267,7 @@ read_file (FILE * ffile, char *errf)
 				if ((pw = getpwnam (username)) == NULL)
 					break;
 				chkone(c);
+				do_subclass(c);
 				c->num = pw->pw_uid;
 				c->num2 = pw->pw_gid;
 				c->protocol = str_enter(c->protocol);
@@ -265,6 +293,7 @@ read_file (FILE * ffile, char *errf)
 				if ((pw = getpwnam (username)) == NULL)
 					break;
 				chkone(c);
+				do_subclass(c);
 				c->num      = pw->pw_uid;
 				c->num2     = pw->pw_gid;
 				c->protocol = str_enter(c->protocol);
@@ -283,6 +312,7 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->arg = li;
 			if(!skipsp (&li)) break;
 			chkone(c);
+			do_subclass(c);
 			c->card     = str_enter(c->card);
 			c->arg      = str_enter(c->arg);
 			c->num2     = ++seqnum;
@@ -295,20 +325,26 @@ read_file (FILE * ffile, char *errf)
 				break;
 			if (skipsp (&li)) break;
 			chkone(c);
+			do_subclass(c);
 			c->arg = li;
 			c->card     = str_enter(c->card);
 			app (&cf_CM, c);
 			continue;
 		case CHAR2 ('C', 'L'):
-			if (skipsp (&li)) break; c->card = li;
+			if (skipsp (&li)) break; c->protocol = li;
+			if (skipsp (&li)) break; c->site = li;
 			if (skipsp (&li)) break; c->cclass = li;
+			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break;
 			if ((c->num = atoi (li)) == 0 && li[0] != '0')
 				break;;
 			if (!skipsp (&li)) c->args = li;
 			chkone(c);
+			do_subclass(c);
+			c->protocol = str_enter(c->protocol);
 			c->site     = str_enter(c->site);
 			c->cclass   = str_enter(c->cclass);
+			c->card     = str_enter(c->card);
 			c->args     = str_enter(c->args);
 			app (&cf_CL, c);
 			continue;
@@ -344,7 +380,7 @@ read_args (void *nix)
 	CFREE (cf_CL);
 	seqnum = 0;
 
-	for(conn=theconn; conn != NULL; conn = conn->next) {
+	for(conn=isdn4_conn; conn != NULL; conn = conn->next) {
 		if((cg = conn->cg) == NULL)
 			continue;
 		cg->dl = NULL;

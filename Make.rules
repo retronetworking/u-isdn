@@ -19,6 +19,7 @@ unexport DOCARDS
 unexport WHAT
 unexport REALSOURCE
 unexport DOSRC
+unexport SUBDIRS
 
 ifneq ($(strip $(DOCARDS)),)
 KERNEL=1

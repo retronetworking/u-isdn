@@ -18,20 +18,26 @@
 #include "asm/byteorder.h"
 #include "sapi.h"
 
+#define NBOARD 4 /* number of D channels on one card */
 
-#if NICONN <= 14
-#error "Need NICONN > 14"
-#endif
-#if NITALK <= 1
-#error "Need NITALK > 1"
-#endif
-#define message_id talki[0]
-#define tstate talki[1]
+#define ST_pbx 2 /* Bits! */
 
+#if NITALK <=NBOARD+3 
+#error "Need NITALK > NBOARD+3"
+#endif
+#define tappl talki
+#define regnum talki[NBOARD+0] /* current interface I'm talking about */
+#define message_id talki[NBOARD+1] /* Expected msgid for current interface */
+#define tstate talki[NBOARD+2] /* State of the current interface */
+#define lasteaz talki[NBOARD+3] /* last EAZ we used up */
+
+#if NICONN <= 15
+#error "Need NICONN > 15"
+#endif
 #define ncci0 conni[0]
-#define waitflags conni[1]
-#define msgid0 conni[2]
-#define WF_CONNECTACTIVE_IND    3
+#define waitflags conni[1] /* what're we waiting for */
+#define msgid0 conni[2] /* for connect_resp */
+#define WF_CONNECTACTIVE_IND    3 /* conni[WF_*] for IDs pertaining to that message */
 #define WF_CONNECTB3ACTIVE_IND  4
 #define WF_DISCONNECTB3_IND     5
 #define WF_DISCONNECT_IND       6
@@ -43,6 +49,7 @@
 #define WF_DISCONNECTB3_CONF   12
 #define WF_DISCONNECT_CONF     13
 #define WF_CONNECT_CONF        14
+#define WF_CONTROL_EAZ         15
 
 /* Card states */
 #define STATE_BOOTING 1
@@ -53,19 +60,29 @@
 #define STATE_CONF_LAST 99
 #define STATE_RUNNING 100
 
-#define RUN_CAPI_TALERT 01
+#define STATE_DEAD 255
 
-#define VAL_CAPI_TALERT ( 2 *HZ)    /* timer for delaying an ALERT response */
+#define RUN_CAPI_TCONN 01
+#define RUN_CAPI_TWAITEAZ 02
+#define RUN_CAPI_TFOO 04
 
-static void CAPI_TALERT (isdn3_conn conn);
+#define VAL_CAPI_TCONN ( 40 *HZ)    /* timer for delaying an ALERT response */
+#define VAL_CAPI_TWAITEAZ ( HZ/2)    /* timer for waiting for the EAZ */
+#define VAL_CAPI_TFOO ( 10 * HZ)    /* timer for waiting for teardown */
+
+static void CAPI_TCONN (isdn3_conn conn);
+static void CAPI_TWAITEAZ (isdn3_conn conn);
+static void CAPI_TFOO (isdn3_conn conn);
 
 /* Connection states:
   0: unknown
 
-  1: outgoing, wait for CONNECT_CONF 
-  2: outgoing, wait for CONNECTACTIVE_IND SELECTB2_CONF SELECTB3_CONF
-  3: outgoing, wait for CONNECTB3_CONF CONNECTB3ACTIVE_IND
+  1: outgoing, wait for EAZ
+  2: outgoing, wait for CONNECT_CONF 
+  3: outgoing, wait for CONNECTACTIVE_IND SELECTB2_CONF SELECTB3_CONF
+  4: outgoing, wait for CONNECTB3_CONF CONNECTB3ACTIVE_IND
 
+  6: incoming, wait for EAZ
   7: incoming, wait for master program
   8: incoming, wait for SELECTB2_CONF SELECTB3_CONF
   9: incoming, wait for LISTENB3_CONF CONNECTACTIVE_IND CONNECTB3_CONF CONNECTB3ACTIVE_IND
@@ -75,42 +92,64 @@ static void CAPI_TALERT (isdn3_conn conn);
  20: wait for DISCONNECTB3_CONF DISCONNECTB3_IND
  21: wait for DISCONNECT_CONF DISCONNECT_IND
  22: wait for DISCONNECTB3_CONF DISCONNECTB3_IND DISCONNECT_CONF DISCONNECT_IND
+ 99: delay wait 
 */
 
 struct capi_info {
 	unsigned short service;
+	unsigned char subcard;
+	unsigned char bchan;
 	unsigned char flags;
-	unsigned char eaz;
+#define INF_SPV 01
+	unsigned char lnr[MAXNR];
 	unsigned char nr[MAXNR];
 };
 
 
 extern void log_printmsg (void *log, const char *text, mblk_t * mp, const char*);
 
+ushort_t capi_infotoid(ushort_t info);
+static int report_incoming (isdn3_conn conn);
+static int send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause);
+static void checkterm (isdn3_conn conn);
 
 static void
 capi_timerup (isdn3_conn conn)
 {
-    rtimer (CAPI_TALERT, conn);
+    rtimer (CAPI_TCONN, conn);
+    rtimer (CAPI_TWAITEAZ, conn);
+    rtimer (CAPI_TFOO, conn);
 }
 
 #define setstate(a,b) Xsetstate(__LINE__,(a),(b))
 static void
 Xsetstate(unsigned int deb_line, isdn3_conn conn, uchar_t state)
 {
-printf ("Conn CAPI:%d %08lx: State %d --> %d\n", deb_line, conn->call_ref, conn->state, state);
+printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn->state, state);
 
 	if(conn->state == state)
 		return;
+	if(conn->state >= 1 && conn->state < 15 && (state < 1 || state >= 15))
+		untimer(CAPI_TCONN, conn);
 	switch(conn->state) {
-	case 13:
-		untimer(CAPI_TALERT, conn);
+	case 6:
+		untimer(CAPI_TWAITEAZ, conn);
+		break;
+	case 99:
+		untimer(CAPI_TFOO, conn);
 		break;
 	}
+	if(state >= 1 && state < 15 && (conn->state < 1 || conn->state >= 15))
+		timer(CAPI_TCONN,conn);
+
 	conn->state = state;
+
 	switch(state) {
-	case 13:
-		timer(CAPI_TALERT,conn);
+	case 6:
+		timer(CAPI_TWAITEAZ,conn);
+		break;
+	case 99:
+		timer(CAPI_TFOO,conn);
 		break;
 	}
 }
@@ -136,7 +175,7 @@ capi_send(isdn3_talk talk, ushort_t appl, ushort_t msgtype, mblk_t *data, ushort
 	capi = ((struct CAPI_every_header *)mb->b_wptr)++;
 	bzero(capi,sizeof(*capi));
 	capi->len = sizeof(*capi) + (data ? msgdsize(data) : 0);
-	capi->appl = 0;
+	capi->appl = appl;
 	capi->PRIM_type = msgtype;
 	capi->messid = msgid;
 
@@ -173,16 +212,33 @@ capi_sendctl(isdn3_talk talk, ushort_t appl, ushort_t code, mblk_t *data, ushort
  * LLHH type CCCC protocol ...
  */
 
-
 static void
-CAPI_TALERT(isdn3_conn conn)
+CAPI_TWAITEAZ(isdn3_conn conn)
 {
-	printf("CAPI_TALERT %08lx\n",conn->call_ref);
+	printf("CAPI_TWAITEAZ %05lx\n",conn->call_ref);
+	conn->timerflags &= ~RUN_CAPI_TWAITEAZ;
 	if(conn->state != 6)
 		return;
-	/* Hmmm. Do we really have to do this?  I think not... */
-	/* So let's try without. */
-	conn->timerflags &= ~RUN_CAPI_TALERT;
+	report_incoming(conn);
+}
+
+static void
+CAPI_TFOO(isdn3_conn conn)
+{
+	printf("CAPI_TFOO %05lx\n",conn->call_ref);
+	conn->timerflags &= ~RUN_CAPI_TFOO;
+	setstate(conn,0);
+	checkterm(conn);
+}
+
+static void
+CAPI_TCONN(isdn3_conn conn)
+{
+	printf("CAPI_TCONN %05lx\n",conn->call_ref);
+	conn->timerflags &= ~RUN_CAPI_TCONN;
+	if(conn->state < 1 || conn->state >= 15)
+		return;
+	send_disconnect(conn,0,0);
 }
 
 static int
@@ -225,7 +281,91 @@ send_setup(isdn3_conn conn)
 		err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_SELECTB3_REQ, m3, conn->conni[WF_SELECTB3_CONF] = newmsgid(conn->talk));
 		if(err < 0)
 			freemsg(m3);
+		else {
+			conn->waitflags  = 1 << WF_SELECTB2_CONF;
+			conn->waitflags |= 1 << WF_SELECTB3_CONF;
+		}
 	}
+	return err;
+}
+
+static int
+send_open(isdn3_talk talk)
+{
+	struct apiopen *capi;
+	int err;
+	mblk_t *data;
+#ifdef _euro_
+#define DEFPROFILE "u_dss1_pmp"
+#endif
+#ifndef DEFPROFILE
+#define DEFPROFILE "u_1tr6_pmp"
+#endif
+	char profile[32] = DEFPROFILE;
+	{	/* Find correct driver name */
+		int err; char skip = 0;
+		mblk_t *info = talk->card->info;
+		if(info != NULL) {
+			streamchar *sta = info->b_rptr;
+			ushort_t idx;
+
+			while(m_getid(info,&idx) == 0) {
+				long sap;
+				switch(idx) {
+				case ARG_PROTOCOL:
+					if (m_geti(info,&sap) == 0) {
+							skip = (sap != SAPI_CAPI);
+					}
+					break;
+				case ARG_SUBPROT:
+					if (m_geti(info,&sap) == 0 && !skip) {
+						switch(sap) {
+						case SAPI_CAPI_BINTEC:
+							skip=0;
+							break;
+						default:
+							/* Wrong card. TODO: Do something! */
+							info->b_rptr = sta;
+							return -ENXIO;
+						}
+					}
+					break;
+				case ARG_SUBCARD:
+					if (m_geti(info,&sap) == 0 && !skip) 
+						skip = (sap != talk->regnum+1);
+					break;
+				case ARG_STACK:
+					if(skip)
+						break;
+					if((err = m_getstr(info,profile,sizeof(profile)-1)) < 0)
+						strcpy(profile,DEFPROFILE);
+					break;
+				case ARG_PBX:
+					if(skip)
+						break;
+					talk->state |= 1<<(talk->regnum+ST_pbx);
+					break;
+				}
+			}
+			info->b_rptr = sta;
+		}
+	}
+
+	data = allocb(sizeof(*capi), BPRI_MED);
+	if(data == NULL) /* XXX error processing */
+		return -ENOMEM;
+	capi = ((struct apiopen *)data->b_wptr)++;
+	bzero(capi,sizeof(*capi));
+	strcpy(capi->protocol,profile);
+	capi->teid = ~0;
+	capi->t3id = ~0;
+	capi->contrl = 0;
+	capi->time = time(NULL);
+	if((err = capi_sendctl(talk,talk->tappl[talk->regnum],CONTROL_API_OPEN,data,newmsgid(talk))) < 0) {
+		freemsg(data);
+		return err;
+	}
+	talk->tstate = STATE_OPENING;
 	return err;
 }
 
@@ -237,134 +377,42 @@ chstate (isdn3_talk talk, uchar_t ind, short add)
 	case PH_ACTIVATE_NOTE:
 	case DL_ESTABLISH_IND:
 	case DL_ESTABLISH_CONF:
+		talk->regnum = 0;
 		{
-			{
-				isdn3_conn conn, nconn;
-				for(conn = talk->conn; conn != NULL; conn = nconn) {
-					nconn = conn->next;
-					capi_timerup(conn);
-				}
-			}
-			if(talk->tstate != STATE_BOOTING) {
-				/* TODO: reset / restart / XXX the card? */
-				break;
-			}
-			{
-				struct apiopen *capi;
-				int err;
-				mblk_t *data;
-#define DEFPROFILE "u_dss1_pmp"
-				char profile[32] = DEFPROFILE;
-				{	/* Find correct driver name */
-					int err; char skip = 0;
-					mblk_t *info = talk->card->info;
-					if(info != NULL) {
-						streamchar *sta = info->b_rptr;
-						ushort_t idx;
-
-						while(m_getid(info,&idx) == 0) {
-							long sap;
-							switch(idx) {
-							case ARG_PROTOCOL:
-								if (m_geti(info,&sap) == 0) {
-										skip = (sap != SAPI_CAPI);
-								}
-								break;
-							case ARG_SUBPROT:
-								if (m_geti(info,&sap) == 0 && !skip) {
-									switch(sap) {
-									case SAPI_CAPI_BINTEC:
-										skip=0;
-										break;
-									default:
-										/* Wrong card. TODO: Do something! */
-										info->b_rptr = sta;
-										return -ENXIO;
-									}
-								}
-								break;
-							case ARG_STACK:
-								if(skip)
-									break;
-								if((err = m_getstr(info,profile,sizeof(profile)-1)) < 0)
-									strcpy(profile,DEFPROFILE);
-								break;
-							}
-						}
-						info->b_rptr = sta;
-					}
-				}
-
-				data = allocb(sizeof(*capi), BPRI_MED);
-				if(data == NULL) /* XXX error processing */
-					return -ENOMEM;
-				capi = ((struct apiopen *)data->b_wptr)++;
-				bzero(capi,sizeof(*capi));
-				strcpy(capi->protocol,"u_dss1_pmp");
-				capi->teid = ~0;
-				capi->t3id = ~0;
-				capi->contrl = 0;
-				capi->time = time(NULL);
-				if((err = capi_sendctl(talk,0,CONTROL_API_OPEN,data,newmsgid(talk))) < 0) {
-					freemsg(data);
-					break;
-				}
-				talk->tstate = STATE_OPENING;
+			isdn3_conn conn, nconn;
+			for(conn = talk->conn; conn != NULL; conn = nconn) {
+				nconn = conn->next;
+				capi_timerup(conn);
 			}
 		}
-	}
-	return 0;
-
-#if 0 /* to end of function */
-	int killit = 0;
-
-	if(0)printf ("PHONE state for card %d says %s:%o\n", talk->card->nr, conv_ind(ind), add);
-	switch (ind) {
-	case DL_ESTABLISH_IND:
-	case DL_ESTABLISH_CONF:{
-			isdn3_conn conn, nconn;
-
-			for (conn = talk->conn; conn != NULL; conn = nconn) {
-				isdn3_prot prot = isdn3_findprot (talk->card->info, conn->subprotocol);
-
-				nconn = conn->next;
-				if (prot != NULL)
-					(*prot->chstate) (conn, ind, add);
-			}
-
-			talk->tstate |= PHONE_UP;
-			if(0)printf ("PHONE is UP\n");
-		} break;
-	case PH_DEACTIVATE_IND:
-		/* break; */
-	case PH_DEACTIVATE_CONF:
-	case PH_DISCONNECT_IND:
-		killit = 1;
-		/* FALL THRU */
+		if(talk->tstate != STATE_BOOTING) {
+			/* TODO: reset / restart / XXX the card? */
+			break;
+		}
+		send_open(talk);
+		break;
+	case MDL_ERROR_IND:
 	case DL_RELEASE_IND:
-	case DL_RELEASE_CONF: {
+    case DL_RELEASE_CONF:
+    case PH_DEACTIVATE_CONF:
+    case PH_DEACTIVATE_IND:
+    case PH_DISCONNECT_IND:
+		talk->regnum = 0;
+		talk->tstate = STATE_BOOTING;
+		{
 			isdn3_conn conn, nconn;
-
-			for (conn = talk->conn; conn != NULL; conn = nconn) {
-				isdn3_prot prot = isdn3_findprot (talk->card->info, conn->subprotocol);
-
+			for(conn = talk->conn; conn != NULL; conn = nconn) {
 				nconn = conn->next;
-				if (prot != NULL)
-					(*prot->chstate) (conn, ind, add);
-				else
-					isdn3_killconn (conn, 1);
+				setstate(conn,0);
+				checkterm(conn);
 			}
-
-			talk->tstate &= ~PHONE_UP;
-			if(0)printf ("PHONE i4s DOWN\n");
 		}
 		break;
 	}
 	return 0;
-#endif
 }
 
-static inline isdn3_conn
+static isdn3_conn
 capi_findconn(isdn3_talk talk, ushort_t appl, ushort_t plci)
 {
 	isdn3_conn conn;
@@ -372,35 +420,35 @@ capi_findconn(isdn3_talk talk, ushort_t appl, ushort_t plci)
 
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
 		if(conn->call_ref == cref) {
-			printf(" (conn %08lx) ",conn->call_ref);
+			printf(" (conn %05lx) ",conn->call_ref);
 			return conn;
 		}
 	}
 	return NULL;
 }
 
-static inline isdn3_conn
+static isdn3_conn
 capi_findconn3(isdn3_talk talk, ushort_t appl, ushort_t ncci)
 {
 	isdn3_conn conn;
 
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
 		if((conn->call_ref >> 16) == appl && conn->ncci0 == ncci) {
-			printf(" (conn %08lx) ",conn->call_ref);
+			printf(" (conn %05lx) ",conn->call_ref);
 			return conn;
 		}
 	}
 	return NULL;
 }
 
-static inline isdn3_conn
-capi_findconnm(isdn3_talk talk, ushort_t appl, ushort_t msgid)
+static isdn3_conn
+capi_findconnm(isdn3_talk talk, ushort_t appl, ushort_t msgid, ushort_t index)
 {
 	isdn3_conn conn;
 
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
-		if((conn->call_ref >> 16) == appl && conn->msgid0 == msgid) {
-			printf(" (conn %08lx) ",conn->call_ref);
+		if((conn->call_ref >> 16) == appl && conn->conni[index] == msgid) {
+			printf(" (conn %05lx) ",conn->call_ref);
 			return conn;
 		}
 	}
@@ -418,7 +466,7 @@ report_incoming (isdn3_conn conn)
         setstate (conn, 0);
         return -ENOMEM;
     }
-    m_putid (mb, IND_CONN);
+    m_putid (mb, IND_INCOMING);
     conn_info (conn, mb);
 
     if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
@@ -429,8 +477,34 @@ report_incoming (isdn3_conn conn)
     return err;
 }
 
+static void 
+report_addcause(mblk_t *mb, ushort_t info, ushort_t cause)
+{
+	extern ushort_t n1_causetoid(uchar_t id);
+
+	m_putsx(mb,ARG_CAUSE);
+	if(cause != 0) 
+		m_putsx2(mb,n1_causetoid(cause&0x7F));
+	m_putsx2(mb,capi_infotoid(info));
+}
+
 static void
-report_terminate (isdn3_conn conn)
+report_nocard (isdn3_talk talk, ushort_t info)
+{
+    mblk_t *mb = allocb (64, BPRI_MED);
+
+	talk->state = STATE_DEAD;
+
+    m_putid (mb, IND_NOCARD);
+	m_putlx (mb, talk->card->id);
+	report_addcause(mb,info,0);
+    if (isdn3_at_send (NULL, mb, 0) < 0) 
+        freemsg (mb);
+    return;
+}
+
+static void
+report_terminate (isdn3_conn conn, ushort_t info, ushort_t cause)
 {
     int err = 0;
 
@@ -443,6 +517,7 @@ report_terminate (isdn3_conn conn)
         conn->minorstate |= MS_TERM_SENT;
         m_putid (mb, IND_DISC);
     }
+	report_addcause(mb,info,cause);
     conn_info (conn, mb);
     if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
         freemsg (mb);
@@ -456,13 +531,13 @@ static void
 checkterm (isdn3_conn conn)
 {
     if (conn->state == 0) {
-        report_terminate (conn);
+        report_terminate (conn,0,0);
         isdn3_killconn (conn, 1); /* XXX */
     }
 }
 
 static int
-send_disconnect(isdn3_conn conn, char do_L3)
+send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 {
 	int err;
 
@@ -471,47 +546,113 @@ send_disconnect(isdn3_conn conn, char do_L3)
 	if(conn->state == 0)
 		return 0;
 	conn->waitflags = 0;
-	report_terminate(conn);
-	if(do_L3 && (conn->state < 20)) {
-		struct CAPI_disconnectb3_req *c3;
-		mblk_t *m3 = allocb(sizeof(*c3),BPRI_MED);
-		if(m3 == NULL)
-			return -ENOMEM;
+	report_terminate(conn,0,0);
+	switch(conn->state) {
+	case 6:
+	case 7:
+	case 8:
+		{
+			struct CAPI_connect_resp *c3;
+			mblk_t *m3 = allocb(sizeof(*c3),BPRI_MED);
+			if(m3 == NULL)
+				return -ENOMEM;
 
-		c3 = ((typeof(c3))m3->b_wptr)++;
-		bzero(c3,sizeof(*c3));
-		c3->ncci = conn->ncci0;
-		if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_DISCONNECTB3_REQ,m3,
-				conn->conni[WF_DISCONNECTB3_CONF] = newmsgid(conn->talk))) < 0) {
-			freemsg(m3);
-		} else {
-			conn->waitflags |= 1 << WF_DISCONNECTB3_CONF;
-			conn->waitflags |= 1 << WF_DISCONNECTB3_IND;
-			setstate(conn,20);
+			c3 = ((typeof(c3))m3->b_wptr)++;
+			bzero(c3,sizeof(*c3));
+			c3->plci = conn->call_ref;
+			c3->reject = cause ? ((cause >= 0x100) ? cause : cause | 0x3480) : 0x3480|N1_CallRejected;
+			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_CONNECT_RESP,m3,
+					newmsgid(conn->talk))) < 0) {
+				setstate(conn,0);
+				freemsg(m3);
+			} else 
+				setstate(conn,99);
 		}
-	}
-	{
-		struct CAPI_disconnect_req *c3;
-		mblk_t *m3 = allocb(sizeof(*c3),BPRI_MED);
-		if(m3 == NULL)
-			return -ENOMEM;
+		break;
+	case 15:
+		if(do_L3) {
+			struct CAPI_disconnectb3_req *c3;
+			mblk_t *m3 = allocb(sizeof(*c3),BPRI_MED);
+			if(m3 == NULL)
+				return -ENOMEM;
 
-		c3 = ((typeof(c3))m3->b_wptr)++;
-		bzero(c3,sizeof(*c3));
-		c3->plci = conn->call_ref;
-		if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_DISCONNECT_REQ,m3,
-				conn->conni[WF_DISCONNECT_CONF] = newmsgid(conn->talk))) < 0) {
-			freemsg(m3);
-		} else {
-			conn->waitflags |= 1 << WF_DISCONNECT_CONF;
-			conn->waitflags |= 1 << WF_DISCONNECT_IND;
-			if(conn->state < 20)
-				setstate(conn,21);
-			else
-				setstate(conn,22);
+			c3 = ((typeof(c3))m3->b_wptr)++;
+			bzero(c3,sizeof(*c3));
+			c3->ncci = conn->ncci0;
+			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_DISCONNECTB3_REQ,m3,
+					conn->conni[WF_DISCONNECTB3_CONF] = newmsgid(conn->talk))) < 0) {
+				freemsg(m3);
+			} else {
+				conn->waitflags |= 1 << WF_DISCONNECTB3_CONF;
+				conn->waitflags |= 1 << WF_DISCONNECTB3_IND;
+				setstate(conn,20);
+			}
+		}
+		/* FALL THRU */
+	default:
+		{
+			struct CAPI_disconnect_req *c3;
+			mblk_t *m3 = allocb(sizeof(*c3),BPRI_MED);
+			if(m3 == NULL)
+				return -ENOMEM;
+
+			c3 = ((typeof(c3))m3->b_wptr)++;
+			bzero(c3,sizeof(*c3));
+			c3->plci = conn->call_ref;
+			c3->cause = cause;
+			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_DISCONNECT_REQ,m3,
+					conn->conni[WF_DISCONNECT_CONF] = newmsgid(conn->talk))) < 0) {
+				freemsg(m3);
+			} else {
+				conn->waitflags |= 1 << WF_DISCONNECT_CONF;
+				conn->waitflags |= 1 << WF_DISCONNECT_IND;
+				if(conn->state < 20)
+					setstate(conn,21);
+				else
+					setstate(conn,22);
+			}
 		}
 	}
 	return err;	
+}
+
+static int
+send_dialout(isdn3_conn conn)
+{
+	int err;
+	struct CAPI_connect_req *c2;
+	struct capi_info *info = conn->p_data;
+	mblk_t *m2;
+	
+	if(info == NULL)
+		return -ENXIO;
+	m2 = allocb(sizeof(*c2)+strlen(info->nr)+((info->flags & INF_SPV) != 0),BPRI_MED);
+
+	if(m2 == NULL) 
+		return -ENOMEM;
+	c2 = ((typeof(c2))m2->b_wptr++);
+	bzero(c2,sizeof(*c2));
+	c2->infomask = ~0;
+	c2->channel = (info->bchan ? info->bchan : CAPI_ANYBCHANNEL);
+	c2->DST_service = info->service >> 8;
+	c2->DST_addinfo = info->service;
+	if(info->lnr[0] != '\0') 
+		c2->SRC_eaz = info->lnr[strlen(info->lnr)-1];
+	c2->telnolen = strlen(info->nr);
+	strncpy(m2->b_wptr,info->nr,c2->telnolen);
+	m2->b_wptr += strlen(info->nr);
+	if(info->flags & INF_SPV) {
+		c2->telnolen++;
+		*m2->b_wptr++ = 'S';
+	}
+	conn->call_ref = conn->talk->tappl[info->subcard]<<16;
+	if((err = capi_send(conn->talk,conn->talk->tappl[info->subcard],CAPI_CONNECT_REQ,m2,conn->conni[WF_CONNECT_CONF]=newmsgid(conn->talk))) < 0) 
+		freemsg(m2);
+	else {
+		conn->waitflags = 1<<WF_CONNECT_CONF;
+		setstate(conn,2);
+	}
+	return err;
 }
 
 static int
@@ -523,10 +664,10 @@ after_active(isdn3_conn conn)
 	switch(conn->state) {
 	default:
 		err = -EIO;
-		if(send_disconnect(conn,0) < 0)
+		if(send_disconnect(conn,0,N1_LocalProcErr) < 0)
 			setstate(conn,0);
 		break;
-	case 3:
+	case 4:
 	case 9:
 		setstate(conn,15);
 		isdn3_setup_conn (conn, EST_CONNECT);
@@ -559,7 +700,7 @@ after_selectb(isdn3_conn conn)
 			else {
 				conn->waitflags  = 1<<WF_CONNECTB3_CONF;
 				conn->waitflags |= 1<<WF_CONNECTB3ACTIVE_IND;
-				setstate(conn,3);
+				setstate(conn,4);
 			}
 		}
 		break;
@@ -599,12 +740,12 @@ after_selectb(isdn3_conn conn)
 		break;
 	default:
 		printf("CAPI error: wrong state %d in after_select\n",conn->state);
-		err = send_disconnect(conn,0);
+		err = send_disconnect(conn,0,N1_LocalProcErr);
 		if(err < 0)
 			setstate(conn,0);
 	}
 	if(err < 0)
-		send_disconnect(conn,0);
+		send_disconnect(conn,0,N1_OutOfOrder);
 	return err;
 }
 
@@ -616,6 +757,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 	int err = 0;
 	isdn3_conn conn = 0;
 
+	if(talk->state == STATE_DEAD) 
+		return -ENXIO;
+	
 	printf("CAPI: recv %d, in state %ld\n",isUI,talk->tstate);
 	origmb = data->b_rptr;
 	if(data->b_wptr-data->b_rptr < sizeof(*capi)) 
@@ -636,13 +780,13 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn3(talk,capi->appl,c2->ncci)) == NULL) {
-				printf("CAPI error: DISCONNECTB3_CONF has unknown cref3 %04x%04x\n",capi->appl,c2->ncci);
+				printf("CAPI error: DISCONNECTB3_CONF has unknown cref3 %x%04x\n",capi->appl,c2->ncci);
 				err = -ENXIO;
 				break;
 			}
 			if(c2->info != 0) {
 				printf("CAPI error: DISCONNECTB3_CONF returns %04x\n",c2->info);
-				send_disconnect(conn,0);
+				send_disconnect(conn,0,N1_OutOfOrder);
 				break;
 			}
 			if(conn->waitflags & (1<<WF_DISCONNECTB3_CONF)) {
@@ -666,16 +810,16 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn3(talk,capi->appl,c2->ncci)) == NULL) {
-				printf("CAPI error: DISCONNECTB3_IND has unknown cref3 %04x%04x\n",capi->appl,c2->ncci);
+				printf("CAPI error: DISCONNECTB3_IND has unknown cref3 %x%04x\n",capi->appl,c2->ncci);
 				err = -ENXIO;
 				break;
 			}
 			if((c2->info == 0) && (conn->waitflags & (1<<WF_DISCONNECTB3_IND))) {
 				conn->waitflags &=~ (1<<WF_DISCONNECTB3_IND);
 				if(conn->waitflags == 0) {
-					report_terminate(conn);
+					report_terminate(conn,0,0);
 					if(conn->state == 20) {
-						err = send_disconnect(conn,0);
+						err = send_disconnect(conn,0,0);
 						if(err < 0)
 							setstate(conn,0);
 					} else 
@@ -683,11 +827,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				}
 			} else if((c2->info != 0) || (conn->state >= 20)) {
 				printf("CAPI error: DISCONNECTB3_IND in wrong state %d, info %04x\n",conn->state,c2->info);
-				err = -EIO;
-			} else {
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				send_disconnect(conn,0);
-				report_terminate(conn);
+				send_disconnect(conn,0,N1_OutOfOrder);
+				report_terminate(conn,c2->info,0);
 			}
 			{
 				int err3 = 0;
@@ -703,7 +845,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 						freemsg(m3);
 				}
 				if(err == 0)
-					err = send_disconnect(conn,0);
+					err = send_disconnect(conn,0,0);
 				if(err == 0)
 					err = err3;
 			}
@@ -716,23 +858,22 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: DISCONNECT_IND has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: DISCONNECT_IND has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
 			if((c2->info == 0) && (conn->waitflags & (1<<WF_DISCONNECT_IND))) {
 				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
 				if(conn->waitflags == 0) {
-					report_terminate(conn);
+					report_terminate(conn,0,0);
 					setstate(conn,0);
 				}
-			} else if((c2->info != 0) || (conn->state >= 21)) {
-				printf("CAPI error: DISCONNECT_IND in wrong state %d, info %04x\n",conn->state,c2->info);
-				err = -EIO;
 			} else {
+				if((c2->info != 0) || (conn->state >= 21)) 
+					printf("CAPI error: DISCONNECT_IND in wrong state %d, info %04x\n",conn->state,c2->info);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				send_disconnect(conn,0);
-				report_terminate(conn);
+				send_disconnect(conn,0,0);
+				report_terminate(conn,c2->info,0);
 			}
 			{
 				int err3 = 0;
@@ -748,7 +889,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 						freemsg(m3);
 				}
 				if(err == 0)
-					err = send_disconnect(conn,0);
+					err = send_disconnect(conn,0,0);
 				if(err == 0)
 					err = err3;
 			}
@@ -762,21 +903,21 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: DISCONNECT_CONF has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: DISCONNECT_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
 			if((c2->info == 0) || (conn->waitflags & (1<<WF_DISCONNECT_CONF))) {
 				conn->waitflags &=~ (1<<WF_DISCONNECT_CONF);
 				if(conn->waitflags == 0) {
-					report_terminate(conn);
+					report_terminate(conn,c2->info,0);
 					setstate(conn,0);
 				}
 			} else {
 				printf("CAPI error: DISCONNECT_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				setstate(conn,0);
-				report_terminate(conn);
+				report_terminate(conn,c2->info,0);
 			}
 		}
 		break;
@@ -787,15 +928,14 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			if(data->b_wptr-data->b_rptr < sizeof(*c2))
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
-			if((conn = capi_findconn(talk,capi->appl,c2->plci)) != NULL) {
-				printf("CAPI error: CONNECT_CONF has known cref %04x%04x\n",capi->appl,c2->plci);
+			if((c2->info == 0) && ((conn = capi_findconn(talk,capi->appl,c2->plci)) != NULL)) {
+				printf("CAPI error: CONNECT_CONF has known cref %x%04x\n",capi->appl,c2->plci);
 				setstate(conn,0);
 				err = -ENXIO;
 				break;
 			}
-			if((conn = capi_findconnm(talk,capi->appl,capi->messid)) == NULL) {
+			if((conn = capi_findconnm(talk,capi->appl,capi->messid,WF_CONNECT_CONF)) == NULL) {
 				printf("CAPI error: CONNECT_CONF has unknown msgid %04x.%04x\n",capi->appl,capi->messid);
-				setstate(conn,0);
 				err = -ENXIO;
 				break;
 			}
@@ -804,20 +944,20 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->waitflags &=~ (1<<WF_CONNECT_CONF);
 				if(conn->waitflags == 0) {
 					if((err = send_setup(conn)) < 0) {
-						if(send_disconnect(conn,0) < 0) {
+						if(send_disconnect(conn,0,N1_OutOfOrder) < 0) {
 							setstate(conn,0);
 						}
 					} else {
 						conn->waitflags |= 1<<WF_CONNECTACTIVE_IND;
-						setstate(conn,2);
+						setstate(conn,3);
 					}
 
 				}
 			} else {
 				printf("CAPI error: CONNECT_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_terminate(conn);
-				if(send_disconnect(conn,0) < 0)
+				report_terminate(conn,c2->info,0);
+				if(send_disconnect(conn,0,N1_LocalProcErr) < 0)
 					setstate(conn,0);
 			}
 		}
@@ -830,7 +970,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: SELECTB2_CONF has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: SELECTB2_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
@@ -839,8 +979,8 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_selectb(conn);
 			} else {
 				printf("CAPI error: SELECTB2_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
-				report_terminate(conn);
-				if(send_disconnect(conn,0) < 0) 
+				report_terminate(conn,c2->info,0);
+				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
 		}
@@ -852,7 +992,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: SELECTB3_CONF has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: SELECTB3_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
@@ -861,8 +1001,8 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_selectb(conn);
 			} else  {
 				printf("CAPI error: SELECTB3_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
-				report_terminate(conn);
-				if(send_disconnect(conn,0) < 0) 
+				report_terminate(conn,c2->info,0);
+				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
 		}
@@ -874,7 +1014,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: CONNECTACTIVE_IND has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: CONNECTACTIVE_IND has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
@@ -883,7 +1023,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn);
 			} else  {
 				printf("CAPI error: CONNECTACTIVE_IND in wrong state %d\n",conn->state);
-				if(send_disconnect(conn,0) < 0) 
+				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
 			{
@@ -911,7 +1051,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: LISTENB3_CONF has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: LISTENB3_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
@@ -921,7 +1061,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			} else  {
 				err = -EIO;
 				printf("CAPI error: LISTENB3_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
-				if(send_disconnect(conn,0) < 0) 
+				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
 		}
@@ -933,7 +1073,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
-				printf("CAPI error: CONNECTB3_CONF has unknown cref %04x%04x\n",capi->appl,c2->plci);
+				printf("CAPI error: CONNECTB3_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
 				err = -ENXIO;
 				break;
 			}
@@ -962,7 +1102,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = -EIO;
 				printf("CAPI error: CONNECTB3_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
 			  exSendD:
-				if(send_disconnect(conn,0) < 0) 
+				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
 		}
@@ -975,7 +1115,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn3(talk,capi->appl,c2->ncci)) == NULL) {
-				printf("CAPI error: CONNECTB3ACTIVE_IND has unknown cref %04x%04x\n",capi->appl,c2->ncci);
+				printf("CAPI error: CONNECTB3ACTIVE_IND has unknown cref %x%04x\n",capi->appl,c2->ncci);
 				err = -ENXIO;
 				break;
 			}
@@ -984,7 +1124,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn);
 			} else  {
 				printf("CAPI error: CONNECTB3ACTIVE_IND in wrong state %d\n",conn->state);
-				if(send_disconnect(conn,0) < 0) 
+				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
 			{
@@ -1016,7 +1156,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			if(data->b_wptr-data->b_rptr < c2->telnolen)
 				goto less_room;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) != NULL) { /* Duplicate. Hmmm. */
-				printf("CAPI error: Incoming call has dup cref %04x%04x for conn %d\n",capi->appl, c2->plci,conn->conn_id);
+				printf("CAPI error: Incoming call has dup cref %x%04x for conn %d\n",capi->appl, c2->plci,conn->conn_id);
 				err = 0;
 				break;
 			} else {
@@ -1028,16 +1168,48 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 						err = -ENOMEM;
 					} else {
     					struct capi_info *info = conn->p_data;
-						info->eaz = c2->DST_eaz;
+
+						bzero(info,sizeof(*info));
+						info->subcard = ~0;
+						{
+							int i;
+							for(i=0;i < talk->card->dchans; i++) {
+								if(capi->appl == talk->tappl[i]) {
+									info->subcard = i;
+									break;
+								}
+							}
+						}
+						if(c2->DST_eaz) {
+							info->lnr[0] = '/';
+							info->lnr[1] = c2->DST_eaz;
+							info->lnr[2] = '\0';
+						} else
+							info->lnr[0] = '\0';
 						info->service = (c2->DST_service << 8) | c2->DST_addinfo;
-						bcopy(data->b_rptr,info->nr,c2->telnolen);
+						if(c2->telnolen > 1) {
+							int nrlen = c2->telnolen;
+							switch(*data->b_rptr) {
+							case 0x91: /* international number */
+							case 0xA1: /* national number */
+								data->b_rptr++; nrlen--;
+								if(data->b_rptr[nrlen-1] == 'S') /* SPV */
+									nrlen--;
+								if(nrlen >= MAXNR)
+									nrlen = MAXNR-1;
+								bcopy(data->b_rptr,info->nr,nrlen);
+								break;
+							default:
+								err = -EINVAL;
+								break;
+							}
+						}
 
 						conn->call_ref = (capi->appl << 16) | c2->plci;
 						conn->msgid0 = capi->messid;
 
-						err = report_incoming(conn);
-						if(err == 0) {
-							setstate(conn,7);
+						if(err >= 0) {
+							setstate(conn,6);
 							break;
 						}
 					}
@@ -1059,10 +1231,111 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 		}
 		break;
 	
+	case CAPI_INFO_IND:
+		{
+			struct CAPI_info_ind *c2;
+			mblk_t *m3;
+    		struct capi_info *info;
+
+			if(data->b_wptr-data->b_rptr < sizeof(*c2))
+				goto less_room;
+			c2 = ((typeof(c2))data->b_rptr)++;
+			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
+				printf("CAPI error: INFO_IND has unknown cref %x%04x\n",capi->appl,c2->plci);
+				err = -ENXIO;
+				break;
+			}
+			if(conn->p_data == NULL) {
+				if((conn->p_data = malloc(sizeof(struct capi_info))) == NULL) {
+					err = -ENOMEM;
+					break;
+				}
+				bzero(conn->p_data,sizeof(struct capi_info));
+				((struct capi_info *)conn->p_data)->subcard = 0;
+			}
+			info = conn->p_data;
+
+			m3 = allocb(256,BPRI_MED);
+			if(m3 != NULL) {
+				switch(c2->info_number) {
+				case AI_CAUSE:
+#if 0
+					{
+						m_putid(m3,IND_INFO);
+						m_putid(m3,ID_N1_INFO);
+						m_putsx(m3,ARG_CAUSE);
+						m_puts(m3,data->b_rptr,c2->infolen);
+					}
+#endif
+					break;
+				case AI_DISPLAY:
+					{
+						m_putid(m3,IND_INFO);
+						m_putid(m3,ID_N1_INFO);
+						m_putsx(m3,ID_N0_display);
+						m_puts(m3,data->b_rptr,c2->infolen);
+					}
+					break;
+				case AI_DAD:
+					{
+						int nrlen = c2->infolen;
+						switch(*data->b_rptr) {
+						case 0x81:
+							data->b_rptr++; nrlen--;
+							if(nrlen >= MAXNR)
+								nrlen = MAXNR-1;
+							bcopy(data->b_rptr,info->lnr,nrlen);
+							setstate(conn,7);
+							report_incoming(conn);
+							break;
+						default:
+							err = -EINVAL;
+							break;
+						}
+					}
+					break;
+				case AI_UUINFO:
+					break;
+				case AI_CHARGE:
+					break;
+				case AI_DATE:
+					{
+						m_putid(m3,IND_INFO);
+						m_putid(m3,ID_N1_INFO);
+						m_putsx(m3,ID_N6_date);
+						m_puts(m3,data->b_rptr,c2->infolen);
+					}
+					break;
+				case AI_CPS:
+					break;
+				default:
+					printf("CAPI error: unknown INFO_IND ID %x\n",c2->info_number);
+					freemsg(m3); m3 = NULL;
+					break;
+				}
+			}
+			if(m3 != NULL) {
+    			conn_info (conn, m3);
+    			if ((err = isdn3_at_send (conn, m3, 0)) < 0)
+					freemsg(m3);
+			}
+		}
+		break;
+
 	/* Non-connection-related messages */
 	case CAPI_REGISTER_CONF:
+		if(talk->tstate != STATE_REGISTER) {
+			printf("CAPI error: bad state\n");
+			break;
+		}
+#if 0
+		if(talk->message_id != capi->messid) {
+			printf("CAPI error: register bad ID %d, want %ld\n",capi->messid,talk->message_id);
+			break;
+		}
+#endif
 		talk->tstate = STATE_CONF_LAST;
-		/* TODO: get parameters (EAZMAP, et al.) and send them */
+		talk->tappl[talk->regnum] = capi->appl;
 		{
 			mblk_t *info = talk->card->info;
         	if(info != NULL) {
@@ -1091,8 +1364,14 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 							}
 						}
 						break;
+					case ARG_SUBCARD:
+						if (m_geti(info,&sap) == 0 && !skip) 
+							skip = (sap != talk->regnum+1);
+						break;
 					case ARG_EAZ:
 						if(skip)
+							break;
+						if(talk->state & 1<<(talk->regnum+ST_pbx))
 							break;
 						{
 							char eaz;
@@ -1116,7 +1395,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								break;
 							}
 							mp->b_wptr += len;
-							if((err = capi_sendctl(talk,0,CONTROL_EAZMAPPING,mp,newmsgid(talk))) < 0) {
+							if((err = capi_sendctl(talk,talk->tappl[talk->regnum],CONTROL_EAZMAPPING,mp,newmsgid(talk))) < 0) {
 								freemsg(mp);
 								break;
 							}
@@ -1136,9 +1415,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				return -ENOMEM;
 			c2 = ((struct CAPI_listen_req *)mp->b_wptr)++;
 			bzero(c2,sizeof(*c2));
-			c2->info_mask = 0x003F;
+			c2->info_mask = 0xC00000FF;
 			c2->eaz_mask = 0x03FF;
-			c2->service_mask = 0xFFFF;
+			c2->service_mask = 0xE7BF;
 			{	/* Find correct driver name */
 				int err; char skip = 0;
 				mblk_t *info = talk->card->info;
@@ -1167,6 +1446,10 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								}
 							}
 							break;
+						case ARG_SUBCARD:
+							if (m_geti(info,&sap) == 0 && !skip) 
+								skip = (sap != talk->regnum+1);
+							break;
 						case ARG_LISTEN:
 							{
 								long x;
@@ -1188,7 +1471,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					info->b_rptr = sta;
 				}
 			}
-			if((err = capi_send(talk,0,CAPI_LISTEN_REQ,mp,newmsgid(talk))) < 0) {
+			if((err = capi_send(talk,talk->tappl[talk->regnum],CAPI_LISTEN_REQ,mp,newmsgid(talk))) < 0) {
 				freemsg(mp);
 				return err;
 			}
@@ -1201,14 +1484,18 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if(c2->info != 0) {
 				printf("CAPI error: LISTEN failed %04x\n",c2->info);
+				report_nocard(talk,c2->info);
 				return -EIO;
 			}
 			if(talk->tstate < STATE_CONF_FIRST || talk->tstate > STATE_CONF_LAST) {
 				printf("CAPI error: LISTEN return in bad state\n");
 				return -EIO;
 			}
-			if(++talk->tstate == STATE_CONF_LAST)
+			if(++talk->tstate == STATE_CONF_LAST) {
 				talk->tstate = STATE_RUNNING;
+				if(++talk->regnum < talk->card->dchans) 
+					send_open(talk);
+			}
 		}
 		break;
 	case CAPI_ALIVE_IND:
@@ -1216,7 +1503,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			printf("CAPI: ALIVE_REQ in state %ld\n",talk->tstate);
 			goto printit;
 		}
-		err = capi_send(talk,0,CAPI_ALIVE_RESP,NULL,capi->messid);
+		err = capi_send(talk,capi->appl,CAPI_ALIVE_RESP,NULL,capi->messid);
 		break;
 	case CAPI_CONTROL_CONF:
 		{
@@ -1226,8 +1513,41 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((struct CAPI_control_conf *)data->b_rptr)++;
 			switch(c2->type) {
 			default:
-			    printf("Unknown control_conf type 0x%02x\n",c2->type);
+			    printf("CAPI: Unknown control_conf type 0x%02x\n",c2->type);
 				goto printit;
+			case CONTROL_EAZMAPPING:
+				{
+					if(talk->tstate == STATE_RUNNING) {
+						if((conn = capi_findconnm(talk,capi->appl,capi->messid,WF_CONTROL_EAZ)) == NULL) {
+							printf("CAPI error: CONTROL_EAZMAPPING has unknown conn\n");
+							err = -ENXIO;
+							break;
+						}
+						if((c2->info == 0) && (conn->waitflags & (1<<WF_CONTROL_EAZ))) {
+							conn->waitflags &=~ (1<<WF_CONTROL_EAZ);
+							err = after_active(conn);
+						} else  {
+							err = -EIO;
+							printf("CAPI error: CONTROL_EAZ in wrong state %d, info %04x\n",conn->state,c2->info);
+							if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
+								setstate(conn,0);
+						}
+					} else if(talk->tstate < STATE_CONF_FIRST || talk->tstate > STATE_CONF_LAST) {
+						printf("CAPI error: CONTROL_EAZ in wrong state %d, info %04x\n",conn->state,c2->info);
+					}
+					if(c2->info != 0) {
+						printf("CAPI error: EAZMAPPING failed %04x\n",c2->info);
+						report_nocard(talk,c2->info);
+						return -EIO;
+					}
+					if(++talk->tstate == STATE_CONF_LAST) {
+						printf("CAPI: EAZMAPPING after LISTEN_CONF ???\n");
+						talk->tstate = STATE_RUNNING;
+						if(++talk->regnum < talk->card->dchans) 
+							send_open(talk);
+					}
+				}
+				break;
 			case CONTROL_API_OPEN: /* Boot: Step One */
 				if(talk->tstate != STATE_OPENING) {
 					printf("CAPI error: API_OPEN reply for bad state\n");
@@ -1235,10 +1555,12 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				}
 				if(c2->info <= 0) {
 					printf("CAPI error: open failed!\n");
+					report_nocard(talk,c2->info);
 					return -EIO;
 				}
-				if(c2->info > 1)
-					printf("CAPI: %d D channels -- using only the first, for now\n",c2->info);
+				if(talk->card->dchans != c2->info) {
+					printf("CAPI: %d D channels -- that should be %d\n",c2->info,talk->card->dchans);
+				}
 				{
 					struct CAPI_register_req *c3;
 
@@ -1248,100 +1570,23 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					c3 = ((struct CAPI_register_req *)mp->b_wptr)++;
 					bzero(c3,sizeof(*c3));
 					c3->nmess = 10;
-					c3->nconn = 2 /* TODO: 30 */ ;
+					c3->nconn = talk->card->bchans + (talk->card->bchans >> 1) + 1;;
 					c3->ndblock = c3->nconn*10;
 					c3->dblocksiz = 4096;
-					if((err = capi_send(talk,0,CAPI_REGISTER_REQ,mp,newmsgid(talk))) < 0) {
+					if((err = capi_send(talk,talk->tappl[talk->regnum],CAPI_REGISTER_REQ,mp,newmsgid(talk))) < 0) {
 						freemsg(mp);
 						break;
 					}
 					talk->tstate = STATE_REGISTER;
 				}
-				break;
 			}
 		}
+		break;
 	}
 	if(err >= 0)
 		freemsg(data);
 	return err;
 
-#if 0
-	isdn3_conn conn = NULL;
-	uchar_t prot;
-	long cref = 0;
-	char cref_net = 0;
-	uchar_t msgtype;
-	uchar_t c;
-	uchar_t *mdata;
-	ushort_t mlen;
-
-	if (0)
-		printf ("Phone_Recv: ");
-	if ((data = pullupm (data, 0)) == NULL)
-		return 0;
-	prot = *data->b_rptr++;
-	if ((data = pullupm (data, 0)) == NULL)
-		return 0;
-	c = *data->b_rptr++;
-	if ((data = pullupm (data, 0)) == NULL)
-		return 0;
-	if (c & 0xF0 || c > 4)
-		return 0;
-	if ((data = pullupm (data, 0)) == NULL)
-		return 0;
-	if (c != 0 && *data->b_rptr & 0x80) {
-		cref_net = 1;
-		*data->b_rptr &= ~0x80;
-	}
-	cref = 0;
-	while (c--) {
-		cref = (cref << 8) + (*data->b_rptr++ & 0xFF);
-		if ((data = pullupm (data, 0)) == NULL)
-			return 0;
-	}
-	if (!cref_net)
-		cref = -(cref+1);
-	else
-		cref = cref+1;
-
-	msgtype = *data->b_rptr++;
-	if ((data = pullupm (data, 0)) == NULL) {
-		mdata = NULL;
-		mlen = 0;
-	} else {
-		mblk_t *mb = pullupm (data, -1);
-
-		if (mb == NULL) {
-			freemsg (data);
-			printf ("No Pullup\n");
-			isdn3_killconn (conn, 1);	/* Nothing to be done... */
-			return 0;
-		}
-		data = mb;
-		mdata = (uchar_t *) mb->b_rptr;
-		mlen = (uchar_t *) mb->b_wptr - mdata;
-	}
-	conn = isdn3_findconn (talk, prot, cref);
-	if (conn == NULL) {
-		conn = isdn3_new_conn (talk);
-		if (conn == NULL)
-			goto out;
-		conn->call_ref = cref;
-		conn->subprotocol = prot;
-		printf (" NewConn");
-	} {
-		isdn3_prot proto = isdn3_findprot (talk->card->info, conn->subprotocol);
-
-		if (proto != NULL)
-			(*proto->recv) (conn, msgtype, isUI, mdata, mlen);
-		else
-			isdn3_killconn (conn, 1);
-	}
-  out:
-	if (data != NULL)
-		freemsg (data);
-	return 0;
-#endif
   less_room:
   	printf("CAPI error: too few data bytes\n");
   printit:
@@ -1355,7 +1600,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 static int
 send (isdn3_conn conn, mblk_t * data)
 {
-	printf("CAPI: send %08lx\n",conn->call_ref);
+	printf("CAPI: send %05lx\n",conn->call_ref);
 	return -ENXIO;
 #if 0
 	isdn3_prot prot = isdn3_findprot (conn->card->info, conn->subprotocol);
@@ -1379,8 +1624,12 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	/* uchar_t svc = 0; */
 	struct capi_info *info;
 	int force = 0;
+	uchar_t cause = 0;
 
-	printf("CAPI: sendcmd %08lx %04x: ",conn->call_ref,id);
+	if(conn->talk->state == STATE_DEAD)
+		return -ENXIO;
+
+	printf("CAPI: sendcmd %05lx %04x: ",conn->call_ref,id);
 	{
 		mblk_t *mb = data;
 		if(mb == NULL) printf("NULL"); else
@@ -1395,6 +1644,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			return -ENOMEM;
 		}
 		bzero(conn->p_data,sizeof(struct capi_info));
+		((struct capi_info *)conn->p_data)->subcard = 0;
 	}
 	conn->lockit++;
 	info = conn->p_data;
@@ -1403,31 +1653,67 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
         oldpos = data->b_rptr;
         while ((err = m_getsx (data, &typ)) == 0) {
-            switch (typ) {
-            case ARG_SERVICE:
-                if ((err = m_getx (data, &x)) != 0) {
+			switch(typ) {
+            case ARG_CAUSE:
+				{
+					extern uchar_t n1_idtocause(ushort_t);
+					ushort_t causeid;
+
+					if (m_getid (data, &causeid) != 0)
+						break;
+					cause = n1_idtocause(causeid);
+				}
+				break;
+
+            case ARG_SUBCARD:
+                if ((err = m_geti (data, &x)) != 0) {
+                    printf("GetX Subcard: ");
+				  RetErr:
                     data->b_rptr = oldpos;
-                    printf("GetX Service: ");
                     conn->lockit--;
                     return err;
                 }
+				if(x < 1 || x > conn->talk->card->dchans) {
+					err = -ENXIO;
+					goto RetErr;
+				}
+				if(id == CMD_DIAL)
+					info->subcard = x-1;
+				else if(info->subcard != x-1) {
+                    printf("GetX Subcard.: %d != %ld-1",info->subcard,x);
+					err = -EINVAL;
+					goto RetErr;
+				}
+                break;
+            case ARG_SERVICE:
+                if ((err = m_getx (data, &x)) != 0) {
+                    printf("GetX Service: ");
+                    goto RetErr;
+                }
 				info->service = x;
                 break;
-            case ARG_EAZ:
-                if ((err = m_getc (data, &info->eaz)) != 0) {
-                    data->b_rptr = oldpos;
-                    printf("GetX EAZ: ");
-                    conn->lockit--;
-                    return err;
+			case ARG_SPV:
+				info->flags |= INF_SPV;
+                break;
+			case ARG_CHANNEL:
+                if ((err = m_geti (data, &x)) != 0) {
+                    printf("GetX Bchan: ");
+					goto RetErr;
+                }
+				info->bchan = x;
+                break;
+            case ARG_LNUMBER:
+                m_getskip (data);
+                if ((err = m_getstr (data, (char *) info->lnr, MAXNR)) != 0) {
+                    printf("GetStr LNumber: ");
+					goto RetErr;
                 }
                 break;
             case ARG_NUMBER:
                 m_getskip (data);
                 if ((err = m_getstr (data, (char *) info->nr, MAXNR)) != 0) {
-                    data->b_rptr = oldpos;
                     printf("GetStr Number: ");
-                    conn->lockit--;
-                    return err;
+					goto RetErr;
                 }
                 break;
 			case ARG_FORCE:
@@ -1454,12 +1740,10 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			}
 			err = send_setup(conn);
 			if(err == 0) {
-				freemsg(data);
 				setstate(conn,8);
-				conn->waitflags  = 1 << WF_SELECTB2_CONF;
-				conn->waitflags |= 1 << WF_SELECTB3_CONF;
+				freemsg(data);
 			} else
-				send_disconnect(conn,0);
+				send_disconnect(conn,0,N1_OutOfOrder);
 		}
     case CMD_DIAL:
         {
@@ -1473,37 +1757,38 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				conn->lockit--;
 				return -EINVAL;
 			}
-			{
-				struct CAPI_connect_req *c2;
-				mblk_t *m2 = allocb(sizeof(*c2)+strlen(info->nr),BPRI_MED);
+			if((info->lnr[0] != '\0') && (conn->talk->state & (1<<(info->subcard+ST_pbx)))) {
+				char eaz;
+				struct eazmapping *ce;
+				mblk_t *mp;
+				int len = strlen(info->lnr+1);
 
-				if(m2 == NULL) 
-					return -ENOMEM;
-				c2 = ((typeof(c2))m2->b_wptr++);
-				bzero(c2,sizeof(*c2));
-				c2->infomask = ~0;
-				c2->DST_service = info->service >> 8;
-				c2->DST_addinfo = info->service;
-				c2->SRC_eaz = info->eaz;
-				c2->telnolen = strlen(info->nr);
-				strcpy(m2->b_wptr,info->nr);
-				m2->b_wptr += strlen(info->nr);
-				if((err = capi_send(conn->talk,0,CAPI_CONNECT_REQ,m2,conn->conni[WF_CONNECT_CONF]=newmsgid(conn->talk))) < 0) 
-					freemsg(m2);
+				eaz = ++conn->talk->lasteaz;
+				if(eaz > 8) eaz = 1;
+				eaz += '0';
+				mp = allocb(sizeof(*ce)+len, BPRI_MED);
+				if(mp == NULL)
+					break;
+				ce = ((struct eazmapping *)mp->b_wptr)++;
+				bzero(ce,sizeof(*ce));
+				ce->eaz = eaz;
+				ce->telnolen = len;
+				strncpy(mp->b_wptr,info->lnr+1,len);
+				mp->b_wptr += len;
+				if((err = capi_sendctl(conn->talk,conn->talk->tappl[conn->talk->regnum],CONTROL_EAZMAPPING,mp,conn->conni[WF_CONTROL_EAZ] = newmsgid(conn->talk))) < 0) 
+					freemsg(mp);
 				else {
-					conn->waitflags = 1<<WF_CONNECT_CONF;
+					conn->waitflags = 1<<WF_CONTROL_EAZ;
 					setstate(conn,1);
 				}
-			}
+			} else
+				err = send_dialout(conn);
 		}
 		break;
 	case CMD_OFF:
-		{
-			/* TODO: set cause */
-			err = send_disconnect(conn,!force);
-			if(err < 0)
-				setstate(conn,0);
-		}
+		err = send_disconnect(conn,!force,cause);
+		if(err < 0)
+			setstate(conn,0);
 		break;
 	default:
 		err = -ENXIO;
@@ -1530,7 +1815,7 @@ static void
 report (isdn3_conn conn, mblk_t * data)
 {
     struct capi_info *info;
-	printf("CAPI: report %08lx: ",conn->call_ref);
+	printf("CAPI: report %05lx: ",conn->call_ref);
 	{
 		mblk_t *mb = data;
 		if(mb == NULL) printf("NULL"); else
@@ -1547,14 +1832,17 @@ report (isdn3_conn conn, mblk_t * data)
 		m_putsx (data, ARG_NUMBER);
 		m_putsz (data, info->nr);
 	}
-	if (info->eaz != 0) {
-		m_putsx (data, ARG_EAZ);
-		*data->b_wptr++=' ';
-		*data->b_wptr++=info->eaz;
+	if (info->lnr[0] != 0) {
+		m_putsx (data, ARG_LNUMBER);
+		m_putsz (data, info->lnr);
 	}
 	if (info->service != 0) {
 		m_putsx (data, ARG_SERVICE);
 		m_putx (data, info->service);
+	}
+	if(info->subcard != (unsigned char) ~0) {
+		m_putsx (data, ARG_SUBCARD);
+		m_puti (data,info->subcard+1);
 	}
 }
 
@@ -1562,68 +1850,30 @@ static void
 ckill (isdn3_talk talk, char force)
 {
 	printf("CAPI: ckill %d\n",force);
-#if 0
-	if (force) {
-		if (talk->tstate & PHONE_UP) {
-			talk->tstate &= ~PHONE_UP;
-			if(0)printf("Phone is aDown\n");
-			isdn3_chstate (talk, DL_RELEASE_REQ, 0, CH_CLOSEPROT);
-		}
-	}
-#endif
 }
 
 static void
 killconn (isdn3_conn conn, char force)
 {
-	printf("CAPI: killconn %08lx: %d\n",conn->call_ref,force);
+	printf("CAPI: killconn %05lx: %d\n",conn->call_ref,force);
+	conn->lockit++;
+    if (force) {
+        untimer (CAPI_TCONN, conn);
+        untimer (CAPI_TWAITEAZ, conn);
+	}
+	send_disconnect(conn, !force, 0);
 	if (conn->p_data != NULL) {
 		free (conn->p_data);
 		conn->p_data = NULL;
 	}
-    if (force) {
-        untimer (CAPI_TALERT, conn);
-	}
-	switch(conn->state) {
-	}
-
-#if 0
-	isdn3_talk talk = conn->talk;
-	isdn3_prot prot = isdn3_findprot (conn->card->info, conn->subprotocol);
-
-	if (prot != NULL)
-		(*prot->killconn) (conn, force);
-
-	if (talk != NULL && talk->conn == NULL && (talk->tstate & PHONE_UP)) {
-		/* Last talker got closed. Shutdown for level 2. */
-		talk->tstate &= ~PHONE_UP;
-		if(0)printf ("PHONE i2s DOWN\n");
-		(void) isdn3_chstate (talk, DL_RELEASE_REQ, 0, CH_CLOSEPROT);
-	} else {
-#if 0
-		printf ("Killconn: Phone s1tays up");
-		if (talk == NULL)
-			printf (": Talk NULL");
-		else if (talk->conn != NULL)
-			printf (": talk->conn %x (ref %08lx, state %d)", talk->conn, talk->conn->call_ref, talk->conn->state);
-		if (!(talk->tstate & PHONE_UP))
-			if(0)printf (": PHONE i3s DOWN\n");
-		printf ("\n");
-#endif
-	}
-#endif
+	conn->lockit--;
+	checkterm(conn);
 }
 
 static void
 hook (isdn3_conn conn)
 {
-	printf("CAPI: hook %08lx\n",conn->call_ref);
-#if 0
-	isdn3_prot prot = isdn3_findprot (conn->card->info, conn->subprotocol);
-
-	if (prot != NULL && prot->hook != NULL)
-		(*prot->hook) (conn);
-#endif
+	printf("CAPI: hook %05lx\n",conn->call_ref);
 }
 
 
@@ -1640,6 +1890,7 @@ newcard (isdn3_card card)
 	}
 	talk->message_id = 0x4000;
 	talk->tstate = STATE_BOOTING;
+
 	if(card->is_up)
 		chstate (talk, DL_ESTABLISH_CONF,0);
 	
@@ -1658,7 +1909,7 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 {
 	mblk_t *mb = *data;
 
-	printf("CAPI: proto %08lx %s: ",conn->call_ref, down ? "down" : "up");
+	printf("CAPI: proto %05lx %s: ",conn->call_ref, down ? "down" : "up");
 	if(mb == NULL) printf("NULL"); else
 	while(mb != NULL) {
 		dumpascii(mb->b_rptr,mb->b_wptr-mb->b_rptr);
@@ -1682,4 +1933,75 @@ struct _isdn3_hndl CAPI_hndl =
 		&init, &newcard, &modeflags, &chstate, &report, &recv, &send,
 		&sendcmd, &ckill, &killconn, &hook, &proto,
 };
+
+
+
+
+ushort_t
+capi_infotoid(ushort_t info)
+{
+	extern ushort_t n1_causetoid(uchar_t);
+
+	if((info & 0xFF00) == 0x3400) 
+		return n1_causetoid(info & 0x7F);
+	switch(info) {
+	default: return CHAR2('?','?');
+	case CAPI_E_REGISTER:			return ID_E_REGISTER;
+	case CAPI_E_APPLICATION:		return ID_E_APPLICATION;
+	case CAPI_E_MSGLENGTH:			return ID_E_MSGLENGTH;
+	case CAPI_E_COMMAND:			return ID_E_COMMAND;
+	case CAPI_E_QUEUEFULL:			return ID_E_QUEUEFULL;
+	case CAPI_E_NOMSG:				return ID_E_NOMSG;
+	case CAPI_E_MSGOVERFLOW:		return ID_E_MSGOVERFLOW;
+	case CAPI_E_DEINSTALL:			return ID_E_DEINSTALL;
+	case CAPI_E_CONTROLLER:			return ID_E_CONTROLLER;
+	case CAPI_E_PLCI:				return ID_E_PLCI;
+	case CAPI_E_NCCI:				return ID_E_NCCI;
+	case CAPI_E_TYPE:				return ID_E_TYPE;
+	case CAPI_E_BCHANNEL:			return ID_E_BCHANNEL;
+	case CAPI_E_INFOMASK:			return ID_E_INFOMASK;
+	case CAPI_E_EAZMASK:			return ID_E_EAZMASK;
+	case CAPI_E_SIMASK:				return ID_E_SIMASK;
+	case CAPI_E_B2PROTO:			return ID_E_B2PROTO;
+	case CAPI_E_DLPD:				return ID_E_DLPD;
+	case CAPI_E_B3PROTO:			return ID_E_B3PROTO;
+	case CAPI_E_NCPD:				return ID_E_NCPD;
+	case CAPI_E_NCPI:				return ID_E_NCPI;
+	case CAPI_E_DATAB3FLAGS:		return ID_E_DATAB3FLAGS;
+	case CAPI_E_CONTROLLERFAILED:	return ID_E_CONTROLLERFAILED;
+	case CAPI_E_REGCONFLICT:		return ID_E_REGCONFLICT;
+	case CAPI_E_CMDNOTSUPPORTED:	return ID_E_CMDNOTSUPPORTED;
+	case CAPI_E_PLCIACT:			return ID_E_PLCIACT;
+	case CAPI_E_NCCIACT:			return ID_E_NCCIACT;
+	case CAPI_E_B2NOTSUPPORT:		return ID_E_B2NOTSUPPORT;
+	case CAPI_E_B2STATE:			return ID_E_B2STATE;
+	case CAPI_E_B3NOTSUPPORT:		return ID_E_B3NOTSUPPORT;
+	case CAPI_E_B3STATE:			return ID_E_B3STATE;
+	case CAPI_E_B2DLPDPARA:			return ID_E_B2DLPDPARA;
+	case CAPI_E_B3NCPDPARA:			return ID_E_B3NCPDPARA;
+	case CAPI_E_B3NCPIPARA:			return ID_E_B3NCPIPARA;
+	case CAPI_E_DATALEN:			return ID_E_DATALEN;
+	case CAPI_E_DTMF:				return ID_E_DTMF;
+	case CAPI_E_NOL1:				return ID_E_NOL1;
+	case CAPI_E_NOL2:				return ID_E_NOL2;
+	case CAPI_E_SETUPBCHANLAYER1:	return ID_E_SETUPBCHANLAYER1;
+	case CAPI_E_SETUPBCHANLAYER2:	return ID_E_SETUPBCHANLAYER2;
+	case CAPI_E_ABORTDCHANLAYER1:	return ID_E_ABORTDCHANLAYER1;
+	case CAPI_E_ABORTDCHANLAYER2:	return ID_E_ABORTDCHANLAYER2;
+	case CAPI_E_ABORTDCHANLAYER3:	return ID_E_ABORTDCHANLAYER3;
+	case CAPI_E_ABORTBCHANLAYER1:	return ID_E_ABORTBCHANLAYER1;
+	case CAPI_E_ABORTBCHANLAYER2:	return ID_E_ABORTBCHANLAYER2;
+	case CAPI_E_ABORTBCHANLAYER3:	return ID_E_ABORTBCHANLAYER3;
+	case CAPI_E_REBCHANLAYER2:		return ID_E_REBCHANLAYER2;
+	case CAPI_E_REBCHANLAYER3:		return ID_E_REBCHANLAYER3;
+	case CAPI_E_NOFAX:				return ID_E_NOFAX;
+	case CAPI_E_BADLINE:			return ID_E_BADLINE;
+	case CAPI_E_NOANSWER:			return ID_E_NOANSWER;
+	case CAPI_E_REMDISC:			return ID_E_REMDISC;
+	case CAPI_E_NOCMD:				return ID_E_NOCMD;
+	case CAPI_E_INCOMPAT:			return ID_E_INCOMPAT;
+	case CAPI_E_BADDATA:			return ID_E_BADDATA;
+	case CAPI_E_PROTO:				return ID_E_PROTO;
+	}
+}
 

@@ -1,0 +1,158 @@
+Dieser Patch markiert die Debuggingmeldungen, die beim Drücken der mit
+show_* belegten Tasten ausgespuckt werden, als EMERGency-Meldungen. Sie
+werden dann auch ausgegeben, wenn der Kernel normale Ausgaben unterdrückt
+(klogd -c N, 1<=N<=7).
+
+Optional aber sehr sinnvoll.
+
+diff -rub --unidir /pub/src/linux/kernel/linux/arch/i386/kernel/process.c ./arch/i386/kernel/process.c
+--- /pub/src/linux/kernel/linux/arch/i386/kernel/process.c	Wed Mar  1 07:43:07 1995
++++ ./arch/i386/kernel/process.c	Wed Mar 22 15:42:43 1995
+@@ -100,13 +100,13 @@
+ void show_regs(struct pt_regs * regs)
+ {
+ 	printk("\n");
+-	printk("EIP: %04x:%08lx",0xffff & regs->cs,regs->eip);
++	printk(KERN_EMERG "EIP: %04x:%08lx",0xffff & regs->cs,regs->eip);
+ 	if (regs->cs & 3)
+ 		printk(" ESP: %04x:%08lx",0xffff & regs->ss,regs->esp);
+ 	printk(" EFLAGS: %08lx\n",regs->eflags);
+-	printk("EAX: %08lx EBX: %08lx ECX: %08lx EDX: %08lx\n",
++	printk(KERN_EMERG "EAX: %08lx EBX: %08lx ECX: %08lx EDX: %08lx\n",
+ 		regs->eax,regs->ebx,regs->ecx,regs->edx);
+-	printk("ESI: %08lx EDI: %08lx EBP: %08lx",
++	printk(KERN_EMERG "ESI: %08lx EDI: %08lx EBP: %08lx",
+ 		regs->esi, regs->edi, regs->ebp);
+ 	printk(" DS: %04x ES: %04x FS: %04x GS: %04x\n",
+ 		0xffff & regs->ds,0xffff & regs->es,
+diff -rub --unidir /pub/src/linux/kernel/linux/arch/i386/kernel/traps.c ./arch/i386/kernel/traps.c
+--- /pub/src/linux/kernel/linux/arch/i386/kernel/traps.c	Wed Feb  8 12:54:00 1995
++++ ./arch/i386/kernel/traps.c	Wed Mar 22 15:33:47 1995
+@@ -191,9 +186,9 @@
+ asmlinkage void do_nmi(struct pt_regs * regs, long error_code)
+ {
+ #ifndef CONFIG_IGNORE_NMI
+-	printk("Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
+-	printk("You probably have a hardware problem with your RAM chips or a\n");
+-	printk("power saving mode enabled.\n");
++	printk(KERN_EMERG "Uhhuh. NMI received. Dazed and confused, but trying to continue\n");
++	printk(KERN_EMERG "You probably have a hardware problem with your RAM chips or a\n");
++	printk(KERN_EMERG "power saving mode enabled.\n");
+ #endif	
+ }
+ 
+@@ -293,8 +288,8 @@
+ 
+ asmlinkage void math_emulate(long arg)
+ {
+-  printk("math-emulation not enabled and no coprocessor found.\n");
+-  printk("killing %s.\n",current->comm);
++  printk(KERN_EMERG "math-emulation not enabled and no coprocessor found.\n");
++  printk(KERN_EMERG "killing %s.\n",current->comm);
+   send_sig(SIGFPE,current,1);
+   schedule();
+ }
+diff -rub --unidir /pub/src/linux/kernel/linux/arch/i386/mm/init.c ./arch/i386/mm/init.c
+--- /pub/src/linux/kernel/linux/arch/i386/mm/init.c	Tue Apr  4 15:17:07 1995
++++ ./arch/i386/mm/init.c	Tue Mar 28 19:02:46 1995
+@@ -79,9 +79,9 @@
+ 	int i,free = 0,total = 0,reserved = 0;
+ 	int shared = 0;
+ 
+-	printk("Mem-info:\n");
++	printk(KERN_EMERG "Mem-info:\n");
+ 	show_free_areas();
+-	printk("Free swap:       %6dkB\n",nr_swap_pages<<(PAGE_SHIFT-10));
++	printk(KERN_EMERG "Free swap:       %6dkB\n",nr_swap_pages<<(PAGE_SHIFT-10));
+ 	i = high_memory >> PAGE_SHIFT;
+ 	while (i-- > 0) {
+ 		total++;
+@@ -92,10 +92,10 @@
+ 		else
+ 			shared += mem_map[i]-1;
+ 	}
+-	printk("%d pages of RAM\n",total);
+-	printk("%d free pages\n",free);
+-	printk("%d reserved pages\n",reserved);
+-	printk("%d pages shared\n",shared);
++	printk(KERN_EMERG "%d pages of RAM\n",total);
++	printk(KERN_EMERG "%d free pages\n",free);
++	printk(KERN_EMERG "%d reserved pages\n",reserved);
++	printk(KERN_EMERG "%d pages shared\n",shared);
+ 	show_buffers();
+ #ifdef CONFIG_NET
+ 	show_net_buffers();
+diff -rub --unidir /pub/src/linux/kernel/linux/fs/buffer.c ./fs/buffer.c
+--- /pub/src/linux/kernel/linux/fs/buffer.c	Mon Mar  6 10:22:08 1995
++++ ./fs/buffer.c	Wed Mar 22 15:41:33 1995
+@@ -1400,9 +1400,9 @@
+ 	int shared;
+ 	int nlist, isize;
+ 
+-	printk("Buffer memory:   %6dkB\n",buffermem>>10);
+-	printk("Buffer heads:    %6d\n",nr_buffer_heads);
+-	printk("Buffer blocks:   %6d\n",nr_buffers);
++	printk(KERN_EMERG "Buffer memory:   %6dkB\n",buffermem>>10);
++	printk(KERN_EMERG "Buffer heads:    %6d\n",nr_buffer_heads);
++	printk(KERN_EMERG "Buffer blocks:   %6d\n",nr_buffers);
+ 
+ 	for(nlist = 0; nlist < NR_LIST; nlist++) {
+ 	  shared = found = locked = dirty = used = lastused = 0;
+@@ -1419,10 +1419,10 @@
+ 			used++, lastused = found;
+ 		bh = bh->b_next_free;
+ 	      } while (bh != lru_list[nlist]);
+-	printk("Buffer[%d] mem: %d buffers, %d used (last=%d), %d locked, %d dirty %d shrd\n",
++	printk(KERN_EMERG "Buffer[%d] mem: %d buffers, %d used (last=%d), %d locked, %d dirty %d shrd\n",
+ 		nlist, found, used, lastused, locked, dirty, shared);
+ 	};
+-	printk("Size    [LAV]     Free  Clean  Unshar     Lck    Lck1   Dirty  Shared\n");
++	printk(KERN_EMERG "Size    [LAV]     Free  Clean  Unshar     Lck    Lck1   Dirty  Shared\n" KERN_EMERG);
+ 	for(isize = 0; isize<NR_SIZES; isize++){
+ 		printk("%5d [%5d]: %7d ", bufferindex_size[isize],
+ 		       buffers_lav[isize], nr_free[isize]);
+diff -rub --unidir /pub/src/linux/kernel/linux/kernel/sched.c ./kernel/sched.c
+--- /pub/src/linux/kernel/linux/kernel/sched.c	Tue Apr  4 15:18:54 1995
++++ ./kernel/sched.c	Tue Mar 28 19:04:11 1995
+@@ -729,7 +729,7 @@
+ 	unsigned long free;
+ 	static char * stat_nam[] = { "R", "S", "D", "Z", "T", "W" };
+ 
+-	printk("%-8s %3d ", p->comm, (p == current) ? -nr : nr);
++	printk(KERN_EMERG "%-8s %3d ", p->comm, (p == current) ? -nr : nr);
+ 	if (((unsigned) p->state) < sizeof(stat_nam)/sizeof(char *))
+ 		printk(stat_nam[p->state]);
+ 	else
+@@ -763,8 +763,8 @@
+ {
+ 	int i;
+ 
+-	printk("                         free                        sibling\n");
+-	printk("  task             PC    stack   pid father child younger older\n");
++	printk(KERN_EMERG "                         free                        sibling\n");
++	printk(KERN_EMERG "  task             PC    stack   pid father child younger older\n");
+ 	for (i=0 ; i<NR_TASKS ; i++)
+ 		if (task[i])
+ 			show_task(i,task[i]);
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/skbuff.c ./net/inet/skbuff.c
+--- /pub/src/linux/kernel/linux/net/inet/skbuff.c	Sat Jan  7 11:57:55 1995
++++ ./net/inet/skbuff.c	Wed Mar 22 15:44:51 1995
+@@ -54,12 +54,12 @@
+ 
+ void show_net_buffers(void)
+ {
+-	printk("Networking buffers in use          : %lu\n",net_skbcount);
+-	printk("Memory committed to network buffers: %lu\n",net_memory);
+-	printk("Network buffers locked by drivers  : %lu\n",net_locked);
+-	printk("Total network buffer allocations   : %lu\n",net_allocs);
+-	printk("Total failed network buffer allocs : %lu\n",net_fails);
+-	printk("Total free while locked events     : %lu\n",net_free_locked);
++	printk(KERN_EMERG "Networking buffers in use          : %lu\n",net_skbcount);
++	printk(KERN_EMERG "Memory committed to network buffers: %lu\n",net_memory);
++	printk(KERN_EMERG "Network buffers locked by drivers  : %lu\n",net_locked);
++	printk(KERN_EMERG "Total network buffer allocations   : %lu\n",net_allocs);
++	printk(KERN_EMERG "Total failed network buffer allocs : %lu\n",net_fails);
++	printk(KERN_EMERG "Total free while locked events     : %lu\n",net_free_locked);
+ }
+ 
+ #if CONFIG_SKB_CHECK

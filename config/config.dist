@@ -48,6 +48,12 @@ PROTOCOLS	phone tei
 SUBPROTOCOLS	euro german
 ##
 ##
+## Debugging? DO or DONT
+##
+#### =()<DEBUGGING	@<DEBUGGING>@>()=
+DEBUGGING	DO
+##
+##
 ##
 ##  Stuff to define
 ##
@@ -177,15 +183,6 @@ TIMEOUT		NEW
 #### =()<ADDERROR	@<ADDERROR>@>()=
 ADDERROR	DONT
 ##
-## Debugging? DO or DONT
-#### =()<DEBUGGING	@<DEBUGGING>@>()=
-DEBUGGING	DO
-#### =()<CONF_MOD2	@<CONF_MOD2>@>()=
-CONF_MOD2	0x30
-## 0x00, 0x33
-#### =()<CONF_DEBUG	@<CONF_DEBUG>@>()=
-CONF_DEBUG	0x5016
-## 0x5006, 0xf3df
 
 
 ### ISDN configuration options

@@ -1,3 +1,4 @@
+#if 0
 /*
  * This file is part of the ISDN master program.
  *
@@ -25,6 +26,8 @@ getcards(conngrab cg, cf list)
 		if(!wildmatch(list->protocol,cg->protocol))
 			continue;
 		if(!wildmatch(list->card,cg->card))
+			continue;
+		if(!maskmatch(list->mask,cg->mask))
 			continue;
 		if(!classmatch(list->cclass,cg->cclass))
 			continue;
@@ -114,3 +117,4 @@ getprot (char *protocol, char *site, char *cclass, char *suffix)
 	}
 	return mi;
 }
+#endif
