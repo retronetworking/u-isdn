@@ -181,10 +181,7 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 			untimeout(timer_timeout,tim);
 #endif
 
-#ifdef NEW_TIMEOUT
-			tim->timer = 
-#endif
-				timeout((void *)timer_timeout,tim,tim->interval);
+			timer_timeout(tim);
 		}
 		break;
 	case PROTO_INCOMING:

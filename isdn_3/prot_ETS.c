@@ -415,7 +415,7 @@ report_addcause (mblk_t * mb, uchar_t * data, int len)
 }
 
 static void
-report_addisplay (mblk_t * mb, uchar_t * data, int len)
+report_addisplay (mblk_t * mb, uchar_t * data, int len, isdn3_conn conn)
 {
 	int qd_len;
 	uchar_t *qd_data;
@@ -427,6 +427,23 @@ report_addisplay (mblk_t * mb, uchar_t * data, int len)
 		return;
 	m_putsx (mb, ID_E0_display);
 	m_puts (mb, qd_data, qd_len);
+	/*
+	 * The Dutch PTT apparently sends a DISPLAY string with 'N40*999#'
+	 * -- replace 999 with the numbr of units. 
+	 * Needless to say, that's _really_ stupid, but what to do ...
+	 */
+	if((qd_len > 5) && 
+			(qd_data[0] == 'N') &&
+			(qd_data[1] == '4') &&
+			(qd_data[2] == '0') &&
+			(qd_data[3] == '*') &&
+			(qd_data[qd_len-1] == '#') ) {
+		long flags = isdn3_flags(conn->card->info,-1,-1);
+		if(flags & FL_BUG2) {
+			m_putsx (mb, ARG_CHARGE);
+			m_puts (mb, qd_data+4,qd_len-5);
+		}
+	}
 }
 
 static void
@@ -617,7 +634,7 @@ report_setup (isdn3_conn conn, uchar_t * data, int len)
 	m_putid (mb, IND_INCOMING);
 	conn_info (conn, mb);
 
-	report_addisplay (mb, data, len);
+	report_addisplay (mb, data, len, conn);
 	report_addprogress (mb, data, len);
 
 	if ((err = isdn3_at_send (conn, mb, 0)) < 0) {
@@ -644,7 +661,7 @@ report_generic (isdn3_conn conn, uchar_t * data, int len, ushort_t id)
 
 	conn_info (conn, mb);
 
-	report_addisplay (mb, data, len);
+	report_addisplay (mb, data, len, conn);
 	report_addfac (mb, data, len);
 	report_addprogress (mb, data, len);
 
@@ -724,7 +741,7 @@ report_conn (isdn3_conn conn, uchar_t * data, int len)
 	}
 	m_putid (mb, IND_CONN);
 	conn_info (conn, mb);
-	report_addisplay (mb, data, len);
+	report_addisplay (mb, data, len, conn);
 	report_addfac (mb, data, len);
 	report_adddate (mb, data, len);
 
@@ -751,7 +768,7 @@ report_conn_ack (isdn3_conn conn, uchar_t * data, int len)
 	m_putid (mb, ID_ET_CONN_ACK);
 	conn_info (conn, mb);
 
-	report_addisplay (mb, data, len);
+	report_addisplay (mb, data, len, conn);
 	report_addfac (mb, data, len);
 	report_adddate (mb, data, len);
 
@@ -788,7 +805,7 @@ Xreport_terminate (isdn3_conn conn, uchar_t * data, int len, ushort_t cause, int
 	}
 	conn_info (conn, mb);
 	if (data != NULL) {
-		report_addisplay (mb, data, len);
+		report_addisplay (mb, data, len, conn);
 		if(cause == 0)
 			report_addcause (mb, data, len);
 		report_addfac (mb, data, len);

@@ -4,6 +4,34 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1996-01-02
+
+Update 32. WICHTIG UNBEDINGT INSTALLIEREN. Verbindungen werden nicht
+korrekt abgebaut!
+
+Wenn nicht installiert wird: in der ML-Zeile des Timers die Parameter für
+:ti und :to UNBEDINGT auf GERINGERE Werte als der Abstand zwischeen zwei
+Gebühreninfos einstellen!
+
+Ausserdem: Kompatibilitätspatch für die Niederlande.
+
+
+*** 1996-01-01
+
+Update 31. Grr, ich solte diese Datei besser pflegen. :-/
+
+- Ankommende Anrufe funktionieren wieder. (Das taten sie nicht immer...)
+- Jemand, der gleich wieder auflegt, bringt den master nicht mehr
+  zum Absturz.
+- Kernelpatch: die BLOCK-Regel des Firewalls wird nur bei lokalen Paketen
+  angewendet und die FORWARD-Regel nur bei weitergereichten Paketen.
+  Vorher: BLOCK wurde auch bei weitergereichten Paketen angewendet.
+- Neues Flag -x fuer slipto, laesst die lokale Route in Ruhe.
+  Doofer Fehler beim freopen() korrigiert.
+
+Funktioniert dip jetzt? Bitte testen.
+
+
 *** 1995-12-04
 
 Release 25. Die Umstellungsprobleme sind nun (hoffentlich) endlich
