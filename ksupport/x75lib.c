@@ -54,7 +54,7 @@ x75_setstate (x75 state, x75_status status)
 {
 
 	if (state->debug & 0x02)
-		printf (KERN_DEBUG "x75.%d Setstate %d/%s -> %d/%s\n", state->debugnr, state->status, x75_sname[state->status], status, x75_sname[status]);
+		printf ("%sx75.%d Setstate %d/%s -> %d/%s\n", KERN_DEBUG,state->debugnr, state->status, x75_sname[state->status], status, x75_sname[status]);
 	if(state->status != S_free) {
 		state->status = status;
 		if(state->status == S_down)
@@ -73,7 +73,7 @@ x75_setstate (x75 state, x75_status status)
 	if(state->T##xx) { 				\
 		state->T##xx = 0; 			\
 		if(state->debug & 0x08)		\
-			printf(KERN_DEBUG "Stop%d T"#xx" %d\n",state->debugnr,__LINE__);	\
+			printf("%sStop%d T"#xx" %d\n",KERN_DEBUG,state->debugnr,__LINE__);	\
 		untimeout((void *)x75_T##xx,state); \
 	} splx(_ms);					\
 	(er)=0;							\
@@ -84,7 +84,7 @@ x75_setstate (x75 state, x75_status status)
 	if(! state->T##xx) { 			\
 		state->T##xx = 1; 			\
 		if(state->debug & 0x08) 		\
-			printf(KERN_DEBUG "Start%d T"#xx" %d %d\n",state->debugnr,state->RUN_T##xx, __LINE__);	\
+			printf("%sStart%d T"#xx" %d %d\n",KERN_DEBUG,state->debugnr,state->RUN_T##xx, __LINE__);	\
 		timeout((void *)x75_T##xx,state,(state->RUN_T##xx * HZ) / 10); 	\
 	} splx(_ms);					\
 	(er)=0;							\
@@ -96,7 +96,7 @@ x75_setstate (x75 state, x75_status status)
 		untimeout((void *)x75_T##xx,state); \
 	state->T##xx = 1; 				\
 	if(state->debug & 0x08)			\
-		printf(KERN_DEBUG "Restart%d T"#xx" %d %d\n",state->debugnr,state->RUN_T##xx, __LINE__);	\
+		printf("%sRestart%d T"#xx" %d %d\n",KERN_DEBUG,state->debugnr,state->RUN_T##xx, __LINE__);	\
 	timeout((void *)x75_T##xx,state,(state->RUN_T##xx * HZ) / 10); 	\
 	splx(_ms);						\
 	} while(0)
@@ -108,7 +108,7 @@ x75_setstate (x75 state, x75_status status)
 	if(state->T##xx) { 				\
 		state->T##xx = 0; 			\
 		if(state->debug & 0x08)		\
-			printf(KERN_DEBUG "Stop%d T"#xx" %d\n",state->debugnr,__LINE__);	\
+			printf("%sStop%d T"#xx" %d\n",KERN_DEBUG,state->debugnr,__LINE__);	\
 		untimeout(state->timer_T##xx); \
 	} splx(_ms);					\
 	(er)=0;							\
@@ -119,7 +119,7 @@ x75_setstate (x75 state, x75_status status)
 	if(! state->T##xx) { 			\
 		state->T##xx = 1; 			\
 		if(state->debug & 0x08) 		\
-			printf(KERN_DEBUG "Start%d T"#xx" %d %d\n",state->debugnr,state->RUN_T##xx,__LINE__);	\
+			printf("%sStart%d T"#xx" %d %d\n",KERN_DEBUG,state->debugnr,state->RUN_T##xx,__LINE__);	\
 		state->timer_T##xx = timeout((void *)x75_T##xx,state,(state->RUN_T##xx * HZ) / 10); 	\
 	} splx(_ms);					\
 	(er)=0;							\
@@ -131,7 +131,7 @@ x75_setstate (x75 state, x75_status status)
 		untimeout(state->timer_T##xx); \
 	state->T##xx = 1; 				\
 	if(state->debug & 0x08)			\
-		printf(KERN_DEBUG "Restart%d T"#xx" %d %d\n",state->debugnr,state->RUN_T##xx,__LINE__);	\
+		printf("%sRestart%d T"#xx" %d %d\n",KERN_DEBUG,state->debugnr,state->RUN_T##xx,__LINE__);	\
 	state->timer_T##xx = timeout((void *)x75_T##xx,state,(state->RUN_T##xx * HZ) / 10); 	\
 	splx(_ms);						\
 	(er)=0;							\
@@ -223,11 +223,11 @@ xmit3 (x75 state, char cmd, uchar_t what)
 	int err;
 
 	if (state->debug & 0x80)
-		printf (KERN_DEBUG "X%d%c%x ", state->debugnr, cmd ? 'c' : 'r', what);
+		printf ("%sX%d%c%x ", KERN_DEBUG,state->debugnr, cmd ? 'c' : 'r', what);
 	mb = allocb (state->offset + 1, BPRI_HI);
 	if (mb == NULL) {
 		if(state->debug & 0x01)
-			printf(KERN_WARNING "NX4 NoMem ");
+			printf("%sNX4 NoMem ",KERN_WARNING);
 		return -ENOENT;
 	}
 	mb->b_rptr += state->offset;
@@ -249,11 +249,11 @@ xmit4 (x75 state, char cmd, uchar_t what1, uchar_t what2)
 	int err;
 
 	if (state->debug & 0x80)
-		printf (KERN_DEBUG "X%d%c%x.%x ", state->debugnr, cmd ? 'c' : 'r', what1, what2);
+		printf ("%sX%d%c%x.%x ", KERN_DEBUG,state->debugnr, cmd ? 'c' : 'r', what1, what2);
 	mb = allocb (state->offset + 2, BPRI_HI);
 	if (mb == NULL) {
 		if(state->debug & 0x01)
-			printf(KERN_WARNING "NX4 NoMem ");
+			printf("%sNX4 NoMem ",KERN_WARNING);
 		return -ENOENT;
 	}
 	mb->b_rptr += state->offset;
@@ -275,7 +275,7 @@ Xestablish (x75 state, int line)
 	int err, err2;
 
 	if (state->debug & 0x10)
-		printf (KERN_EMERG "Establish%d %d\n", state->debugnr, line);
+		printf ("%sEstablish%d %d\n", KERN_EMERG,state->debugnr, line);
 	if(state->broadcast) {
 		return -ENXIO;
 	}
@@ -284,7 +284,7 @@ Xestablish (x75 state, int line)
 	x75_setstate(state, S_await_up);
 	if((state->errors += 10) >= 100) {
 		x75_setstate(state, S_down);
-		printf(KERN_INFO "ERR_G 1, %d\n",state->errors);
+		printf("%sERR_G 1, %d\n",KERN_INFO,state->errors);
 		state->errors = 0;
 		msg_up (state, MDL_ERROR_IND, ERR_G);
 		msg_up (state, DL_RELEASE_IND, 0);
@@ -323,7 +323,7 @@ Xrecover_NR (x75 state, int line)
 
 	if (state->flush != NULL)
 		(*state->flush) (state->ref);
-	printf(KERN_INFO "ERR_J 1\n");
+	printf("%sERR_J 1\n",KERN_INFO);
 	msg_up (state, MDL_ERROR_IND, ERR_J);
 	err = Xestablish (state, line);
 	state->L3_req = 0;
@@ -377,7 +377,7 @@ x75_T1 (x75 state)
 
 	state->T1 = 0;
 	if (state->debug & 0x10)
-		printf (KERN_DEBUG "T%d.1 %d RC %d\n", state->debugnr, state->status, state->RC);
+		printf ("%sT%d.1 %d RC %d\n", KERN_DEBUG,state->debugnr, state->status, state->RC);
 	switch (state->status) {
 	case S_await_up:
 		if (state->RC != 0) { /* temporary kludge */
@@ -386,7 +386,7 @@ x75_T1 (x75 state)
 
 				if(!state->wide) {
 #ifdef linux
-					printf(KERN_DEBUG "Xtimeout %ld\n",jiffies);
+					printf("%sXtimeout %ld\n",KERN_DEBUG,jiffies);
 #endif
 #if 0
 					{
@@ -405,7 +405,7 @@ x75_T1 (x75 state)
 				start_T (1, err2);
 			} else {
 				flush_I (state);
-				printf(KERN_INFO "ERR_G 2, %d\n",state->N1);
+				printf("%sERR_G 2, %d\n",KERN_INFO,state->N1);
 				msg_up (state, MDL_ERROR_IND, ERR_G);
 				msg_up (state, DL_RELEASE_IND, 0);
 				x75_setstate(state, S_down);
@@ -432,7 +432,7 @@ x75_T1 (x75 state)
 			xmit3 (state, 1, L2_DISC | L2_PF_U);
 			start_T (1, err2);
 		} else {
-			printf(KERN_INFO "ERR_H 1\n");
+			printf("%sERR_H 1\n",KERN_INFO);
 			msg_up (state, MDL_ERROR_IND, ERR_H);
 			msg_up (state, DL_RELEASE_CONF, 0);
 			x75_setstate(state, S_down);
@@ -444,7 +444,7 @@ x75_T1 (x75 state)
 			state->RC++;
 			start_T (1, err2);
 		} else {
-			printf(KERN_INFO "ERR_I 1\n");
+			printf("%sERR_I 1\n",KERN_INFO);
 			msg_up (state, MDL_ERROR_IND, ERR_I);
 			establish (state);
 			state->L3_req = 0;
@@ -465,7 +465,7 @@ x75_T3 (x75 state)
 {
 	state->T3 = 0;
 	if (state->debug & 0x10)
-		printf (KERN_DEBUG "T%d.3 %d\n", state->debugnr, state->status);
+		printf ("%sT%d.3 %d\n", KERN_DEBUG,state->debugnr, state->status);
 	switch (state->status) {
 	case S_up:
 		x75_setstate(state, S_recover);
@@ -529,13 +529,13 @@ x75_check_pending (x75 state, char fromLow)
 
 #if 0 /* def CONFIG_DEBUG_ISDN */
 	if(state->debug & 1)
-		printf(KERN_DEBUG "CP%d %s:%d  ",state->debugnr,deb_file,deb_line);
+		printf("%sCP%d %s:%d  ",KERN_DEBUG,state->debugnr,deb_file,deb_line);
 #ifdef CONFIG_DEBUG_STREAMS
 	cS_check(deb_file,deb_line,&state->UI,NULL);
 #endif
 #else
 	if(state->debug & 1)
-		printf(KERN_DEBUG "CP%d ",state->debugnr);
+		printf("%sCP%d ",KERN_DEBUG,state->debugnr);
 #endif
 
 	if(state->status == S_free)
@@ -556,7 +556,7 @@ x75_check_pending (x75 state, char fromLow)
 			mb = mb2;
 		*--mb->b_rptr = L2_UI;
 		if (state->debug & 1)
-			printf (KERN_DEBUG "X%dc%x ", state->debugnr, mb->b_wptr[-1] & 0xFF);
+			printf ("%sX%dc%x ", KERN_DEBUG,state->debugnr, mb->b_wptr[-1] & 0xFF);
 		if ((err = (*state->send) (state->ref, state->asBroadcast ? 3 : 1, mb)) != 0) {
 			if (err == -EAGAIN) { /* Undo the above */
 				mb->b_rptr++;
@@ -574,7 +574,7 @@ x75_check_pending (x75 state, char fromLow)
 	 */
 	if (state->status != S_up) {
 		if(state->I.first != NULL) 
-			printf(KERN_DEBUG "x75.%d: State %d/%s, pending\n",state->debugnr,state->status,x75_sname[state->status]);
+			printf("%sx75.%d: State %d/%s, pending\n",KERN_DEBUG,state->debugnr,state->status,x75_sname[state->status]);
 		if ((state->status == S_await_up) && fromLow) {
 			stop_T(1,err);
 			x75_T1(state);
@@ -610,11 +610,11 @@ x75_check_pending (x75 state, char fromLow)
 				*--mb->b_rptr = state->v_r << 1;
 				*--mb->b_rptr = state->v_s << 1;
 				if (state->debug & 1)
-					printf (KERN_DEBUG "X%dc%x.%x ", state->debugnr, mb->b_rptr[0] & 0xFF, mb->b_rptr[1] & 0xFF);
+					printf ("%sX%dc%x.%x ", KERN_DEBUG,state->debugnr, mb->b_rptr[0] & 0xFF, mb->b_rptr[1] & 0xFF);
 			} else {
 				*--mb->b_rptr = (state->v_s << 1) | (state->v_r << 5);
 				if (state->debug & 1)
-					printf (KERN_DEBUG "X%dc%x ", state->debugnr, mb->b_rptr[0] & 0xFF);
+					printf ("%sX%dc%x ", KERN_DEBUG,state->debugnr, mb->b_rptr[0] & 0xFF);
 			}
 			state->v_s = (state->v_s + 1) & (state->wide ? 0x7F : 0x07);
 			if ((err = (*state->send) (state->ref, 1, mb)) != 0) {
@@ -659,8 +659,8 @@ x75_check_pending (x75 state, char fromLow)
 			err = err2;
 	}
 #if 0 /* def CONFIG_DEBUG_ISDN */
-	else if(did) printf(KERN_DEBUG "NX send ");
-	else printf(KERN_DEBUG "NX NoAckPend ");
+	else if(did) printf("%sNX send ",KERN_DEBUG );
+	else printf("%sNX NoAckPend ",KERN_DEBUG );
 #endif
 	/*
 	 * Ugly Hack time. Continuously ask the remote side what's going on while
@@ -690,7 +690,7 @@ checkV (x75 state, uchar_t n_r)
 	if ((n_r == state->v_a) && (n_r == state->v_s))
 		return 1;
 	if (state->debug & 0x08)
-		printf (KERN_DEBUG "Chk%d %d <= %d <= %d\n", state->debugnr, state->v_a, n_r, state->v_s);
+		printf ("%sChk%d %d <= %d <= %d\n",KERN_DEBUG,state->debugnr, state->v_a, n_r, state->v_s);
 	if (state->v_a <= state->v_s) {
 		if (state->v_a <= n_r && n_r <= state->v_s)
 			return 1;
@@ -698,7 +698,7 @@ checkV (x75 state, uchar_t n_r)
 		if (state->v_a <= n_r || n_r <= state->v_s)
 			return 1;
 	}
-	printf (KERN_WARNING "\n*** X75-%d Sequence error: V_A %d, N_R %d, V_S %d\n",
+	printf ("\n%s*** X75-%d Sequence error: V_A %d, N_R %d, V_S %d\n",KERN_WARNING,
 			state->debugnr, state->v_a, n_r, state->v_s);
 	return 0;
 }
@@ -723,7 +723,7 @@ pull_up (x75 state, uchar_t n_r)
 		state->v_a = (state->v_a + 1) & (state->wide ? 0x7F : 0x07);
 	}
 	if (state->v_a != n_r) {
-		printf (KERN_WARNING "x75.%d consistency problem: v_a %d, n_r %d, v_s %d, nblk %d, firstblk %p\n",
+		printf ("%sx75.%d consistency problem: v_a %d, n_r %d, v_s %d, nblk %d, firstblk %p\n",KERN_WARNING,
 				state->debugnr, state->v_a, n_r, state->v_s, state->I.nblocks, state->I.first);
 		splx (ms);
 		return -EFAULT;
@@ -770,15 +770,15 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 	if (state->debug & 0x80) {
 		if (state->wide) {
 			if ((x1 & L2_m_SU) == L2_is_U) {
-				printf (KERN_DEBUG "R%d%c%x ", state->debugnr, cmd ? 'c' : 'r', x1);
+				printf ("%sR%d%c%x ",KERN_DEBUG, state->debugnr, cmd ? 'c' : 'r', x1);
 			} else {
 				if (mb != NULL)
-					printf (KERN_DEBUG "R%d%c%x.%x ", state->debugnr, cmd ? 'c' : 'r', x1, *mb->b_rptr & 0xFF);
+					printf ("%sR%d%c%x.%x ", KERN_DEBUG,state->debugnr, cmd ? 'c' : 'r', x1, *mb->b_rptr & 0xFF);
 				else
-					printf (KERN_DEBUG "R%d.half %x ", state->debugnr, x1);
+					printf ("%sR%d.half %x ",KERN_DEBUG, state->debugnr, x1);
 			}
 		} else {
-			printf (KERN_DEBUG "R%d%c%x ", state->debugnr, cmd ? 'c' : 'r', x1);
+			printf ("%sR%d%c%x ",KERN_DEBUG, state->debugnr, cmd ? 'c' : 'r', x1);
 		}
 	}
 	mb = pullupm(mb,0);
@@ -984,7 +984,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 								   * force-poll-while-RNR hack. Yes it _is_
 								   * ugly. I know that. */
 						if (!(state->RNR && state->poll)) {
-							printf(KERN_INFO "ERR_A 1, RNR %d poll %d\n",state->RNR,state->poll);
+							printf("%sERR_A 1, RNR %d poll %d\n",KERN_INFO,state->RNR,state->poll);
 							err2 = msg_up (state, MDL_ERROR_IND, ERR_A);
 							if (err == 0)
 								err = err2;
@@ -1086,7 +1086,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				} else {
 					if (pf) {
 						if (!(state->poll && state->RNR)) {
-							printf(KERN_INFO "ERR_A 2\n");
+							printf("%sERR_A 2\n",KERN_INFO );
 							err2 = msg_up (state, MDL_ERROR_IND, ERR_A);
 							if (err == 0)
 								err = err2;
@@ -1177,7 +1177,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				} else {
 					if (pf) {
 						if (!(state->poll && state->RNR)) {
-							printf(KERN_INFO "ERR_A 3\n");
+							printf("%sERR_A 3\n",KERN_INFO );
 							err2 = msg_up (state, MDL_ERROR_IND, ERR_A);
 							if (err == 0)
 								err = err2;
@@ -1262,7 +1262,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 			err2 = send_FRMR (state, pf, x1, x2, cmd, 1, 0, 0, 0);
 			if (err == 0)
 				err = err2;
-			printf(KERN_INFO "ERR_L 1\n");
+			printf("%sERR_L 1\n",KERN_INFO);
 			err2 = msg_up (state, MDL_ERROR_IND, ERR_L);
 			if (err == 0)
 				err = err2;
@@ -1292,7 +1292,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				err2 = send_FRMR (state, pf, x1, 0, cmd, 1, 1, 0, 0);
 				if (err == 0)
 					err = err2;
-				printf(KERN_INFO "ERR_N 1\n");
+				printf("%sERR_N 1\n",KERN_INFO );
 				err2 = msg_up (state, MDL_ERROR_IND, ERR_N);
 				if (err == 0)
 					err = err2;
@@ -1300,7 +1300,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 			}
 			if ((code == L2_SABME) != (state->wide != 0)) {
 				/* Configured extended mode, got normal mode, or vice versa */
-				printf(KERN_INFO "ERR_? 1\n");
+				printf("%sERR_? 1\n", KERN_INFO );
 				err2 = send_FRMR (state, pf, x1, 0, cmd, 1, 0, 0, 0);
 				if (err == 0)
 					err = err2;
@@ -1357,7 +1357,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				err2 = clr_except (state);
 				if (err == 0)
 					err = err2;
-				printf(KERN_INFO "ERR_F 1\n");
+				printf("%sERR_F 1\n",KERN_INFO );
 				err2 = msg_up (state, MDL_ERROR_IND, ERR_F);
 				if (err == 0)
 					err = err2;
@@ -1389,7 +1389,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				err2 = send_FRMR (state, pf, x1, x2, cmd, 1, 1, 0, 0);
 				if (err == 0)
 					err = err2;
-				printf(KERN_INFO "ERR_N 2\n");
+				printf("%sERR_N 2\n",KERN_INFO );
 				err2 = msg_up (state, MDL_ERROR_IND, ERR_N);
 				if (err == 0)
 					err = err2;
@@ -1448,7 +1448,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				err2 = send_FRMR (state, pf, x1, x2, cmd, 1, 1, 0, 0);
 				if (err == 0)
 					err = err2;
-				printf(KERN_INFO "ERR_N 3\n");
+				printf("%sERR_N 3\n",KERN_INFO );
 				err2 = msg_up (state, MDL_ERROR_IND, ERR_N);
 				if (err == 0)
 					err = err2;
@@ -1494,12 +1494,12 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 			case S_up:
 			case S_recover:
 				if (pf) {
-					printf(KERN_INFO "ERR_B 1\n");
+					printf("%sERR_B 1\n",KERN_INFO );
 					err2 = msg_up (state, MDL_ERROR_IND, ERR_B);
 					if (err == 0)
 						err = err2;
 				} else {
-					printf(KERN_INFO "ERR_E 1\n");
+					printf("%sERR_E 1\n",KERN_INFO );
 					err2 = msg_up (state, MDL_ERROR_IND, ERR_E);
 					if (err == 0)
 						err = err2;
@@ -1517,7 +1517,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 				err2 = send_FRMR (state, pf, x1, x2, cmd, 1, 1, 0, 0);
 				if (err == 0)
 					err = err2;
-				printf(KERN_INFO "ERR_N\n");
+				printf("%sERR_N\n",KERN_INFO );
 				err2 = msg_up (state, MDL_ERROR_IND, ERR_N);
 				if (err == 0)
 					err = err2;
@@ -1527,7 +1527,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 			case S_up:
 			case S_down:
 			case S_recover:
-				printf(KERN_INFO "ERR_CD 1\n");
+				printf("%sERR_CD 1\n",KERN_INFO );
 				err2 = msg_up (state, MDL_ERROR_IND, ERR_C | ERR_D);
 				if (err == 0)
 					err = err2;
@@ -1557,7 +1557,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 					if(state->backenable)
 						(*state->backenable) (state->ref);
 				} else {
-					printf(KERN_INFO "ERR_D 1\n");
+					printf("%sERR_D 1\n",KERN_INFO );
 					err2 = msg_up (state, MDL_ERROR_IND, ERR_D);
 				}
 				if (err == 0)
@@ -1573,7 +1573,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 						err = err2;
 					x75_setstate(state, S_down);
 				} else {
-					printf(KERN_INFO "ERR_D 2\n");
+					printf("%sERR_D 2\n",KERN_INFO );
 					err2 = msg_up (state, MDL_ERROR_IND, ERR_D);
 				}
 				if (err == 0)
@@ -1604,7 +1604,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 		case L2_FRMR:
 		case L2_FRMR | L2__CMD:	/* technically an invalid frame, but replying with 
 									FRMR here is _bad_ */
-			printf(KERN_INFO "ERR_D 3\n");
+			printf("%sERR_D 3\n",KERN_INFO );
 			err2 = msg_up (state, MDL_ERROR_IND, ERR_D);
 			if (err == 0)
 				err = err2;
@@ -1618,7 +1618,7 @@ x75_recv (x75 state, char cmd, mblk_t * mb)
 			err2 = send_FRMR (state, pf, x1, x2, cmd, 1, 0, 0, 0);
 			if (err == 0)
 				err = err2;
-			printf(KERN_INFO "ERR_L 2\n");
+			printf("%sERR_L 2\n",KERN_INFO );
 			err2 = msg_up (state, MDL_ERROR_IND, ERR_L);
 			if (err == 0)
 				err = err2;
@@ -1660,6 +1660,8 @@ x75_send (x75 state, char isUI, mblk_t * mb)
 int
 x75_cansend (x75 state, char isUI)
 {
+	if(state->cansend != NULL)
+		(void)(*state->cansend) (state->ref); /* Trigger bringing L1 up */
 	if (isUI)
 		return (state->I.nblocks < 3);		/* arbitrary maximum */
 	else						  /* This allows us to enqueue one additional
@@ -1694,11 +1696,11 @@ x75_changestate (x75 state, uchar_t ind, char isabort)
 
 #ifdef CONFIG_DEBUG_ISDN
 	if(state->debug & 0x10)
-	    printf(KERN_DEBUG "x75.%d: State %d/%s for ind %d %d from %s:%d\n",state->debugnr,state->status,
+	    printf("%sx75.%d: State %d/%s for ind %d %d from %s:%d\n",KERN_DEBUG,state->debugnr,state->status,
 			x75_sname[state->status],ind,isabort,deb_file,deb_line);
 #else
 	if(state->debug & 0x10)
-	    printf(KERN_DEBUG "x75.%d: State %d/%s for ind %d %d\n",state->debugnr,state->status,
+	    printf("%sx75.%d: State %d/%s for ind %d %d\n",KERN_DEBUG,state->debugnr,state->status,
 			x75_sname[state->status],ind,isabort);
 #endif
 	if (isabort)
@@ -1719,7 +1721,7 @@ x75_changestate (x75 state, uchar_t ind, char isabort)
 		if (state->status == S_up || state->status == S_recover)
 			break;				  /* Already established. */
 		if (state->debug & 0x10)
-			printf (KERN_DEBUG "X75%d: Forced establish.\n", state->debugnr);
+			printf ("%sX75%d: Forced establish.\n",KERN_DEBUG, state->debugnr);
 		 /* flush_I (state); */
 		state->errors = 0;
 		if (state->status != S_down && state->status != S_free)
@@ -1740,7 +1742,7 @@ x75_changestate (x75 state, uchar_t ind, char isabort)
 		case S_down:
 		case S_await_down:
 			if(ind == DL_ESTABLISH_IND /* && state->UI.first == NULL && state->UI.first == NULL */ ) {
-				if(0)printf(KERN_DEBUG "x75.%d: DL_ESTABLISH_IND, down, nothing done\n",state->debugnr);
+				if(0)printf("%sx75.%d: DL_ESTABLISH_IND, down, nothing done\n",KERN_DEBUG,state->debugnr);
 				break;
 			}
 			err = establish (state);
@@ -1876,7 +1878,7 @@ x75_initconn (x75 state)
 			|| state->recv == NULL
 			|| state->state == NULL)
 		return -EFAULT;
-	if(0)printf(KERN_DEBUG "X75 %d: Init %d %d\n",state->debugnr,state->RUN_T1,state->RUN_T3);
+	if(0)printf("%sX75 %d: Init %d %d\n",KERN_DEBUG,state->debugnr,state->RUN_T1,state->RUN_T3);
 	return 0;
 }
 

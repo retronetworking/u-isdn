@@ -1,12 +1,8 @@
 #include "f_module.h"
 #include "isdn_limits.h"
 #include <stddef.h>
-
-#ifdef linux
 #include <linux/sched.h>
-#endif
-
-#include "shell.h"
+#include "loader.h"
 
 #ifndef CARDTYPE
 #error "You have to define CARDTYPE for this to work."
@@ -17,10 +13,10 @@
 #define xxstrxx(a) #a
 #define STRING(a) xxstrxx(a) /* ditto */
 
-extern int NAME(CARDTYPE,init)(struct _dumb *dumb);
-extern void NAME(CARDTYPE,exit)(struct _dumb *dumb);
+extern int NAME(CARDTYPE,init)(struct cardinfo *inf);
+extern void NAME(CARDTYPE,exit)(struct cardinfo *inf);
 
-struct _dumb dumb;
+struct cardinfo inf;
 
 int irq = 0;
 int mem = 0;
@@ -33,21 +29,21 @@ int debug = 0;
 static int do_init_module(void)
 {
 	if(name == 0) {
-		printf("You must name this card: insmod xxx.o name=$(name Foo0)\n");
+		printf("You must name this card: insmod xxx.o name=$(cardname Foo0)\n");
 		return -EINVAL;
 	}
-	dumb.irq = irq;
-	dumb.ipl = ipl;
-	dumb.ioaddr = io;
-	dumb.memaddr = mem;
-	dumb.ID = name;
-	dumb.debug = debug;
-	return NAME(CARDTYPE,init)(&dumb);
+	inf.irq = irq;
+	inf.ipl = ipl;
+	inf.ioaddr = io;
+	inf.memaddr = mem;
+	inf.ID = name;
+	inf.debug = debug;
+	return NAME(CARDTYPE,init)(&inf);
 }
 
 static int do_exit_module(void)
 {
-	NAME(CARDTYPE,exit)(&dumb);
+	NAME(CARDTYPE,exit)(&inf);
 	return 0;
 }
 #else

@@ -11,7 +11,7 @@
 #include <linux/version.h>
 #endif
 
-#include <linux/kernel.h>
+#include "kernel.h"
 #include <linux/delay.h>
 #include <asm/delay.h>
 
@@ -244,21 +244,21 @@ void sysdump(const char *msg, struct pt_regs *regs, unsigned long err)
 			esp = (unsigned long) &regs->esp;
 		ss = KERNEL_DS;
 
-		printk(KERN_DEBUG "\n");
+		printk("%s\n",KERN_DEBUG);
 		if(msg != NULL)
-			printk(KERN_EMERG "%s: %08lx\n", msg, err);
+			printk("%s%s: %08lx\n", KERN_DEBUG, msg, err);
 		else
 			nlim += 4;
 		if(regs != NULL) {
-			printk(KERN_EMERG "EIP:    %04x:%08lx     EFLAGS: %08lx\n", 0xffff & regs->cs,regs->eip,regs->eflags);
-			printk(KERN_EMERG "eax: %08lx   ebx: %08lx   ecx: %08lx edx: %08lx\n",
+			printk("%sEIP:    %04x:%08lx     EFLAGS: %08lx\n", KERN_EMERG, 0xffff & regs->cs,regs->eip,regs->eflags);
+			printk("%seax: %08lx   ebx: %08lx   ecx: %08lx edx: %08lx\n", KERN_EMERG,
 				regs->eax, regs->ebx, regs->ecx, regs->edx);
-			printk(KERN_EMERG "esi: %08lx   edi: %08lx   ebp: %08lx esp: %08lx\n",
+			printk("%sesi: %08lx   edi: %08lx   ebp: %08lx esp: %08lx\n",KERN_EMERG, 
 				regs->esi, regs->edi, regs->ebp, esp);
-			printk(KERN_EMERG "ds: %04x   es: %04x   fs: %04x   gs: %04x   ss: %04x\n",
+			printk("%sds: %04x   es: %04x   fs: %04x   gs: %04x   ss: %04x\n",KERN_EMERG,
 				regs->ds, regs->es, regs->fs, regs->gs, ss);
 			if (STACK_MAGIC != *(unsigned long *)current->kernel_stack_page)
-				printk(KERN_EMERG "Corrupted stack page\n");            
+				printk("%sCorrupted stack page\n",KERN_EMERG);
 			else
 				nlim += 1;
 		
@@ -266,24 +266,24 @@ void sysdump(const char *msg, struct pt_regs *regs, unsigned long err)
 			nlim += 5;
 		store_TR(i);
 		if(current != NULL) {
-			printk(KERN_EMERG "Process %s (pid: %d, process nr: %d, stackpage=%08lx)\n",
-				current->comm, current->pid, 0xffff & i, current->kernel_stack_page);
+			printk("%sProcess %s (pid: %d, process nr: %d, stackpage=%08lx)\n",
+				KERN_EMERG,current->comm, current->pid, 0xffff & i, current->kernel_stack_page);
 		} else {
-			printk(KERN_EMERG "No current process\n");
+			printk("%sNo current process\n",KERN_EMERG);
 		}
 		{
 			int nlines = 0, linepos = 0;
-			printk(KERN_EMERG "");
+			printk("%s",KERN_EMERG);
 			for (i=0; dodump && nlines < nlim; i++) {
 				u_long xx = get_seg_long(ss,(i+(unsigned long *)esp));
 				if(dodump > 1 && (xx & 0xfff00000) == 0xbff00000)
 					dodump = 4;
-	#define WRAP(n) do { if((linepos+=(n))>=80) { dodump--; nlines++; linepos=(n); printk("\n" KERN_EMERG); } } while(0)
+#define WRAP(n) do { if((linepos+=(n))>=80) { dodump--; nlines++; linepos=(n); printk("\n%s", KERN_EMERG); } } while(0)
 				if     (xx & 0xFF000000UL) { WRAP(9); printk("%08lx ",xx); }
 				else if(xx & 0x00FF0000UL) { WRAP(7); printk("%06lx ",xx); }
 				else if(xx & 0x0000FF00UL) { WRAP(5); printk("%04lx ",xx); }
 				else                       { WRAP(3); printk("%02lx ",xx); }
-	#undef WRAP
+#undef WRAP
 			}
 			printk("\n");
 		}
@@ -301,7 +301,7 @@ void sysdump(const char *msg, struct pt_regs *regs, unsigned long err)
 		if(dodump < 10000) {
 			int j;
 
-			printk(KERN_EMERG "Crash & Burn...");
+			printk("%sCrash & Burn...",KERN_EMERG);
 			for(j=dodump;j>0;j--)  {
 				int i;
 				if((j%30 == 0) || (j%5 == 0 && j < 60) || j < 10) printk("%d...",j);
@@ -309,11 +309,22 @@ void sysdump(const char *msg, struct pt_regs *regs, unsigned long err)
 			}
 			panic("now.");
 		} else {
-			printk(KERN_EMERG "Kernel halted.");
+			printk("%sKernel halted.",KERN_EMERG);
 			for(;;);
 		}
 	}
     restore_flags(flags);
+}
+
+
+
+char *loghdr(char level)
+{
+	static char sbuf[30];
+	static int tdiff = 0;
+	sprintf(sbuf,"<%d>%d:",level,jiffies-tdiff);
+	tdiff = jiffies;
+	return sbuf;
 }
 
 
@@ -337,7 +348,8 @@ char kernel_version[] = UTS_RELEASE;
 
 int init_module(void)
 {
-#if defined(__ELF__) || LINUX_VERSION_CODE >= 66304 /* 1.3.0. Is that right??? */
+/* This should work... */
+#if defined(__ELF__)
 #define U
 #else
 #define U "_"

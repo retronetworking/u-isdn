@@ -3,17 +3,17 @@ inline static void PostIRQ(struct _dumb * dumb)
 }
 
 static inline Byte InISAC(struct _dumb * dumb, u_char offset) {
-	return *(Byte *)(dumb->memaddr+0x100+((offset&1)?0x1FF:0)+offset);
+	return *(Byte *)(dumb->info.memaddr+0x100+((offset&1)?0x1FF:0)+offset);
 }
 static inline void OutISAC(struct _dumb * dumb, u_char offset, Byte data) {
-	*(Byte *)(dumb->memaddr+0x100+((offset&1)?0x1FF:0)+offset) = data;
+	*(Byte *)(dumb->info.memaddr+0x100+((offset&1)?0x1FF:0)+offset) = data;
 }
 
 static inline Byte InHSCX(struct _dumb * dumb, u_char hscx, u_char offset) {
-	return *(Byte *)(dumb->memaddr+0x180+((offset&1)?0x1FF:0)+((hscx&1)?0:0x40)+offset);
+	return *(Byte *)(dumb->info.memaddr+0x180+((offset&1)?0x1FF:0)+((hscx&1)?0:0x40)+offset);
 }
 static inline void OutHSCX(struct _dumb * dumb, u_char hscx, u_char offset, Byte data) {
-	*(Byte *)(dumb->memaddr+0x180+((offset&1)?0x1FF:0)+((hscx&1)?0:0x40)+offset) = data;
+	*(Byte *)(dumb->info.memaddr+0x180+((offset&1)?0x1FF:0)+((hscx&1)?0:0x40)+offset) = data;
 }
 static inline Byte Slot(struct _dumb * dumb, u_char hscx) {
 	return (hscx&1) ? 0x03 : 0x03; /* was 3 / 7 */
@@ -24,22 +24,22 @@ Init(struct _dumb * dumb) {
 	int timout;
 	long flags;
 
-	if(dumb->memaddr == 0)
+	if(dumb->info.memaddr == 0)
 		return -EINVAL;
 	dumb->numHSCX = 2;
 	save_flags(flags);
-	if(dumb->ipl) {
+	if(dumb->info.ipl) {
 		int ioaddr;
 		Byte cfval;
-		switch(dumb->ipl) {
-		default: printk("ipl %d unknown: ",dumb->ipl); return 0;
+		switch(dumb->info.ipl) {
+		default: printk("ipl %d unknown: ",dumb->info.ipl); return 0;
 		case 1: ioaddr = 0xd80; break;
 		case 2: ioaddr = 0xe80; break;
 		case 3: ioaddr = 0xf80; break;
 		case 4: ioaddr = 0xc80; break; /* may cause conflicts (motherboard range) */
 		}
-		switch(dumb->irq) {
-		default: printk("irq %d not possible: ",dumb->irq); return -EINVAL;
+		switch(dumb->info.irq) {
+		default: printk("irq %d not possible: ",dumb->info.irq); return -EINVAL;
 		case  2: cfval = 0x00; break;
 		case  3: cfval = 0x02; break;
 		case  4: cfval = 0x04; break;
@@ -49,9 +49,9 @@ Init(struct _dumb * dumb) {
 		case 12: cfval = 0x0C; break;
 		case 15: cfval = 0x0E; break;
 		}
-		if(dumb->memaddr & ~0xDE000) { printk("memaddr %lx not possible: ",dumb->memaddr); return 0; }
-		if(~dumb->memaddr & 0xC0000) { printk("memaddr %lx not possible: ",dumb->memaddr); return 0; }
-		cfval |= ((dumb->memaddr >> 9) & 0xF0);
+		if(dumb->info.memaddr & ~0xDE000) { printk("info.memaddr %lx not possible: ",dumb->info.memaddr); return 0; }
+		if(~dumb->info.memaddr & 0xC0000) { printk("info.memaddr %lx not possible: ",dumb->info.memaddr); return 0; }
+		cfval |= ((dumb->info.memaddr >> 9) & 0xF0);
 		if(ByteIn(ioaddr+0) != 0x51) { return 0; }
 		if(ByteIn(ioaddr+1) != 0x93) { return 0; }
 		if(ByteIn(ioaddr+2) != 0x1E) { return 0; }
@@ -66,10 +66,10 @@ Init(struct _dumb * dumb) {
 		restore_flags(flags);
 	}
 	timout = jiffies+(HZ/5)+1;
-	*(Byte *)(dumb->memaddr + 0x80) = 0;
+	*(Byte *)(dumb->info.memaddr + 0x80) = 0;
 	sti();
 	while(jiffies <= timout) ;
-	*(Byte *)(dumb->memaddr + 0x80) = 1;
+	*(Byte *)(dumb->info.memaddr + 0x80) = 1;
 	timout = jiffies+(HZ/5)+1;
 	while(jiffies <= timout) ;
 	restore_flags(flags);
@@ -79,7 +79,7 @@ Init(struct _dumb * dumb) {
 static void
 ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 {
-	unsigned long ms = SetSPL(dumb->ipl);
+	unsigned long ms = SetSPL(dumb->info.ipl);
 static Byte xmode = 0xFF;
 	
 	if(dumb->chan[0].m_in != NULL) {
@@ -94,7 +94,7 @@ static Byte xmode = 0xFF;
 
 	switch(mode) {
 	case M_OFF:
-		DEBUG(info) printk(KERN_DEBUG "ISDN CIX0 0x3Fn\n");
+		DEBUG(info) printk("%sISDN CIX0 0x3Fn\n",KERN_DEBUG );
 		if(xmode != mode)
 			ByteOutISAC(dumb,CIX0,0x3F &3);
 		if(dumb->polled>0) isdn2_new_state(&dumb->card,0);
@@ -103,7 +103,7 @@ static Byte xmode = 0xFF;
 	case M_STANDBY:
 		if(dumb->chan[0].mode != M_STANDBY) {
 			ByteOutISAC(dumb,MODE,0xC9);
-			DEBUG(info) printk(KERN_DEBUG "ISDN CIX0 0x03\n");
+			DEBUG(info) printk("%sISDN CIX0 0x03\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x03);
 		}
 		ByteOutISAC(dumb,MASK,0x00);
@@ -114,11 +114,11 @@ static Byte xmode = 0xFF;
 		ByteOutISAC(dumb,MODE,0xC9);
 		ByteOutISAC(dumb,MASK,0x00);
 		if(dumb->chan[0].mode != M_HDLC) {
-			DEBUG(info) printk(KERN_DEBUG "ISDN CIX0 0x27\n");
+			DEBUG(info) printk("%sISDN CIX0 0x27\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x27);
 		} else {
 			if(dumb->polled>0) isdn2_new_state(&dumb->card,1);
-			DEBUG(info) printk(KERN_DEBUG "ISDN noCIX0 0x27\n");
+			DEBUG(info) printk("%sISDN noCIX0 0x27\n",KERN_DEBUG );
 		}
 #if 0
 		ByteOutISAC(dumb,TIMR,0x11);
@@ -128,7 +128,7 @@ static Byte xmode = 0xFF;
 		dumb->chan[0].listen = 0;
 		break;
 	default:
-		printf("ISAC unknown mode %x\n",mode);
+		printf("%sISAC unknown mode %x\n",KERN_DEBUG,mode);
 	}
 	splx(ms);
 	xmode = mode;
@@ -137,7 +137,7 @@ static Byte xmode = 0xFF;
 static int
 HSCX_mode(struct _dumb * dumb, u_char hscx, Byte mode, Byte listen)
 {
-	unsigned long ms = SetSPL(dumb->ipl);
+	unsigned long ms = SetSPL(dumb->info.ipl);
     if(dumb->chan[hscx].m_in != NULL) {
         freemsg(dumb->chan[hscx].m_in);
         dumb->chan[hscx].m_in = dumb->chan[hscx].m_in_run = NULL;
@@ -209,7 +209,7 @@ HSCX_mode(struct _dumb * dumb, u_char hscx, Byte mode, Byte listen)
 		dumb->chan[hscx].listen = listen;
 		break;
 	default:
-		printf("HSCX unknown mode %x\n",mode);
+		printf("%sHSCX unknown mode %x\n",KERN_DEBUG,mode);
 	}
 
 	splx(ms);

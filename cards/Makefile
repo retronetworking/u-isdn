@@ -1,5 +1,12 @@
-##  =()<CARDS	= @<CARDS>@>()=
-CARDS	= dumb
+TOPDIR=..
+include $(TOPDIR)/Make.config
 
-all lib clean depend install update indent load:
-	@set -e; for i in $(CARDS) ; do $(MAKE) $(MAKEFLAGS) -C $$i $@ ; done
+KERNEL=1
+REALSOURCE=loader.c
+OBJS=$(addsuffix .o,$(CARDS))
+EXTRA_CFLAGS= -DCARDTYPE=$(basename $@ .o)
+
+SUBDIRS=capi dumb
+
+include $(TOPDIR)/Make.rules
+

@@ -6,9 +6,10 @@
  */
 
 #include "master.h"
+#include "isdn_12.h" /* CHM_INTELLIGENT */
 
 
-
+/* Verify that the connection mode matches the stated flags. */
 int
 matchflag(long flags, char *ts)
 {
@@ -36,7 +37,7 @@ matchflag(long flags, char *ts)
 	return 0;
 }
 
-
+/* Check if this P-line matches a connection request */
 char *
 pmatch1 (cf prot, conngrab *cgm)
 {
@@ -45,16 +46,19 @@ pmatch1 (cf prot, conngrab *cgm)
 	conngrab cg = *cgm;
 
 	chkone(prot); chkone(cg);
+	/* Basic preprocessing */
 	sit = wildmatch(cg->site,    prot->site);    if(sit == NULL) return "7ERR Match SITE";
 	pro = wildmatch(cg->protocol,prot->protocol);if(pro == NULL) return "6ERR Match PROTOCOL";
 	car = wildmatch(cg->card,    prot->card);    if(car == NULL) return "6ERR Match CARD";
 	cla =classmatch(cg->cclass,  prot->cclass);  if(cla == NULL) return "6ERR Match CLASS";
 
+	/* OK, that fits. Make a copy to assign the values to. */
 	cg = newgrab(cg);
 	if(cg == NULL)
 		return "0OUT OF MEMORY";
 	cg->site = sit; cg->protocol = pro; cg->card = car; cg->cclass = cla;
 
+	/* Now scan this line's, and all matching followup lines', flags. */
 	for (first = 1; prot != NULL; prot = prot->next, first = 0) {
 #define ARG_IN 01
 #define ARG_OUT 02
@@ -66,12 +70,12 @@ pmatch1 (cf prot, conngrab *cgm)
 
 		if(!matchflag(cg->flags,prot->type)) { if(first) { dropgrab(cg); return "5ERR BadFlag"; } else continue;}
 		if (first) {
-			if (strchr (prot->type, 'M')) {
+			if (strchr (prot->type, 'M')) { /* First Match not allowed. */
 				dropgrab(cg);
 				return "7ERR FIND NotFirst";
 			}
 		} else {
-			if (strchr (prot->type, 'R')) 
+			if (strchr (prot->type, 'R')) /* First Match only. */
 				goto Ex;
 
 			sit = wildmatch(cg->site,    prot->site);    if(sit==NULL) continue;
@@ -79,6 +83,8 @@ pmatch1 (cf prot, conngrab *cgm)
 			car = wildmatch(cg->card,    prot->card);    if(car==NULL) continue;
 			cla =classmatch(cg->cclass,  prot->cclass);  if(cla==NULL) continue;
 		}
+		/* Now make another copy for the parameters. If they don't fit
+		   we'll have to undo everything. */
 		cgc = newgrab(cg);
 		if(cgc == NULL) {
 			dropgrab(cg);
@@ -87,7 +93,7 @@ pmatch1 (cf prot, conngrab *cgm)
 		if(!first) {
 			cgc->site = sit; cgc->protocol = pro; cgc->card = car; cgc->cclass = cla;
 		}
-		if(cgc->par_out == NULL) {
+		if(cgc->par_out == NULL) { /* No outgoing parameter list? Yet! */
 			if ((cgc->par_out = allocb(256,BPRI_LO)) == NULL) {
 				dropgrab(cgc); dropgrab(cg);
 				return "0OUT of MEMORY";
@@ -95,14 +101,17 @@ pmatch1 (cf prot, conngrab *cgm)
 		}
 #define DG(str) { if(first) { Xbreak(); dropgrab(cgc); dropgrab(cg); return str; } goto Ex; }
 
+		/* Remember pointers into the parameter strings. */
 		mbs_in = ((cgc->par_in !=NULL)? cgc->par_in->b_rptr : NULL);
 		mbs_out= ((cgc->par_out!=NULL)? cgc->par_out->b_rptr: NULL);
 			
+		/* Allocate a new candidate string for outgoing parameters. */
 		cand = allocsb (strlen (prot->args), (streamchar *)prot->args);
 		if(cand == NULL)
 			goto Ex;
 		while (m_getsx (cand, &id) == 0) {
 
+		/* Check that an incoming parameter matches. */
 #define CHKI(_what,_t)														\
 				({ __label__ ex; long xx,yy; ushort_t id2;					\
 					yy = 0;													\
@@ -116,11 +125,13 @@ pmatch1 (cf prot, conngrab *cgm)
 							if(0)if(!strchr(prot->type,'F') && !first) break;\
 							cgc->par_in->b_rptr = mbs_in;					\
 							freeb(cand);									\
-							if(1)printf("MatchI %x: %lx vs %lx\n",id,xx,yy);	\
+							if(0)printf("MatchI %x: %lx vs %lx\n",id,xx,yy);	\
 							dropgrab(cgc); dropgrab(cg); return "3ERR FIND Match Arg";		\
 						}													\
 					}														\
 				ex:; }) 														/**/
+		
+		/* Dto., outgoing parameter; if it's not there yet and we need it, add it. */
 #define CHKO(_what,_t)														\
 				({ __label__ ex; long xx,yy; ushort_t id2;					\
 					yy = 0;													\
@@ -134,7 +145,7 @@ pmatch1 (cf prot, conngrab *cgm)
 							if(0)if(!strchr(prot->type,'F') && !first) break;\
 							cgc->par_out->b_rptr = mbs_out;					\
 							freeb(cand);									\
-							if(1)printf("MatchO %x: %lx vs %lx\n",id,xx,yy);	\
+							if(0)printf("MatchO %x: %lx vs %lx\n",id,xx,yy);	\
 							dropgrab(cgc); dropgrab(cg); return "3ERR FIND Match Arg";		\
 						}													\
 						if(!(cgc->flags & F_OUTCOMPLETE)) {					\
@@ -143,10 +154,14 @@ pmatch1 (cf prot, conngrab *cgm)
 						}													\
 					}														\
 				ex:; })														/**/
+
+		/* Put it all together. */
 #define CHK(_what,_t) { \
 			if((nrt & ARG_OUT)&& (cgc->par_out!= NULL)) CHKO(_what,_t); \
 			if((nrt & ARG_IN) && (cgc->par_in != NULL)) CHKI(_what,_t); } break
 
+	/* Same as above, but for vectorized parameters with optional bitmasks. */
+	/* You are not supposed to understand this code. */
 #define CHKVI()																\
 	({ __label__ ex; int xx,yy,xm; streamchar *vx,*vy,*vm; ushort_t id2;		\
 		yy = m_gethexlen(cand);												\
@@ -171,7 +186,7 @@ pmatch1 (cf prot, conngrab *cgm)
 				if(0)if(!strchr(prot->type,'F') && !first) continue;		\
 				cgc->par_in->b_rptr = mbs_in;								\
 				freeb(cand);												\
-				if(1)printf("MatchVI %x: %s vs %s\n",id,vx,vy);				\
+				if(0)printf("MatchVI %x: %s vs %s\n",id,vx,vy);				\
 				free(vx); free(vy); if(xm>0)free(vm);						\
 				dropgrab(cgc); dropgrab(cg); return "3ERR FIND Match Arg";	\
 			}																\
@@ -201,7 +216,7 @@ pmatch1 (cf prot, conngrab *cgm)
 					{ free(vx); free(vy); if(xm>0)free(vm); goto ex; }		\
 				if(0)if(!strchr(prot->type,'F') && !first) continue;		\
 				cgc->par_out->b_rptr = mbs_out;								\
-				if(1)printf("MatchVO %x: %s vs %s\n",id,vx,vy);				\
+				if(0)printf("MatchVO %x: %s vs %s\n",id,vx,vy);				\
 				freeb(cand);												\
 				free(vx); free(vy); if(xm>0)free(vm);						\
 				dropgrab(cgc); dropgrab(cg); return "3ERR FIND Match Arg";	\
@@ -217,6 +232,8 @@ pmatch1 (cf prot, conngrab *cgm)
 #define CHKV() { \
 				if((nrt & ARG_OUT)&& (cgc->par_out!= NULL)) CHKVO(); \
 				if((nrt & ARG_IN) && (cgc->par_in != NULL)) CHKVI(); } break
+
+	/* Simple one-shot labels that can't be undone (and don't need to be). */
 #define CHKX()																\
 				({ __label__ ex; ushort_t id2;								\
 					if(cgc->par_out != NULL) {								\
@@ -230,25 +247,32 @@ pmatch1 (cf prot, conngrab *cgm)
 				ex:; }); break	  											/**/
 
 			switch (id) {
+				/* Direction-specific arguments. */
 			case ARG_INNUMS  : nrt=ARG_IN;  break;
 			case ARG_OUTNUMS : nrt=ARG_OUT; break;
 			case ARG_BOTHNUMS: nrt=ARG_IN|ARG_OUT; break;
+
+				/* Flags, ob lokale / entfernte Nummern präsent sein sollen
+				   oder nicht. Logischerweise nur bei ankommenden Anrufen
+				   interessant. */
 			case ARG_NEEDNOLOCAL:
-				if(cg->lnr != NULL)
+				if((cg->flags & F_INCOMING) && (cg->lnr != NULL))
 					DG("3LocalNrGiven");
 				break;
 			case ARG_NEEDNOREMOTE:
-				if(cg->nr != NULL)
+				if((cg->flags & F_INCOMING) && (cg->nr != NULL))
 					DG("3RemoteNrGiven");
 				break;
 			case ARG_NEEDLOCAL:
-				if(cg->lnr == NULL)
+				if((cg->flags & F_INCOMING) && (cg->lnr == NULL))
 					DG("3LocalNrRequired");
 				break;
 			case ARG_NEEDREMOTE:
-				if(cg->nr == NULL)
+				if((cg->flags & F_INCOMING) && (cg->nr == NULL))
 					DG("3RemoteNrRequired");
 				break;
+
+				/* Suffix fuer entfernte Nummer. */
 			case ARG_NUMBER:
 				{
 					char yy[MAXNR + 2];
@@ -272,6 +296,8 @@ pmatch1 (cf prot, conngrab *cgm)
 					}
 				}
 				break;
+
+				/* Suffix fuer lokale Nummer. */
 			case ARG_LNUMBER:
 				{
 					char yy[MAXNR + 2];
@@ -295,6 +321,8 @@ pmatch1 (cf prot, conngrab *cgm)
 					}
 				}
 				break;
+
+				/* Protokollkrempel... */
 			case ARG_LLC:
 				CHKV ();
 			case ARG_ULC:
@@ -309,6 +337,9 @@ pmatch1 (cf prot, conngrab *cgm)
 				CHK (i, long);
 			case ARG_CHANNEL:
 				CHK (i, long);
+
+				/* Flags... */
+			case ARG_CHANBUSY:   cgc->flags |= F_CHANBUSY;   goto argdup;
 			case ARG_FASTREDIAL: cgc->flags |= F_FASTREDIAL; goto argdup;
 			case ARG_FASTDROP:   cgc->flags |= F_FASTDROP;   break;
 			case ARG_IGNORELIMIT:cgc->flags |= F_IGNORELIMIT;goto argdup;
@@ -322,28 +353,33 @@ pmatch1 (cf prot, conngrab *cgm)
 			  argdup:
 				CHKX();
 			}
+			/* Reset der Stringpointer. */
 			if(cgc->par_in != NULL) cgc->par_in->b_rptr = mbs_in;
 			if(cgc->par_out!= NULL) cgc->par_out->b_rptr= mbs_out;
 		}
+		/* At this point, everything fit (so far). Kill the intermediate copy. */
 		dropgrab(cg);
 		cg = cgc;
 		cgc = NULL;
 	  Ex:
 		if(cand != NULL)
 			freeb (cand);
-		if (strchr(prot->type,'X'))
+		if (strchr(prot->type,'X')) /* Cut off here. */
 			break;
-		if(cgc != NULL) {
+		if(cgc != NULL) { /* If we have an intermediate copy, toss it. */
 			if(cgc->par_in != NULL) cgc->par_in->b_rptr = mbs_in;
 			if(cgc->par_out!= NULL) cgc->par_out->b_rptr= mbs_out;
 	  		dropgrab(cgc);
 		}
 	}
+
+	/* Done. Return the result. */
 	dropgrab(*cgm);
 	*cgm = cg;
 	return NULL;
 }
 
+/* Scan all the P lines, search for a matching block of entries and incorporate into *cgm. */
 char *
 pmatch (conngrab *cgm)
 {
@@ -363,7 +399,7 @@ pmatch (conngrab *cgm)
 	return errstr;
 }
 
-
+/* Scan the configuration, incorporate matching entries into *foo. */
 char *
 findsite (conngrab *foo)
 {
@@ -378,13 +414,17 @@ findsite (conngrab *foo)
 
 	chkone(cg);
 	cg->refs++;
-	for (dl = cf_DL; dl != NULL; dl = dl->next) {
+	for (dl = cf_DL; dl != NULL; dl = dl->next) { /* find a matching local number. */
 		char *matcrd;
+		char *matclass;
 
-if(0)printf("%s.%s.!.",cg->site,cg->card);
+if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
+
+		if ((matclass = classmatch (cg->cclass, dl->cclass)) == NULL)
+			continue;
 		if ((matcrd = wildmatch (cg->card, dl->card)) == NULL)
 			continue;
-		if(!(cg->flags & F_LEASED)) {
+		if(!(cg->flags & F_LEASED)) { /* ... and a working dial prefix. */
 			char *crd;
 			for (dp = cf_DP; dp != NULL; dp = dp->next) {
 				if ((crd = wildmatch (cg->card, dp->card)) != NULL)
@@ -395,8 +435,17 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 				continue;
 			}
 			matcrd = crd;
-		}
-		for (d = cf_D, numwrap = 1; d != NULL || numwrap > 0; d = (numwrap ? d->next : d)) {
+		} /* if everybody had DSS1, we could skip the prefix nonsense... */
+
+		/* Now find a site to call out to. */
+		/* The numwrap stuff makes sure that we restart where we left off last
+		   time, which ensures that calling a system with more than one
+		   number does what it's supposed to. */
+		/* Incoming calls start at the beginning and don't hit the
+		   wraparound. */
+		for (d = cf_D, numwrap = (cg->flags & F_INCOMING);
+				(d != NULL) || (numwrap > 0);
+				d = (numwrap ? d->next : d)) {
 			char *matcla;
 			char *matsit;
 			char *matcar;
@@ -411,8 +460,10 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 				continue;
 			else if(numwrap == 0)
 				numwrap = -1;
+			if(!(cg->flags & F_INCOMING))
 				numidx++;
 
+			/* Yes, we did increment the refcount, above. */
 			dropgrab(cg);
 			cg = *foo;
 			cg->refs++;
@@ -421,8 +472,10 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 			if((matpro = wildmatch(cg->protocol,d->protocol)) == NULL) continue;
 			if((matcar = wildmatch(matcrd,d->card)) == NULL) continue;
 			if((matcla = classmatch(cg->cclass,d->cclass)) == NULL) continue;
+			if((matcla = classmatch(matcla,matclass)) == NULL) continue;
 			if(!matchflag(cg->flags,d->type)) continue;
 
+			/* Preliminary match OK, remember the data so far. */
 			dropgrab(cg);
 			cg = newgrab(*foo);
 			if(cg == NULL) return "0OUT OF MEM";
@@ -432,9 +485,9 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 			if(0)printf("%s...",matsit);
 
 			if(!(cg->flags & F_LEASED)) {
+				/* Now figure out the numbers... */
 				if(cg->nr != NULL) {
 					cg->nrsuf = match_nr(cg->nr,d->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
-					if(0)printf("Match %s,%s,%s -> %s\n",cg->nr,d->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, cg->nrsuf);
 					if(cg->nrsuf == NULL) {
 						if(*errstr > '8') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
@@ -444,7 +497,6 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 					}
 				} else if(!(cg->flags & F_INCOMING)) {
 					cg->nr = build_nr(d->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0);
-					if(0)printf("Build %s,%s,%s,%d -> %s\n",d->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0, cg->nr);
 					if(cg->nr == NULL) {
 						if(*errstr > '8') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
@@ -458,7 +510,6 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 				}
 				if(cg->lnr != NULL) {
 					cg->lnrsuf = match_nr(cg->lnr,dl->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
-					if(0)printf("MatchL %s,%s,%s -> %s\n",cg->lnr,dl->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, cg->lnrsuf);
 					if(cg->lnrsuf == NULL) {
 						if(*errstr > '3') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
@@ -468,7 +519,6 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 					}
 				} else if(0) { /* Hmmm... */
 					cg->lnr = build_nr(dl->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0);
-					if(0)printf("BuildL %s,%s,%s,%d -> %s\n",dl->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0, cg->lnr);
 					if(cg->lnr == NULL) {
 						if(*errstr > '4') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
@@ -479,45 +529,31 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 				}
 			}
 
-			if ((errstrx = pmatch (&cg)) == NULL) {
-				goto gotit;
-			}
-			if(*errstr > *errstrx) {
-				errstr = errstrx;
-				errcg = cg; cg->refs++;
-			}
-			/* p->b_rptr = olds; */
-		}
-		dropgrab(cg);
-		if(errcg != NULL) {
-			dropgrab(*foo); *foo = errcg;
-		}
-		if(errstr != NULL)
-			printf("A>%s; ",errstr);
-		return errstr;
-
-	gotit:
-		{
+			/* Do we have a matching P line? */
+			if ((errstrx = pmatch (&cg)) == NULL) {	/* We have what we need. Now figure out if we can use it. */
 				struct conninfo *conn;
 				cf cl = NULL;
 				int nrconn = 0, naconn = 0;
 				int nrbchan = 0;
 
+				/* Check if there's a limiter. */
 				for(cl = cf_CL; cl != NULL; cl = cl->next) {
+					if(classmatch(cg->cclass,cl->cclass) == NULL)
+						continue;
 					if(wildmatch(cg->card, cl->card))
 						break;
 				}
+				/* Check if we know how many B channels the card has */
 				{
-				int ci;
-				for(ci=0; ci < cardnum; ci++) {
-					if(!strcmp(cg->card, cardlist[ci])) {
-						nrbchan = cardnrbchan[ci];
+					struct isdncard *ca;
+
+					for(ca = isdn4_card; ca != NULL; ca = ca->next) {
+						if(!strcmp(cg->card, ca->name)) {
+							nrbchan = ca->nrbchan;
 							break;
 						}
 					}
 				}
-			if(cl != NULL) {
-printf("Limit for %s:%d:%d %s:%s:%s %s\n",cg->card,cl->num,nrbchan,cg->site,cg->protocol,cg->cclass,cg->nr ? cg->nr : "-");
 				for(conn = theconn; conn != NULL; conn = conn->next) {
 					if(conn->ignore || !conn->cg)
 						continue;
@@ -525,36 +561,41 @@ printf("Limit for %s:%d:%d %s:%s:%s %s\n",cg->card,cl->num,nrbchan,cg->site,cg->
 							wildmatch(conn->cg->protocol,cg->protocol))
 						continue;
 					if((conn->state >= c_going_up) && wildmatch(conn->cg->card, cg->card)) {
-printf("Share line with %s:%d:%d %s:%s:%s %s\n",conn->cg->card,cl->num,nrbchan,conn->cg->site,conn->cg->protocol,conn->cg->cclass,conn->cg->nr ? conn->cg->nr : "-");
 						nrconn ++;
 						if(!(conn->flags & F_IGNORELIMIT))
 							naconn++;
 					}
 				}
-				if(((nrbchan > 0) && (nrconn >= nrbchan)) || ((naconn >= cl->num) && !(cg->flags & F_IGNORELIMIT))) {
-printf("BUSY: nrb %d, nrc %d, nac %d, num %d, flag %o ::",nrbchan,nrconn,naconn,cl->num,cg->flags);
+				if(((nrbchan > 0) && (nrconn >= nrbchan)) || ((cl != NULL) && (naconn >= cl->num) && !(cg->flags & F_IGNORELIMIT))) {
 					errstr = "0BUSY";
 					dropgrab(errcg); errcg = cg; cg->refs++;
 					continue;
 				}
-			}
 				if (cg->par_out != NULL && strchr(d->type, 'H') != NULL && !(cg->flags & F_OUTCOMPLETE))
 					m_putsx (cg->par_out, ARG_SUPPRESS);
 				dropgrab(errcg);
 				dropgrab(*foo); *foo = cg;
 				return NULL;
 			}
+			/* No go. Remember the error, if appropriate. */
+			if(*errstr > *errstrx) {
+				errstr = errstrx;
+				errcg = cg; cg->refs++;
+			}
+			/* p->b_rptr = olds; */
 		}
+	}
+	/* Nothing matched. Grrr. */
 	dropgrab(cg);
 	if(errcg != NULL) {
 		dropgrab(*foo);
 		*foo = errcg;
 	}
-	if(errstr != NULL)
-		printf("B>%s; ",errstr);
 	return errstr;
 }
 
+/* Wrapper stuff. Take numbers out of the incoming argument vector, find
+   the card, et al. */
 char *
 findit (conngrab *foo)
 {
@@ -562,7 +603,7 @@ findit (conngrab *foo)
 	mblk_t *p;
 	char *errstr = "9NO CARD";
 	char *errstrx;
-	short c;
+	struct isdncard *c;
 	char *card;
 	conngrab cg = newgrab(*foo);
 	conngrab errcg = NULL;
@@ -606,25 +647,39 @@ findit (conngrab *foo)
 			cg->site = str_enter("unknown");
 	}
 
-	cardlim = cardnum+cardidx;
-	for (c = cardidx; c < cardlim; c++) {
+	cardlim = 0;
+
+	if(isdn4_card != NULL) {
+		for(c = isdn4_card; (c != NULL) || (cardlim < cardidx); c = c->next) {
 			cf crd;
-		if(!wildmatch(card,cardlist[c % cardnum]))
-			continue;
-		cg->card = cardlist[c % cardnum];
-		if(cg->flags & F_INCOMING)
-			numidx = 1;
-		if ((errstrx = findsite (&cg)) == NULL) {
-			cardidx = (c+1)%cardnum;
+
+			cardlim++;
+
+			if(c == NULL) { /* Wraparound */
+				c = isdn4_card;
+				if(cardlim < cardidx)
+					cardidx %= cardlim;
+			}
+			if(!wildmatch(card,c->name))
+				continue;
+			if(cg->flags & F_INCOMING) /* never skip */
+				cardidx = 1;
+			if(cardlim < cardidx)
+				continue;
+			cg->card = c->name;
+			if ((errstrx = findsite (&cg)) == NULL) { /* Found it */
+				cardidx++;
 				dropgrab(*foo);
 				*foo = cg;
 				cg->flags |= F_OUTCOMPLETE;
+				if(c->cap & CHM_INTELLIGENT)
+					return NULL;
 				for (crd = cf_CM; crd != NULL; crd = crd->next) {
-				if (!wildmatch (cardlist[c % cardnum], crd->card))
+					if (!wildmatch (c->name, crd->card))
 						continue;
 					return NULL;
 				}
-			errstrx = "0CARDMATCH";
+				errstrx = "0CM line missing";
 			}
 			if(*errstrx < *errstr) {
 				errstr = errstrx;
@@ -632,6 +687,9 @@ findit (conngrab *foo)
 				errcg->refs++;
 			}
 		}
+	} else 
+		errstr = "0No card in the system";
+	
 	if(errcg != NULL) {
 		dropgrab(*foo);
 		*foo = errcg;
@@ -639,3 +697,4 @@ findit (conngrab *foo)
 	dropgrab(cg);
 	return errstr;
 }
+

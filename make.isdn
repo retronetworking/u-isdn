@@ -6,7 +6,7 @@ cat <<'EOF'
 
 Hi.
 
-FÜR ABSTÜRZE, DATENVERLUST UND ÄHNLICHE PROBLEME ÜBERNEHME ICH KEINERLEI
+FÜR ABSTÜRZE, DATENVERLUSTE UND ÄHNLICHE PROBLEME ÜBERNEHME ICH KEINERLEI
 WIE AUCH IMMER GEARTETE HAFTUNG.
 
 Wem das nicht paßt, der lösche diesen Code. Jetzt.
@@ -22,15 +22,14 @@ Dann config/config.data ansehen und gegebenenfalls ändern.
 Dann nochmal make.isdn aufrufen.
 
 Die gebauten Module können automatisch beim Booten geladen werden; siehe
-tools/rc.isdn. Dazu in /lib/modules/KERNELVERSION: modules.isdn.all nach
-modules.isdn kopieren; nicht benötigte Module ggf. aus dieser Datei
-rauswerfen.
+tools/rc.isdn. Dazu in /lib/modules: modules.isdn.all nach modules.isdn
+kopieren; nicht benötigte Module ggf. aus dieser Datei rauswerfen.
 
 EOF
 touch .toldem
 if test "$(whoami)" = "root" ; then
-	echo "Ach ja -- das nächste Mal: make.isdn zuerst als normaler Benutzer"
-	echo "starten, dann als root. Siehe DOKU."
+	echo "Ach ja -- make.isdn am besten zuerst als normaler Benutzer"
+	echo "starten (Programme bauen), dann als root (zum Installieren)."
 fi
 exit 1
 fi
@@ -44,13 +43,9 @@ fi
 VERSION=$(tools/getversion)
 
 if test "$(whoami)" = "root" ; then
-	dir=/lib/modules/$VERSION/isdn
-	if test ! -d $dir ; then mkdir -p $dir ; fi
-	cp /dev/null $dir/modules.isdn.all
-	PATH=$(pwd)/tools:$PATH make --no-print-directory load
-	make --no-print-directory iprog
-	test -f /etc/rc.d/rc.isdn || cp tools/rc.isdn /etc/rc.d/rc.isdn
-	set +x
+	make --no-print-directory all
+	make --no-print-directory install
+
 	if test -f /lib/modules/modules.isdn ; then 
 		echo "Ist /lib/modules/modules.isdn auf dem neuesten Stand?"
 	else
@@ -63,7 +58,6 @@ if test "$(whoami)" = "root" ; then
 		echo "Die Treiber der Karten muessen parametrisiert werden. -> DOKU."
 	fi
 else
-	if test ! -f .depend ; then make --no-print-directory depend ; fi
 	make --no-print-directory all
-	make --no-print-directory prog
+	echo "Nun als Superuser bitte nochmal..."
 fi

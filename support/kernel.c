@@ -1,4 +1,6 @@
 
+#include <malloc.h>
+
 int bh_base;
 
 int

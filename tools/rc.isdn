@@ -10,7 +10,7 @@ cd /usr/local/isdn
 		/bin/echo -n "\rISDN Modules:                                                               "  >&2
 		/bin/echo -n "\rISDN Modules: $a: " >&2
 		eval "insmod -m $a"  ## wegen name=$(cardname Foo0) in $a
-	done < ../modules.isdn >> symbols
+	done < ../modules.isdn > symbols.isdn
 	/bin/echo "\rISDN Modules...done.                                                       "
 ) 
 

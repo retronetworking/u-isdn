@@ -27,9 +27,7 @@
 #endif
 #endif
 #include <netinet/tcp.h>
-#ifndef KERNEL
 #include "kernel.h"
-#endif
 
 #define MAXB 100
 
@@ -88,7 +86,7 @@ log_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	log->flags = LOG_INUSE | LOG_READ | LOG_WRITE;
 	log->nr = nr++;
 	if (1)
-		printf (KERN_DEBUG "Log driver %d opened.\n", log->nr);
+		printf ("%sLog driver %d opened.\n", KERN_DEBUG,log->nr);
 	MORE_USE;
 
 	return 0;
@@ -100,16 +98,21 @@ log_printmsg (void *xlog, const char *text, mblk_t * mp, const char *prefix)
 {
 	struct _log *log = (struct _log *)xlog;
 	/* int ms = splstr (); */
+	static char pprefix[100];
 	
-	if(prefix != NULL)
-		printf("%s",prefix);
+	if(prefix != NULL) {
+		strcpy(pprefix,prefix);
+		printf("%s",pprefix);
+	} else 
+		*pprefix = '\0';
 	if (log != NULL) 
 		printf ("Log %d: ", log->nr);
 #if defined(linux) && defined(KERNEL)
 	printf("%ld ",jiffies);
 #endif
+	if(text != NULL)
 		printf ("%s", text);
-#ifdef KERNEL
+#ifdef CONFIG_DEBUG_STREAMS
 	if(msgdsize(mp) < 0)
 		return;
 #endif
@@ -255,12 +258,6 @@ log_printmsg (void *xlog, const char *text, mblk_t * mp, const char *prefix)
 		}
 	}
 	printf ("\n");
-#ifdef KERNEL
-	if(msgdsize(mp) < 0)
-		return;
-#else
-	if(msgdsize(mp) < 100)
-#endif
 	{
 		int j;
 		mblk_t *mp1;
@@ -275,9 +272,18 @@ log_printmsg (void *xlog, const char *text, mblk_t * mp, const char *prefix)
 				int k;
 				int l = (uchar_t *) mp1->b_wptr - dp;
 
-				printf ("%s    ",prefix?prefix:"");
+				printf ("%s%03x ",pprefix,i);
+#ifdef KERNEL
+				if(i >= 3*BLOCKSIZE && l > 4*BLOCKSIZE) { /* Skip the stuff in the middle */
+					l -= 3*BLOCKSIZE + (l % BLOCKSIZE);
+					printf("[... %d bytes (0x%x) skipped ...]\n",l,l);
+					dp += l;
+					continue;
+				}
+#endif
 				for (k = 0; k < BLOCKSIZE && k < l; k++)
 					printf ("%c%c ", ctab[dp[k] >> 4], ctab[dp[k] & 0x0F]);
+				i += k;
 				for (; k < BLOCKSIZE; k++)
 					printf ("   ");
 				printf (" : ");
@@ -363,7 +369,7 @@ log_close (queue_t * q, int dummy)
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
 	if(1)
-		printf (KERN_DEBUG "Log driver %d closed.\n", log->nr);
+		printf ("%sLog driver %d closed.\n", KERN_DEBUG,log->nr);
 	free(log);
 	LESS_USE;
 	return;

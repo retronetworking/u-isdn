@@ -31,6 +31,7 @@ typedef struct _isdn3_card {		  /* One per card */
 	uchar_t nr;					  /* Card number, for L2. */
 	uchar_t TEI;				  /* For reference */
 	uchar_t bchans;				  /* Number of B channels. */
+	unsigned is_up:1;
 } *isdn3_card;
 
 /**
@@ -102,6 +103,11 @@ typedef void (*P_hndl_killconn) (struct _isdn3_conn * conn, char force);
  */
 typedef void (*P_hndl_hook) (struct _isdn3_conn * conn);
 
+/*
+ * Catch what's sent down to L2. If data returns NULL, forward nothing.
+ */
+typedef int (*P_hndl_proto) (struct _isdn3_conn * conn, mblk_t **data, char down);
+
 typedef struct _isdn3_hndl {
 	struct _isdn3_hndl *next;	  /* Next handler */
 	uchar_t SAPI;
@@ -119,6 +125,7 @@ typedef struct _isdn3_hndl {
 	P_hndl_kill kill;			  /* Say goodbye */
 	P_hndl_killconn killconn;	  /* terminate a connection */
 	P_hndl_hook hook;			  /* isdn3_setup_conn was called */
+	P_hndl_proto proto;           /* Send cmd; used for catching protocol lists */
 } *isdn3_hndl;
 
 /**
@@ -127,6 +134,9 @@ typedef struct _isdn3_hndl {
  ** Calls managed by this connection are chained off the struct.
  **/
 
+#define NITALK 3
+#define NSTALK 1
+
 typedef struct _isdn3_talk {		  /* one per card's D channel connection */
 	struct _isdn3_conn *conn;	  /* connections managed on this channel */
 	struct _isdn3_card *card;	  /* Back ref to my card */
@@ -134,15 +144,16 @@ typedef struct _isdn3_talk {		  /* one per card's D channel connection */
 	struct _isdn3_hndl *hndl;	  /* Handler for this type of talk. */
 	uchar_t state;				  /* . Zero: first call / uninitialized. Others
 								   * depend on the talker. */
-	int talk_a, talk_b, talk_c, talk_d;	/* additional variables, handler
-										 * dependent */
+	long talki[NITALK];
+	void *talks[NSTALK];
 } *isdn3_talk;
 
 /**
  ** One struct isdn3_conn represents one ISDN call.
  **/
-#define NCONNVEC 5
 #define STACK_LEN 10
+#define NICONN 15
+#define NSCONN 3
 
 typedef struct _isdn3_conn {
 	struct _isdn3_card *card;	  /* Card this call is running on */
@@ -156,8 +167,9 @@ typedef struct _isdn3_conn {
 								   * vs... */
 	char stack[STACK_LEN];		  /* Protocol stack to set up on this
 								   * connection */
-	int *v[NCONNVEC];			  /* additional and possibly-long parameters */
 	int delay;					  /* don't get at it right away */
+	long conni[NICONN]; /* additional variables, handler dependent */
+	void *conns[NSCONN];
 #ifdef NEW_TIMEOUT				  /* Grumble */
 	int start_timer;
 	int delay_timer;

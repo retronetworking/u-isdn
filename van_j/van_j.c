@@ -179,11 +179,7 @@ van_j_proto (queue_t * q, mblk_t * mp, char isdown)
 
 
 static int
-van_j_open (queue_t * q, dev_t dev, int flag, int sflag
-#ifdef DO_ADDERROR
-		,int *err
-#endif
-)
+van_j_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 {
 	struct _van_j *van_j;
 
@@ -191,7 +187,7 @@ van_j_open (queue_t * q, dev_t dev, int flag, int sflag
 		return 0;
 	van_j = malloc(sizeof(van_j));
 	if(van_j == NULL)
-		return OPENFAIL;
+		ERR_RETURN(-ENOMEM);
 	memset(van_j,0,sizeof(*van_j));
 	WR (q)->q_ptr = (char *) van_j;
 	q->q_ptr = (char *) van_j;
@@ -209,7 +205,7 @@ van_j_wput (queue_t * q, mblk_t * mp)
 {
 	switch (DATA_TYPE(mp)) {
 	case MSG_PROTO:
-	CASE_DATA
+	case CASE_DATA:
 		putq (q, mp);
 		break;
 	case M_FLUSH:
@@ -239,7 +235,8 @@ van_j_wsrv (queue_t * q)
 		case MSG_PROTO:
 			van_j_proto (q, mp, 1);
 			break;
-		CASE_DATA {
+		case CASE_DATA:
+			{
 				mblk_t *mq;
 				struct ip *p_ip;
 				ushort_t protocol;
@@ -349,7 +346,7 @@ van_j_rput (queue_t * q, mblk_t * mp)
 		break;
 
 	case MSG_PROTO:
-	CASE_DATA
+	case CASE_DATA:
 		putq (q, mp);			  /* queue it for my service routine */
 		break;
 
@@ -374,7 +371,8 @@ van_j_rsrv (queue_t * q)
 		case MSG_PROTO:
 			van_j_proto (q, mp, 0);
 			break;
-		CASE_DATA {
+		case CASE_DATA:
+			{
 				mblk_t *mq;
 				ushort_t protocol = 0;
 
@@ -457,9 +455,8 @@ van_j_rsrv (queue_t * q)
 				}
 				if (mp != NULL)
 					putnext (q, mp);
-				break;
-
 			}
+			break;
 		default:
             if (DATA_TYPE(mp) > QPCTL || canput (q->q_next)) {
                 putnext (q, mp);

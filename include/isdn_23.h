@@ -18,6 +18,7 @@
 
 typedef struct _isdn23_hdr {
 	uchar_t key;
+	ushort_t seqnum;
 	union {						  /* Length param must be first if it's needed */
 
 		struct {				  /* Command mode data/response. */
@@ -159,6 +160,7 @@ typedef struct _isdn23_hdr {
 								   * somewhat cleaner if the TEI negotiation
 								   * handler is just another L3 protocol */
 		struct {
+			ushort_t len;
 			uchar_t card;
 			int seqnum;
 			int foffset;
@@ -169,7 +171,7 @@ typedef struct _isdn23_hdr {
 		 */
 
 	} sel;
-} *isdn23_hdr;
+} __attribute__((packed)) *isdn23_hdr;
 
 /* Aliases for writing actual programs. *//* Keys for debugging L2. */
 #define hdr_atcmd     sel._hdr_atcmd	/* A */

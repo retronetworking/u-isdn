@@ -10,10 +10,7 @@
 #endif
 
 #define STRIF_MTU CHAR2('m','t')
-
-#define STRIF_PPP CHAR2('p','p')
-#define STRIF_NOPPP CHAR2('n','p')
-
+#define STRIF_ETHERTYPE CHAR2('e','T')
 
 #endif /* _STR_IF_H */
 

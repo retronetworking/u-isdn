@@ -11,9 +11,7 @@
 #include <sys/stropts.h>
 #include "streamlib.h"
 #include "isdn_23.h"
-#ifndef KERNEL
 #include "kernel.h"
-#endif
 
 #define MAXB 10
 
@@ -65,7 +63,7 @@ logh_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	q->q_ptr = (char *) log;
 
 	log->flags = LOG_INUSE | LOG_READ | LOG_WRITE;
-	printf ("Log driver %d opened.\n", nr);
+	printf ("%sLog driver %d opened.\n",KERN_DEBUG, nr);
 	log->nr = nr++;
 	MORE_USE;
 
@@ -79,9 +77,9 @@ logh_printmsg (void *xlog, const char *text, mblk_t * mp)
 	struct _log *log = (struct _log *)xlog;
 
 	if (log != NULL)
-		printf ("* * ");
+		printf ("%s* * ",KERN_DEBUG);
 	else
-		printf ("**  ");
+		printf ("%s**  ",KERN_DEBUG);
 
 	if ((DATA_TYPE(mp) == M_DATA)
 #ifdef M_EXDATA
@@ -108,17 +106,16 @@ logh_printmsg (void *xlog, const char *text, mblk_t * mp)
 			printf ("DupNull\n");
 			break;
 		}
-		mn = pullupm (mm, sizeof(struct _isdn23_hdr));
+		mn = pullupm (mm, -1);
 		if (mn == NULL) {
 			printf ("NoPullup\n");
 			freemsg (mm);
 			break;
 		}
-		dump_hdr ((isdn23_hdr) mn->b_rptr, text, NULL);
+		dump_hdr ((isdn23_hdr) mn->b_rptr, text, mn->b_rptr+sizeof(struct _isdn23_hdr));
 
 		freemsg (mn);
 	} while(0);
-	log_printmsg (NULL, text, mp, KERN_DEBUG);
 	splx (ms);
 }
 
@@ -170,7 +167,7 @@ logh_close (queue_t * q, int dummy)
 
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
-	printf ("LogH driver %d closed.\n", log->nr);
+	printf ("%sLogH driver %d closed.\n",KERN_DEBUG, log->nr);
 	free(log);
 	LESS_USE;
 	return;

@@ -176,7 +176,7 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 		return NULL;
 
 #ifdef CONFIG_DEBUG_STREAMS
-	if(msgdsize(p_msg) < 0)
+	if(deb_msgdsize(deb_file,deb_line,p_msg) < 0)
 		return NULL;
 #endif
 	while(p_msg != NULL && p_msg->b_rptr >= p_msg->b_wptr && p_msg->b_cont != NULL) {
@@ -270,7 +270,7 @@ putbqf (queue_t * q, mblk_t * mp)
 	qflag = q->q_flag;
 	q->q_flag |= QENAB;
 #ifdef CONFIG_DEBUG_STREAMS
-	if(0)printf(KERN_DEBUG "PutBQF %p:%p at %s:%d\n",q,mp,deb_file,deb_line);
+	if(0)printf("%sPutBQF %p:%p at %s:%d\n",KERN_DEBUG,q,mp,deb_file,deb_line);
 	deb_putbq (deb_file,deb_line, q, mp);
 #else
 	putbq (q, mp);
@@ -653,11 +653,20 @@ m_putx (mblk_t * mb, ulong_t id)
 
 
 void
+m_getnskip (mblk_t * mb)
+{
+	if (mb == NULL)
+		return;
+	while ((mb->b_rptr < mb->b_wptr) && !isspace (*mb->b_rptr))
+		mb->b_rptr++;
+}
+
+void
 m_getskip (mblk_t * mb)
 {
 	if (mb == NULL)
 		return;
-	while (mb->b_rptr < mb->b_wptr && isspace (*mb->b_rptr))
+	while ((mb->b_rptr < mb->b_wptr) && isspace (*mb->b_rptr))
 		mb->b_rptr++;
 }
 
@@ -670,12 +679,12 @@ m_getid (mblk_t * mb, ushort_t * id)
 #endif
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	while (mb->b_rptr < mb->b_wptr && *mb->b_rptr == ':')
 		mb->b_rptr++;
 	if (mb->b_rptr + sizeof(ushort_t) > mb->b_wptr)
-		return ESRCH;
+		return -ESRCH;
 #ifdef ALIGNED_ONLY
 	for (i = 0; i < sizeof(ushort_t); i++)
 		xid = xid << 8 | (*mb->b_rptr++ & 0xFF);
@@ -695,23 +704,23 @@ m_getsx (mblk_t * mb, ushort_t * id)
 #endif
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	while (1) {
 		m_getskip (mb);
-		if (mb->b_rptr + sizeof(ushort_t) >= mb->b_wptr)
-			return ESRCH;
+		if (mb->b_rptr >= mb->b_wptr)
+			return -ESRCH;
 		if (*mb->b_rptr == ':') {
 			mb->b_rptr++;
 			break;
-		} else {
-			while (mb->b_rptr + 2 < mb->b_wptr && *mb->b_rptr != ' ')
-				mb->b_rptr++;
 		}
+		m_getnskip(mb);
 	}
 	if (*mb->b_rptr == ':') {
 		mb->b_rptr++;
-		return EAGAIN;
+		return -EAGAIN;
 	}
+	if (mb->b_rptr + sizeof(ushort_t) > mb->b_wptr)
+		return -ESRCH;
 #ifdef ALIGNED_ONLY
 	for (i = 0; i < sizeof(ushort_t); i++) 
 		xid = (xid << 8) | (*mb->b_rptr++ & 0xFF);
@@ -731,12 +740,12 @@ m_getlx (mblk_t * mb, ulong_t * id)
 #endif
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	if (*mb->b_rptr == ':')
-		return ENOENT;
+		return -ENOENT;
 	if (mb->b_rptr + sizeof(ulong_t) > mb->b_wptr)
-		return ESRCH;
+		return -ESRCH;
 #ifdef ALIGNED_ONLY
 	for (i = 0; i < sizeof(ulong_t); i++)
 		xid = (xid << 8) | (*mb->b_rptr++ & 0xFF);
@@ -755,22 +764,22 @@ m_geti (mblk_t * mb, long *id)
 	streamchar *oldp;
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	if (mb->b_rptr >= mb->b_wptr)
-		return ESRCH;
+		return -ESRCH;
 	if (*mb->b_rptr == '-') {
 		neg = 1;
 		if (++mb->b_rptr >= mb->b_wptr)
-			return ESRCH;
+			return -ESRCH;
 	}
 	oldp = mb->b_rptr;
 	if (*oldp == ':')
-		return ENOENT;
+		return -ENOENT;
 	while ((mb->b_rptr < mb->b_wptr) && (*mb->b_rptr >= '0' && *mb->b_rptr <= '9'))
 		x = x * 10 + *mb->b_rptr++ - '0';
 	if (oldp == mb->b_rptr)
-		return ESRCH;
+		return -ESRCH;
 	if (neg)
 		*id = -x;
 	else
@@ -787,14 +796,14 @@ m_getx (mblk_t * mb, ulong_t * id)
 	char ch;
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	if (mb->b_rptr >= mb->b_wptr)
-		return ESRCH;
+		return -ESRCH;
 
 	oldp = mb->b_rptr;
 	if (*oldp == ':')
-		return ENOENT;
+		return -ENOENT;
 	while (ch = *mb->b_rptr, ((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f'))) {
 		if (ch <= '9')
 			ch -= '0';
@@ -808,7 +817,7 @@ m_getx (mblk_t * mb, ulong_t * id)
 			break;
 	}
 	if (oldp == mb->b_rptr)
-		return ESRCH;
+		return -ESRCH;
 	*id = x;
 	return 0;
 }
@@ -821,16 +830,16 @@ m_gethex (mblk_t * mb, uchar_t * id, int len)
 	char upper = 1;
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	if (mb->b_rptr >= mb->b_wptr)
 		return 0;
 
 	if (*mb->b_rptr == ':')
-		return ENOENT;
+		return -ENOENT;
 	while (len > 0) {
 		if (mb->b_rptr >= mb->b_wptr)
-			return EINVAL;
+			return -EINVAL;
 		ch = *mb->b_rptr++;
 		switch(ch)
 		{
@@ -903,14 +912,14 @@ m_getstr (mblk_t * mb, char *str, int maxlen)
 	streamchar *lim;
 
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	if (mb->b_rptr >= mb->b_wptr)
-		return ESRCH;
+		return -ESRCH;
 
 	p = mb->b_rptr;
 	if (*p == ':')
-		return ENOENT;
+		return -ENOENT;
 	lim = mb->b_wptr;
 	while (!isspace (*p)) {
 		if (maxlen == 0 || p == lim)
@@ -925,27 +934,53 @@ m_getstr (mblk_t * mb, char *str, int maxlen)
 
 
 int
+m_getstrlen (mblk_t * mb)
+{
+	streamchar *p;
+	streamchar *lim;
+	int len = 0;
+
+	if (mb == NULL)
+		return -EINVAL;
+	m_getskip (mb);
+	if (mb->b_rptr >= mb->b_wptr)
+		return -ESRCH;
+
+	p = mb->b_rptr;
+	if (*p == ':')
+		return -ENOENT;
+	lim = mb->b_wptr;
+	while (!isspace (*p)) {
+		if (p == lim)
+			break;
+		len++;
+		p++;
+	}
+	return len;
+}
+
+
+int
 m_getc (mblk_t * mb, char *c)
 {
 	if (mb == NULL)
-		return EINVAL;
+		return -EINVAL;
 	m_getskip (mb);
 	if (mb->b_rptr >= mb->b_wptr)
-		return ESRCH;
+		return -ESRCH;
 
 	if (*mb->b_rptr == ':')
-		return ENOENT;
+		return -ENOENT;
 	*c = *mb->b_rptr++;
 	return 0;
 }
 
 
-
-void
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-deb_md_reply (const char *deb_file, unsigned int deb_line,queue_t * q, mblk_t * mb, int err)
+deb_make_reply (const char *deb_file, unsigned int deb_line, int err)
 #else
-md_reply (queue_t * q, mblk_t * mb, int err)
+make_reply (int err)
 #endif
 {
 #ifdef CONFIG_DEBUG_STREAMS
@@ -956,12 +991,11 @@ md_reply (queue_t * q, mblk_t * mb, int err)
 
 	if (mq == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf("* NoMem md_reply %s:%d %d\n",deb_file,deb_line,err);
+		printf("* NoMem make_reply %s:%d %d\n",deb_file,deb_line,err);
 #else
-		printf("* NoMem md_reply %d\n",err);
+		printf("* NoMem make_reply %d\n",err);
 #endif
-		freemsg (mb);
-		return;
+		return NULL;
 	}
 	if (err == 0) {
 		m_putid (mq, PROTO_NOERROR);
@@ -971,8 +1005,27 @@ md_reply (queue_t * q, mblk_t * mb, int err)
 		m_puti (mq, err);
 	}
 	m_putdelim (mq);
-	linkb (mq, mb);
+	return mq;
+}
 
+void
+#ifdef CONFIG_DEBUG_STREAMS
+deb_md_reply (const char *deb_file, unsigned int deb_line,queue_t * q, mblk_t * mb, int err)
+#else
+md_reply (queue_t * q, mblk_t * mb, int err)
+#endif
+{
+#ifdef CONFIG_DEBUG_STREAMS
+	mblk_t *mq = deb_make_reply(deb_file,deb_line,err);
+#else
+	mblk_t *mq = make_reply(err);
+#endif
+
+	if (mq == NULL) {
+		freemsg (mb);
+		return;
+	}
+	linkb (mq, mb);
 	putnext (OTHERQ (q), mq);
 }
 
@@ -985,33 +1038,17 @@ m_reply (queue_t * q, mblk_t * mb, int err)
 #endif
 {
 #ifdef CONFIG_DEBUG_STREAMS
-	mblk_t *mq = deb_allocb (deb_file,deb_line,err ? 16 : 8, BPRI_HI);
+	mblk_t *mq = deb_make_reply(deb_file,deb_line,err);
 #else
-	mblk_t *mq = allocb (err ? 16 : 8, BPRI_HI);
+	mblk_t *mq = make_reply(err);
 #endif
 
 	if (mq == NULL) {
-#ifdef CONFIG_DEBUG_STREAMS
-		printf("* NoMem m_reply %s:%d %d\n",deb_file,deb_line,err);
-#else
-		printf("* NoMem m_reply %d\n",err);
-#endif
 		freemsg (mb);
 		return;
 	}
-	if (err == 0) {
-		m_putid (mq, PROTO_NOERROR);
-	} else {
-		m_putid (mq, PROTO_ERROR);
-		m_putsx (mq, PROTO_ERROR);
-		if(err < 0)
-			err = -err;
-		m_puti (mq, err);
-	}
-	m_putdelim (mq);
 	linkb (mq, mb);
 	DATA_TYPE(mq) = MSG_PROTO;
-
 	putnext (OTHERQ (q), mq);
 }
 

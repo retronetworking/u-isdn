@@ -1,3 +1,7 @@
+#if defined(_ncp16_)
+#define WIDE
+#endif
+
 /* BSC
 
 HSCX
@@ -54,16 +58,14 @@ CMDR 41
 #endif
 #include <sys/sysmacros.h>
 #include <stddef.h>
+#include "loader.h"
 
-#ifdef M_UNIX
-#define ByteOut(_where,_what) iooutb(_where,_what)
-#define ByteIn(_where) ioinb(_where)
-#endif
 #ifdef linux
 #include <asm/io.h>
 #include <linux/ptrace.h>
 #include <linux/sched.h>
 #include <linux/interrupt.h>
+#include <linux/malloc.h>
 #define ByteOut(_where,_what) outb_p(_what,_where)
 #define ByteIn(_where) inb_p(_where)
 #endif
@@ -83,7 +85,7 @@ CMDR 41
 #define HSCX_R_FIFO_SIZE 32
 #define HSCX_W_FIFO_SIZE 32
 
-#define FIFO(x) fifo[(x,0)] /* keep side effects but address at offset zero */
+#define FIFO(x) fifo[0] /* forget the address -- WARNING: side effects of x get lost */
 
 #include "shell.h"
 
@@ -174,32 +176,25 @@ typedef struct _hscx {
 #endif
 
 #ifdef linux
-
 #ifdef _avm_
-#define CARDTYPE avm
 #include "avm_io.c"
 #endif
 
 #ifdef _bsc_
-#define CARDTYPE bsc
 #include "bsc_io.c"
 #endif
 
 #ifdef _ncp16_
-#define CARDTYPE ncp16
 #include "ncp16_io.c"
 #endif
 
 #ifdef _ncp_
-#define CARDTYPE ncp
 #include "ncp_io.c"
 #endif
 
 #ifdef _teles_
-#define CARDTYPE teles
 #include "teles_io.c"
 #endif
-
 
 
 #define DUMBTIME 300 /* poll: times per second */
@@ -209,9 +204,9 @@ typedef struct _hscx {
 #define xxstrxx(a) #a
 #define STRING(a) xxstrxx(a) /* ditto */
 
-void NAME(CARDTYPE,poll)(struct _dumb *dumb);
+void NAME(REALNAME,poll)(struct _dumb *dumb);
 #else
-void NAME(CARDTYPE,poll)(void *);
+void NAME(REALNAME,poll)(void *);
 #endif
 
 
@@ -257,7 +252,7 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 
 	switch(channel) {
 	case 0:
-		DEBUG(info) printf(KERN_INFO "ISDN ISAC %s<%d>%s\n",mode?(mode==1?"standby":"up"):"down",mode,listen?" listen":"");
+		DEBUG(info) printf("%sISDN ISAC %s<%d>%s\n",KERN_INFO ,mode?(mode==1?"standby":"up"):"down",mode,listen?" listen":"");
 		ISAC_mode(dumb,mode,listen);
 		if(mode == M_OFF) {
 			int j;
@@ -267,10 +262,10 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 		break;
 	default:
 		if(channel > 0 && channel <= dumb->numHSCX) {
-			DEBUG(info) printf(KERN_INFO "ISDN HSCX%d %s<%d>%s\n",channel,mode?"up":"down",mode,listen?" listen":"");
+			DEBUG(info) printf("%sISDN HSCX%d %s<%d>%s\n",KERN_INFO ,channel,mode?"up":"down",mode,listen?" listen":"");
 			err = HSCX_mode(dumb,channel,mode,listen);
 			if (err < 0) {
-				printf(KERN_WARNING "ISDN err %d %d\n",channel, err);
+				printf("%sISDN err %d %d\n",KERN_WARNING ,channel, err);
 				splx(ms);
 				return err;
 			}
@@ -279,12 +274,12 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 			dumb->chan[channel].maxblk = 10;
 			break;
 		} else {
-			printf(KERN_WARNING "ISDN badChan %d\n",channel);
+			printf("%sISDN badChan %d\n",KERN_WARNING ,channel);
 			splx(ms);
 			return -EINVAL;
 		}
 	}
-	NAME(CARDTYPE,poll)(dumb);
+	NAME(REALNAME,poll)(dumb);
 	splx(ms);
 	return err;
 }
@@ -297,7 +292,7 @@ dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 	ushort_t id;
 	int error = 0;
 
-	DEBUG(info)printf("Prot chan %d flags 0%o\n",channel,flags);
+	DEBUG(info)printf("%sProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
 
 	if(!(flags & ~CHP_FROMSTACK)) {
 		if ((error = m_getid (mp, &id)) != 0)
@@ -346,7 +341,7 @@ dumb_data (struct _isdn1_card * card, short channel, mblk_t * data)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
 	S_enqueue(&dumb->chan[channel].q_out, data);
-	NAME(CARDTYPE,poll)((struct _dumb *) card);
+	NAME(REALNAME,poll)((struct _dumb *) card);
 	return 0;
 }
 
@@ -410,7 +405,7 @@ static void ISAC_kick(struct _dumb * dumb)
 	uchar_t *sendp = NULL;
 	
 	unsigned long ms = SetSPL(dumb->ipl);
-	DEBUG(isac) printf(KERN_DEBUG "K ");
+	DEBUG(isac) printf("%sK ",KERN_DEBUG );
 	if(dumb->chan[0].locked) {
 		DEBUG(isac) printf("lck ");
 		splx(ms);
@@ -458,8 +453,10 @@ static void ISAC_kick(struct _dumb * dumb)
 		do {
 			short thisb = (uchar_t *)sendb->b_wptr-sendp;
 			if(thisb > ISAC_W_FIFO_SIZE-numb) thisb = ISAC_W_FIFO_SIZE-numb;
-			for(;thisb > 0; thisb--)
-				ByteOutISAC(dumb,FIFO(numb++),*sendp++);
+			for(;thisb > 0; thisb--) {
+				ByteOutISAC(dumb,FIFO(numb),*sendp);
+				numb++; sendp++;
+			}
 			while(sendp >= (uchar_t *)sendb->b_wptr) {
 				sendb = sendb->b_cont;
 				if(sendb != NULL)
@@ -496,7 +493,7 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 	hdlc_buf bufp = &dumb->chan[hscx];
 
 	unsigned long ms = SetSPL(dumb->ipl);
-	DEBUG(hscxout) printf(KERN_DEBUG "K.%d ",hscx);
+	DEBUG(hscxout) printf("%sK.%d ",KERN_DEBUG ,hscx);
 	if(bufp->locked) {
 		DEBUG(hscxout) { printf("Lck\n"); }
 		splx(ms);
@@ -550,7 +547,7 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 #ifdef CONFIG_DEBUG_ISDN
 			if(sendp == NULL) {
 				DEBUG(hscxout)printf("\n");
-				printf(KERN_WARNING "PNull! %p %p %p %p %p %d\n",sendb,sendp,bufp->m_out,bufp->m_out_run,bufp->p_out,numb);
+				printf("%sPNull! %p %p %p %p %p %d\n",KERN_WARNING ,sendb,sendp,bufp->m_out,bufp->m_out_run,bufp->p_out,numb);
 				goto exhopp;
 			}
 #endif
@@ -559,8 +556,10 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 				short thisb = (uchar_t *)sendb->b_wptr-sendp;
 				if(thisb > HSCX_W_FIFO_SIZE-numb) thisb = HSCX_W_FIFO_SIZE-numb;
 				DEBUG(hscxout) printf(">%d ",thisb);
-				for(;thisb > 0; thisb --)
-					ByteOutHSCX(dumb,hscx,FIFO(numb++),*sendp++);
+				for(;thisb > 0; thisb --) {
+					ByteOutHSCX(dumb,hscx,FIFO(numb),*sendp);
+					numb++; sendp++;
+				}
 				while(sendp >= (uchar_t *)sendb->b_wptr) {
 					sendb = sendb->b_cont;
 					DEBUG(hscxout)printf("=%p ",sendb);
@@ -578,7 +577,7 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 					ByteInHSCX(dumb,hscx,EXIR)&0x40
 #endif
 						) { /* XDU */
-				DEBUG(info) printf(KERN_DEBUG "Underrun HSCX.%d\n",hscx);
+				DEBUG(info) printf("%sUnderrun HSCX.%d\n",KERN_DEBUG ,hscx);
 				ByteOutHSCX(dumb,hscx,CMDR,0x01);
 				bufp->m_out_run = bufp->m_out;
 				bufp->p_out = bufp->m_out->b_rptr;
@@ -658,9 +657,9 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 	hdlc_buf bufp = &dumb->chan[hscx];
 
 #ifdef WIDE
-	DEBUG(hscx) { printf(KERN_DEBUG "%c.%d %02x:%02x\n",(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',hscx, isr0,isr1); }
+	DEBUG(hscx) { printf("%s%c.%d %02x:%02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',hscx, isr0,isr1); }
 #else
-	DEBUG(hscx) { printf(KERN_DEBUG "%c.%d %02x\n",(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',hscx, Reason); }
+	DEBUG(hscx) { printf("%s%c.%d %02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',hscx, Reason); }
 	if (hasEX)
 #endif
 	{
@@ -675,7 +674,7 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 				EXIR & 0x80
 #endif
 					) { /* XMR */
-			DEBUG(info) { printf(KERN_DEBUG "Msg Repeat HSCX.%d\n",hscx); }
+			DEBUG(info) { printf("%sMsg Repeat HSCX.%d\n",KERN_DEBUG ,hscx); }
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 			if (ByteInHSCX(dumb,hscx,STAR) & 0x40) { /* XFW */
 #ifdef WIDE
@@ -700,7 +699,7 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 			if (bufp->mode >= M_HDLC)  {
 				DEBUG(info) {
-					printf(KERN_DEBUG "Xmit Underrun HSCX.%d\n",hscx); }
+					printf("%sXmit Underrun HSCX.%d\n",KERN_DEBUG ,hscx); }
 #if NEW_XMIT
 				ByteOutHSCX(dumb,hscx,CMDR, 0x01); /* XRES */
 #ifdef WIDE
@@ -732,27 +731,27 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 		}
 #ifdef WIDE
 		DEBUG(hscx)if (isr0 & 0x08) { /* PLLA */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .PLLA\n"); }
+			DEBUG(info) { printf("%sISDN .PLLA\n",KERN_WARNING ); }
 		}
 		DEBUG(hscx)if (isr0 & 0x20) { /* RSC */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .RSC\n"); }
+			DEBUG(info) { printf("%sISDN .RSC\n",KERN_WARNING ); }
 		}
 		DEBUG(hscx)if (isr0 & 0x10) { /* PCE */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .PCE\n"); }
+			DEBUG(info) { printf("%sISDN .PCE\n",KERN_WARNING ); }
 		}
 		DEBUG(hscx)if (isr0 & 0x40) { /* RFS */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .RFS\n"); }
+			DEBUG(info) { printf("%sISDN .RFS\n",KERN_WARNING ); }
 		}
 #else
 		DEBUG(hscx)if (EXIR & 0x08) { /* CSC */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .CSC\n"); }
+			DEBUG(info) { printf("%sISDN .CSC\n",KERN_WARNING ); }
 		}
 		DEBUG(hscx)if (EXIR & 0x04) { /* RFS */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .RFS\n"); }
+			DEBUG(info) { printf("%sISDN .RFS\n",KERN_WARNING ); }
 		}
 		/* 0x02 and 0x01 are empty */
 		DEBUG(hscx)if (EXIR & 0x20) { /* PCE */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .PCE\n"); }
+			DEBUG(info) { printf("%sISDN .PCE\n",KERN_WARNING ); }
 		}
 #endif
 		if (
@@ -762,7 +761,7 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 				EXIR & 0x10
 #endif
 					) { /* RFO */
-			DEBUG(info) { printf(KERN_DEBUG "Recv overflow HSCX.%d\n",hscx); }
+			DEBUG(info) { printf("%sRecv overflow HSCX.%d\n",KERN_DEBUG ,hscx); }
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 			if(
 #ifdef WIDE
@@ -853,7 +852,7 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 				}
 			}
 		} else {
-			DEBUG(info) { printf(KERN_DEBUG "Recv abort (%02x) HSCX.%d\n", RSTA,hscx); }
+			DEBUG(info) { printf("%sRecv abort (%02x) HSCX.%d\n",KERN_DEBUG , RSTA,hscx); }
 			if(bufp->m_in != NULL) {
 				freemsg(bufp->m_in);
 				bufp->m_in = bufp->m_in_run = NULL;
@@ -931,17 +930,17 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 	}
 #ifdef WIDE
 	DEBUG(hscx)if (isr1 & 0x08) { /* TIN */
-		DEBUG(info) { printf(KERN_WARNING "ISDN .TIN\n"); }
+		DEBUG(info) { printf("%sISDN .TIN\n",KERN_WARNING ); }
 	}
 	DEBUG(hscx)if (isr1 & 0x20) { /* AOLP */
-		DEBUG(info) { printf(KERN_WARNING "ISDN .AOLP\n"); }
+		DEBUG(info) { printf("%sISDN .AOLP\n",KERN_WARNING ); }
 	}
 #else
 	DEBUG(hscx)if (Reason & 0x20) { /* RSC */
-		DEBUG(info) { printf(KERN_WARNING "ISDN .RSC\n"); }
+		DEBUG(info) { printf("%sISDN .RSC\n",KERN_WARNING ); }
 	}
 	DEBUG(hscx)if (Reason & 0x08) { /* TIN */
-		DEBUG(info) { printf(KERN_WARNING "ISDN .TIN\n"); }
+		DEBUG(info) { printf("%sISDN .TIN\n",KERN_WARNING ); }
 	}
 #endif
 
@@ -964,16 +963,16 @@ static void IRQ_ISAC(struct _dumb * dumb)
 	Byte Reason;
 
   while((Reason = ByteInISAC(dumb,ISTA))) {
-	DEBUG(isac) { printf(KERN_DEBUG "%c %02x\n",(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',Reason); }
+	DEBUG(isac) { printf("%s%c %02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',Reason); }
 	if (Reason & 0x04) { /* CISQ */
 		Byte CIR = ByteInISAC(dumb,CIR0);
 		
 		if (CIR & 0x80) { /* SQC */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .SQC %x\n",ByteInISAC(dumb,SQRR)); }
+			DEBUG(info) { printf("%sISDN .SQC %x\n",KERN_WARNING ,ByteInISAC(dumb,SQRR)); }
 		}
 		if (CIR & 0x03) {
 			CIR = ((CIR >> 2) & 0x0F);
-			DEBUG(info) printf(KERN_DEBUG "ISDN CIR %01x",CIR);
+			DEBUG(info) printf("%sISDN CIR %01x",KERN_DEBUG ,CIR);
 			if (dumb->polled >= 0) {
 				if ((CIR == 0x0C) || (CIR == 0x0D)) {
 					DEBUG(info) printf(" up");
@@ -994,7 +993,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 					dumb->circ++;
 				}
 			}
-			DEBUG(info) printf(KERN_DEBUG "\n");
+			DEBUG(info) printf("\n");
 #if 0
 			ByteOutISAC(dumb,CMDR,0x41);
 			Reason &=~ 0xC0;
@@ -1005,7 +1004,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 		Byte EXIR = ByteInISAC(dumb,EXIR);
 		DEBUG(isac) { printf(". %x", EXIR); }
 		if (EXIR & 0x80) { /* XMR */
-			DEBUG(info) { printf(KERN_DEBUG "MsgRepeat ISAC\n"); }
+			DEBUG(info) { printf("%sMsgRepeat ISAC\n",KERN_DEBUG ); }
 			CEC(ByteInISAC(dumb,STAR) & 0x04);
 			if (ByteInISAC(dumb,STAR) & 0x40) { /* XFW */
 				Reason |= 0x10; /* also set XPR bit */
@@ -1019,7 +1018,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 		if (EXIR & 0x40) { /* XDU */
 			CEC(ByteInISAC(dumb,STAR) & 0x04);
 			if (dumb->chan[0].mode >= M_HDLC)  {
-				DEBUG(info) { printf(KERN_DEBUG "Xmit Underrun ISAC\n"); }
+				DEBUG(info) { printf("%sXmit Underrun ISAC\n",KERN_DEBUG ); }
 #if NEW_XMIT
 				ByteOutISAC(dumb,CMDR, 0x01); /* XRES */
 				Reason |= 0x10;
@@ -1038,10 +1037,10 @@ static void IRQ_ISAC(struct _dumb * dumb)
 			}
 		}
 		DEBUG(isac)if (EXIR & 0x20) { /* PCE */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .PCE\n"); }
+			DEBUG(info) { printf("%sISDN .PCE\n",KERN_WARNING ); }
 		}
 		if (EXIR & 0x10) { /* RFO */
-			DEBUG(info) { printf(KERN_DEBUG "Recv overflow ISAC (%02x)\n", EXIR); }
+			DEBUG(info) { printf("%sRecv overflow ISAC (%02x)\n",KERN_DEBUG , EXIR); }
 			CEC(ByteInISAC(dumb,STAR) & 0x04);
 			if(Reason & 0xC0) {
 				ByteOutISAC(dumb,CMDR, 0xC0); /* RMC|RHR */
@@ -1054,10 +1053,10 @@ static void IRQ_ISAC(struct _dumb * dumb)
 			}
 		}
 		DEBUG(isac)if (EXIR & 0x08) { /* CSC */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .CSC\n"); }
+			DEBUG(info) { printf("%sISDN .CSC\n",KERN_WARNING ); }
 		}
 		DEBUG(isac)if (EXIR & 0x04) { /* RFS */
-			DEBUG(info) { printf(KERN_WARNING "ISDN .RFS\n"); }
+			DEBUG(info) { printf("%sISDN .RFS\n",KERN_WARNING ); }
 		}
 		/* 0x02 and 0x01 are empty */
 	}
@@ -1073,7 +1072,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 			blen = (xblen & (ISAC_R_FIFO_SIZE-1));
 			xblen += (ByteInISAC(dumb,RBCH) & 0x0F) << 8;
 			if(blen == 1) {
-				DEBUG(isac) printf(KERN_DEBUG ".R-%d\n",xblen);
+				DEBUG(isac) printf("%s.R-%d\n",KERN_DEBUG ,xblen);
 				if((recvb = dumb->chan[0].m_in_run) != NULL) {
 					mblk_t *msg = dumb->chan[0].m_in;
 					dumb->chan[0].m_in = dumb->chan[0].m_in_run = NULL;
@@ -1086,7 +1085,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 			} else {
 				if(blen == 0) 
 					blen = ISAC_R_FIFO_SIZE;
-				DEBUG(isac) printf(KERN_DEBUG ".R=%d\n",xblen);
+				DEBUG(isac) printf("%s.R=%d\n",KERN_DEBUG ,xblen);
 				if ((recvb = dumb->chan[0].m_in_run) != NULL) {
 					DEBUG(isac)printf("a%d ",dsize(dumb->chan[0].m_in));
 					if ((recvp = (uchar_t *)recvb->b_wptr) + blen > (uchar_t *)DATA_END(recvb))
@@ -1125,7 +1124,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 				}
 			}
 		} else {
-			DEBUG(info) { printf(KERN_DEBUG "Recv abort (%x)\n",RSTA); }
+			DEBUG(info) { printf("%sRecv abort (%x)\n",KERN_DEBUG ,RSTA); }
 			if(dumb->chan[0].m_in != NULL) {
 				freemsg(dumb->chan[0].m_in);
 				dumb->chan[0].m_in = dumb->chan[0].m_in_run = NULL;
@@ -1174,10 +1173,10 @@ static void IRQ_ISAC(struct _dumb * dumb)
 		}
 	}
 	if (Reason & 0x20) { /* RSC */
-		DEBUG(info) { printf(KERN_WARNING "ISDN .RSC\n"); }
+		DEBUG(info) { printf("%sISDN .RSC\n",KERN_WARNING ); }
 	}
 	if (Reason & 0x08) { /* TIN */
-		DEBUG(info) { printf(KERN_WARNING "ISDN .TIN\n"); }
+		DEBUG(info) { printf("%sISDN .TIN\n",KERN_WARNING ); }
 #if 0
 		ByteOutISAC(dumb,TIMR,0x11);
 		ByteOutISAC(dumb,CMDR,0x10); /* start timer */
@@ -1227,7 +1226,7 @@ dumbintr(int irq, struct pt_regs *regs)
 {
 	struct _dumb *dumb;
 	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		if(dumb->irq == irq) {
+		if(dumb->info.irq == irq) {
 			dumb->polled --;
 			IRQ_HSCX(dumb);
 			IRQ_ISAC(dumb);
@@ -1237,7 +1236,7 @@ dumbintr(int irq, struct pt_regs *regs)
 		}
 	}
 	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		if(dumb->irq == irq) {
+		if(dumb->info.irq == irq) {
 			toggle_on(dumb);
 		}
 	}
@@ -1245,9 +1244,9 @@ dumbintr(int irq, struct pt_regs *regs)
 
 
 #ifdef linux
-void NAME(CARDTYPE,poll)(struct _dumb *dumb)
+void NAME(REALNAME,poll)(struct _dumb *dumb)
 #else
-void NAME(CARDTYPE,poll)(void *nix)
+void NAME(REALNAME,poll)(void *nix)
 #endif
 {
 #ifndef linux
@@ -1274,8 +1273,8 @@ void NAME(CARDTYPE,poll)(void *nix)
 		toggle_on(dumb);
 		splx(ms);
 #if 0 /* def linux */
-		if(dumb->irq != 0)
-			unblock_irq(dumb->irq);
+		if(dumb->info.irq != 0)
+			unblock_irq(dumb->info.irq);
 #endif
 	}
 }
@@ -1284,24 +1283,34 @@ void NAME(CARDTYPE,poll)(void *nix)
 #ifdef linux
 static void dumbtimer(struct _dumb *dumb)
 {
-	NAME(CARDTYPE,poll)(dumb);
+	NAME(REALNAME,poll)(dumb);
 #if 0
 	if(dumb->countme++ < 10) {
-		printf(" -(%d):%02x %02x %02x- ",dumb->irq,ByteInISAC(dumb,STAR),ByteInISAC(dumb,ISTA),ByteInISAC(dumb,CIR0));
+		printf(" -(%d):%02x %02x %02x- ",dumb->info.irq,ByteInISAC(dumb,STAR),ByteInISAC(dumb,ISTA),ByteInISAC(dumb,CIR0));
 	}
 #endif
 #ifdef NEW_TIMEOUT
 	dumb->timer =
 #endif
-		timeout((void *)dumbtimer,dumb,(dumb->irq == 0) ? HZ/DUMBTIME+1 : HZ/2);
+		timeout((void *)dumbtimer,dumb,(dumb->info.irq == 0) ? HZ/DUMBTIME+1 : HZ/2);
 }
 #endif
 
-int NAME(CARDTYPE,init)(struct _dumb *dumb)
+int NAME(REALNAME,init)(struct cardinfo *inf)
 {
-	extern caddr_t sptalloc();
 	int err;
+	struct _dumb *dumb;
 	
+	dumb = kmalloc(sizeof(*dumb),GFP_KERNEL);
+	if(dumb == NULL) {
+		printf("???: No Memory\n");
+		return -ENOMEM;
+	}
+	bzero(dumb,sizeof(*dumb));
+
+	dumb->numHSCX = 1;
+	dumb->info = *inf;
+	dumb->infoptr = inf;
 	dumb->card.ctl = dumb;
 	dumb->card.modes = (1<<M_HDLC)| (1<<M_HDLC_7H)| (1<<M_HDLC_7L)| (1<<M_TRANSPARENT)| (1<<M_TRANS_ALAW)| (1<<M_TRANS_V110)| (1<<M_TRANS_HDLC);
 	dumb->card.ch_mode = dumb_mode;
@@ -1312,12 +1321,13 @@ int NAME(CARDTYPE,init)(struct _dumb *dumb)
 	dumb->card.poll = NULL;
 	dumb->polled = -1;
 
-	printf("ISDN: " STRING(CARDTYPE) " at mem %lx io 0x%x irq %d: ",dumb->memaddr,dumb->ioaddr,dumb->irq);
+	printf("%sISDN: " STRING(REALNAME) " at mem 0x%lx io 0x%x irq %d: ",KERN_DEBUG, dumb->info.memaddr,dumb->info.ioaddr,dumb->info.irq);
 
 	if((err = Init(dumb)) < 0) {
 		printf("Card not initializable.\n");
 		if(err == 0)
 			err = -EIO;
+		kfree(dumb);
 		return err;
 	}
 	dumb->card.nr_chans = dumb->numHSCX;
@@ -1328,59 +1338,66 @@ int NAME(CARDTYPE,init)(struct _dumb *dumb)
 
 	if((err = ISACpresent(dumb)) < 0) {
 		printf("Card not responding.\n");
+		kfree(dumb);
 		return err;
 	}
-#ifndef M_UNIX
 #ifdef linux
-	if((dumb->irq != 0) && request_irq(dumb->irq,dumbintr,SA_INTERRUPT,"ISDN")) {
+	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,dumbintr,SA_INTERRUPT,"ISDN")) {
 		printf("IRQ not available.\n");
+		kfree(dumb);
 		return -EEXIST;
 	}
 #endif
-	NAME(CARDTYPE,poll)(dumb);
-	if((err = isdn2_register(&dumb->card, dumb->ID)) != 0) {
+	NAME(REALNAME,poll)(dumb);
+	if((err = isdn2_register(&dumb->card, dumb->info.ID)) != 0) {
 		printf("not installed (ISDN_2), err %d\n",err);
+		kfree(dumb);
 		return err;
 	}
 
 	dumb->polled = 1;
 #ifdef linux
-	if(dumb->irq == 0) {
+	if(dumb->info.irq == 0) {
 		printf("polling; ");
 	}
 #endif
 	printf("installed at ");
-	if(dumb->memaddr != 0) 
-		printf("mem 0x%lx ",dumb->memaddr);
-	if(dumb->ioaddr != 0) 
-		printf("io 0x%x ",dumb->ioaddr);
-	if(dumb->irq != 0) 
-		printf("irq %d.\n",dumb->irq);
+	if(dumb->info.memaddr != 0) 
+		printf("mem 0x%lx ",dumb->info.memaddr);
+	if(dumb->info.ioaddr != 0) 
+		printf("io 0x%x ",dumb->info.ioaddr);
+	if(dumb->info.irq != 0) 
+		printf("irq %d.\n",dumb->info.irq);
 	else
 		printf("polled.\n");
-	dumb->next = dumbmap[dumb->irq];
-	dumbmap[dumb->irq] = dumb;
+	dumb->next = dumbmap[dumb->info.irq];
+	dumbmap[dumb->info.irq] = dumb;
 #ifdef linux
 	dumbtimer(dumb);
 #endif
-#endif /* M_UNIX */
-	MOD_INC_USE_COUNT;
+	MORE_USE;
 	return 0;
 }
 
 
 void
-NAME(CARDTYPE,exit)(struct _dumb *dumb)
+NAME(REALNAME,exit)(struct cardinfo *inf)
 {
 	int j;
-	unsigned long ms = SetSPL(dumb->ipl);
-	struct _dumb **ndumb = &dumbmap[dumb->irq];
+	unsigned long ms = SetSPL(inf->ipl);
+	struct _dumb *dumb = NULL;
+	struct _dumb **ndumb = &dumbmap[inf->irq];
 	while(*ndumb != NULL) {
-		if(*ndumb == dumb) {
+		if((*ndumb)->infoptr == inf) {
+			dumb = *ndumb;
 			*ndumb = dumb->next;
 			break;
 		}
 		ndumb = &((*ndumb)->next);
+	}
+	if(dumb == NULL) {
+		printf("%s??? No entry\n",KERN_DEBUG);
+		return;
 	}
 #ifdef NEW_TIMEOUT
 	untimeout(dumb->timer);
@@ -1396,11 +1413,12 @@ NAME(CARDTYPE,exit)(struct _dumb *dumb)
 		ByteOutHSCX(dumb,j,MASK,0xFF);
 #endif
 	}
-	if(dumb->irq > 0)
-		free_irq(dumb->irq);
+	if((dumb->info.irq > 0) && (dumbmap[dumb->info.irq] == NULL))
+		free_irq(dumb->info.irq);
 	isdn2_unregister(&dumb->card);
 	splx(ms);
-	MOD_DEC_USE_COUNT;
+	kfree(dumb);
+	LESS_USE;
 }
 
 

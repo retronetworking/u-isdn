@@ -7,7 +7,10 @@
 
 #include "master.h"
 
-
+/* Too many strings to keep track of, no time for garbage collection. */
+/* Enter them in a binary tree... */
+/* str_enter MUST NOT be called while any string in the tree is temporarily
+   modified. No string in the tree may be permanently modified in ANY way. */
 char *str_enter(char *master)
 {
 	struct string **str = &stringdb;
@@ -39,6 +42,10 @@ char *str_enter(char *master)
 	return st->data;
 }
 
+/* Simpleminded, bidirectional wildmat().
+   If both strings are patterns, this doesn't work. Unfortunately, pattern
+   joining is obviously NP-complete, and I don't know any algorithms to do it
+   anyway. */
 char *wildmatch(char *a, char *b)
 {
 	if(a == NULL)
@@ -53,27 +60,141 @@ char *wildmatch(char *a, char *b)
 		return NULL;
 }
 
-char *classmatch(char *a, char *b)
+/* Given a string aaa+bbb, return aaa. */
+char *
+strippat(char *a)
+{
+	char aa[30];
+	char *aplus = strchr(a,'+');
+
+	if(aplus == NULL)
+		return a;
+	*aplus = '\0';
+	strcpy(aa,a);
+	*aplus = '+';
+	return str_enter(aa);
+}
+
+/* Given strings +aaa+bbb and +ccc+aaa, return +aaa+bbb+ccc. */
+static char *
+pluscat(char *a, char *b)
 {
 	if(a == NULL)
 		return b;
-	else if(b == NULL)
+	if(b == NULL)
 		return a;
-	else if(*b == '*')
-		return a;
-	else if(*a == '*')
+	if(*a != '+')
 		return b;
-	else {
+	if(*b != '+')
+		return a;
+	{
+		char classpat[50];
+		char *classind = classpat;
+		strcpy(classpat,a);
+		while(*classind) {
+			if(*classind == '+')
+				*classind = '\0';
+			classind++;
+		}
+		{
+			char *bnext = b;
+			do {
+				b = bnext + 1;
+				bnext = strchr(b,'+');
+				if(bnext != NULL) *bnext = '\0';
+				for(a = classpat+1; a < classind; a += strlen(a)+1)
+					if(strcmp(a,b) == 0)
+						break;
+				if(a >= classind) {
+					strcpy(classind+1,b);
+					classind += strlen(b)+1;
+				}
+				if(bnext != NULL) *bnext = '+';
+			} while(bnext != NULL);
+			for(a = classpat; a < classind; a += strlen(a))
+				*a++ = '+';
+			*a = '\0';
+			return str_enter(classpat);
+		}
+	}
+}
+
+/* "abc" "bcd" -> "bc" */
+/* "abc+bc" "bcd+b" -> "bc+bc+b" */
+/* "abc+bc" "bcd+d" -> NULL */
+/* It is of course possible to optimize all of this, but it's not worth the
+   work. */
+char *
+classmatch(char *a, char *b)
+{
+	if(a == NULL)
+		return NULL;
+	if(b == NULL)
+		return NULL;
+	if(*b == '*' || *b == '\0')
+		return a;
+	if(*a == '*' || *a == '\0')
+		return b;
+	if(*a == '+' || *b == '+') {
+		if(*a == '+' && *b == '+') {
+			char classpat[50];
+			if(strcmp(a,b) == 0)
+				return a;
+			strcpy(classpat,a);
+			strcat(classpat,b);
+			return str_enter(classpat);
+		} else {
+			char *aorig,*bplus;
+			if(*a != '+') {
+				char *tmp = a; a = b; b = tmp;
+			}
+			if((bplus=strchr(b,'+')) != NULL) *bplus='\0';
+			aorig = a;
+			if(strlen(a) == 2) { /* Obvious optimization */
+				a = classmatch(b,a+1);
+				if(bplus != NULL) *bplus = '+';
+				return a;
+			}
+			do {
+				while(*++a != '\0' && *a != '+') {
+					if(strchr(b,*a) != NULL)
+						break;
+				}
+				if(*a == '\0' || *a == '+') {
+					if(bplus != NULL) *bplus='+';
+					return NULL;
+				}
+			} while((a = strchr(a,'+')) != NULL);
+			{
+				char classpat[50];
+				strcpy(classpat,b);
+				if(bplus != NULL)
+					*bplus='+';
+				strcat(classpat,pluscat(aorig,bplus));
+				return str_enter(classpat);
+			}
+		}
+	} else {
 		char classpat[30];
 		char *classind = classpat;
+		char *aplus, *bplus;
+		if((aplus=strchr(a,'+')) != NULL) *aplus='\0';
+		if((bplus=strchr(b,'+')) != NULL) *bplus='\0';
 		while(*a != 0) {
 			if(strchr(b,*a) != NULL)
 				*classind++ = *a;
 			a++;
 		}
+		if(aplus != NULL) *aplus='+';
+		if(bplus != NULL) *bplus='+';
 		if(classpat == classind)
 			return NULL;
 		*classind = 0;
+		/* If the class is one character long, there's not much point
+		   in carrying around all the baggage. */
+		if((classind > classpat+1) && (aplus != NULL || bplus != NULL))
+			return classmatch(str_enter(classpat),pluscat(aplus,bplus));
+		else
 			return str_enter(classpat);
 	}
 }
@@ -100,7 +221,7 @@ xquit (const char *s, const char *t)
 {
 	if (s != NULL)
 		syslog (LOG_WARNING, "%s %s: %m", s, t ? t : "");
-	exit (4);
+	abort();
 }
 
 void panic(const char *x, ...)

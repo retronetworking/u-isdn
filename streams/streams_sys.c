@@ -25,10 +25,15 @@
 #include <linux/malloc.h>
 #include <linux/tqueue.h>
 #include <linux/interrupt.h>
+#else
+unsigned long bh_mask;
 #endif
+#include "kernel.h"
 
 #ifdef linux
+#ifdef __KERNEL__
 #include <linux/interrupt.h>
+#endif
 #include <linux/syscompat.h>
 #ifdef SK_STREAM
 #include <linux/skbuff.h>
@@ -102,7 +107,7 @@ __res;})
     long module_start, module_end;
     extern char start_kernel, etext;
 
-    printk(KERN_EMERG "Stackback of %d in %s! Call Trace: ",str, current->comm);
+    printk("%sStackback of %d in %s! Call Trace: ",KERN_EMERG,str, current->comm);
     module_start = ((high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
     module_end = module_start + MODULE_RANGE;
     while (((long) stack & 4095) != 0) {
@@ -161,7 +166,7 @@ mblk_t * allocb(ushort size, ushort pri)
 #ifdef SK_STREAM
 	skb = alloc_skb(size,GFP_ATOMIC);
 	if(skb == NULL) {
-		printf(KERN_WARNING "Couldn't allocate %d bytes (Streams SKB)\n",size);
+		printf("%sCouldn't allocate %d bytes (Streams SKB)\n",KERN_WARNING,size);
 		return NULL;
 	}
 #else
@@ -171,7 +176,7 @@ mblk_t * allocb(ushort size, ushort pri)
 	p_data = (struct datab *) kmalloc(size + sizeof(struct datab), GFP_ATOMIC);
 #endif
 	if(p_data == NULL) {
-		printf(KERN_WARNING "Couldn't allocate %d bytes (Streams Data)\n",size+sizeof(struct datab));
+		printf("%sCouldn't allocate %d bytes (Streams Data)\n",KERN_WARNING,size+sizeof(struct datab));
 		return NULL;
 	}
 #endif
@@ -187,7 +192,7 @@ mblk_t * allocb(ushort size, ushort pri)
 #else
 		kfree_s(p_data,sizeof(struct msgb));
 #endif
-		printf(KERN_WARNING "Couldn't allocate %d bytes (Streams Msg)\n",sizeof(struct msgb));
+		printf("%sCouldn't allocate %d bytes (Streams Msg)\n",KERN_WARNING,sizeof(struct msgb));
 		return NULL;
 	}
 	p_msg->b_next = p_msg->b_prev = p_msg->b_cont = NULL;
@@ -235,7 +240,7 @@ void freeb(mblk_t *p_msg)
 
 	if (p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Freeing NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sFreeing NULL msg at %s:%d\n",KERN_ERR,deb_file,deb_line);
 #endif
 		return;
 	}
@@ -394,7 +399,7 @@ void freeq(queue_t *p_queue)
 {
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Freeing NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sFreeing NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return;
 	}
@@ -428,7 +433,7 @@ void freemsg(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Freeing NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sFreeing NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return;
 	}
@@ -457,7 +462,7 @@ mblk_t *dupb(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Dup'ing NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sDup'ing NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -497,7 +502,7 @@ mblk_t *dupmsg(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Dup'ing NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sDup'ing NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -535,7 +540,7 @@ mblk_t *copyb(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Copying NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sCopying NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -570,7 +575,7 @@ mblk_t *copymsg(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Copying NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sCopying NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -606,7 +611,7 @@ mblk_t *copybufb(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Copying NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sCopying NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -642,7 +647,7 @@ mblk_t *copybufmsg(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Copying NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sCopying NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -701,13 +706,13 @@ mblk_t *rmvb(mblk_t *p_msg, mblk_t *p_block)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Removing NULL msga at %s:%d\n",deb_file,deb_line);
+		printf("%sRemoving NULL msga at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
 	if(p_block == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Removing NULL msgb at %s:%d\n",deb_file,deb_line);
+		printf("%sRemoving NULL msgb at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -717,7 +722,7 @@ mblk_t *rmvb(mblk_t *p_msg, mblk_t *p_block)
 	else do {
 		if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-			printf(KERN_ERR "Block not in message at %s:%d\n",deb_file,deb_line);
+			printf("%sBlock not in message at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 			return NULL;
 		} else if(p_msg->b_cont == p_block) {
@@ -748,7 +753,7 @@ int pullupmsg(mblk_t *p_msg, short length)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Pullup NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sPullup NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return 0;
 	}
@@ -834,7 +839,7 @@ int adjmsg(mblk_t *p_msg, short length)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Adjust NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sAdjust NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return 0;
 	}
@@ -897,7 +902,7 @@ int xmsgsize(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "XMsgSize of NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sXMsgSize of NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return 0;
 	}
@@ -949,7 +954,7 @@ int msgdsize(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "MsgDSize of NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sMsgDSize of NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		traceback(0);
 		return -EFAULT;
@@ -1186,7 +1191,7 @@ mblk_t *getq(queue_t *p_queue)
 
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Get from NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sGet from NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -1195,7 +1200,7 @@ mblk_t *getq(queue_t *p_queue)
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
 	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
 #endif
-if(0)printf(KERN_ERR "G %s:%d  ",deb_file,deb_line);
+if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
 	if ((p_msg = p_queue->q_first) == NULL) 
 		p_queue->q_flag |= QWANTR;
 	else {
@@ -1209,12 +1214,12 @@ if(0)printf(KERN_ERR "G %s:%d  ",deb_file,deb_line);
 		rmv_post(p_queue,p_msg);
 #ifdef CONFIG_DEBUG_STREAMS
 		if (p_msg->b_rptr == NULL) {
-			printf(KERN_ERR "GetQ NULL stream/rptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+			printf("%sGetQ NULL stream/rptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 			freemsg(p_msg);
 			p_msg = NULL;
 		}
 		if (p_msg->b_wptr == NULL) {
-			printf(KERN_ERR "GetQ NULL stream/wptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+			printf("%sGetQ NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 			freemsg(p_msg);
 			p_msg = NULL;
 		}
@@ -1261,13 +1266,13 @@ void rmvq(queue_t *p_queue, mblk_t *p_msg)
 
 	if (p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Rmv NULL msg from queue at %s:%d\n",deb_file,deb_line);
+		printf("%sRmv NULL msg from queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Rmv msg from NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sRmv msg from NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
@@ -1335,7 +1340,7 @@ void flushq(queue_t *p_queue, int flag)
 
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Flush NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sFlush NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
@@ -1394,11 +1399,11 @@ int canput(queue_t *p_queue)
 {
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Queue NULL in canput at %s:%d\n",deb_file,deb_line);
+		printf("%sQueue NULL in canput at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return 0;
 	}
-if(0)printf(KERN_ERR "P %s:%d  ",deb_file,deb_line);
+if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
 	while (p_queue->q_next != NULL && p_queue->q_qinfo->qi_srvp == NULL)
 		p_queue = p_queue->q_next;
 	if (p_queue->q_flag & QFULL) {
@@ -1431,25 +1436,25 @@ void putq(queue_t *p_queue, mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Putting NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sPutting NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return;
 	}
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Putting on NULL stream at %s:%d\n",deb_file,deb_line);
+		printf("%sPutting on NULL stream at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		freemsg(p_msg);
 		return;
 	}
 #ifdef CONFIG_DEBUG_STREAMS
 	if (p_msg->b_rptr == NULL) {
-		printf(KERN_ERR "PutQ NULL stream/rptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sPutQ NULL stream/rptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
 	if (p_msg->b_wptr == NULL) {
-		printf(KERN_ERR "PutQ NULL stream/wptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sPutQ NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
@@ -1462,7 +1467,7 @@ void putq(queue_t *p_queue, mblk_t *p_msg)
 	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
 #endif
 #endif
-if(0)printf(KERN_ERR "P %s:%d  ",deb_file,deb_line);
+if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
 	s = splstr();
 
 	if (p_queue->q_first == NULL) {
@@ -1516,25 +1521,25 @@ void putbq(queue_t *p_queue, mblk_t *p_msg)
 
 	if (p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "PutBack msg to NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sPutBack msg to NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "PutBack NULL msg to queue at %s:%d\n",deb_file,deb_line);
+		printf("%sPutBack NULL msg to queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		freemsg(p_msg);
 		return ;
 	}
 #ifdef CONFIG_DEBUG_STREAMS
 	if (p_msg->b_rptr == NULL) {
-		printf(KERN_ERR "PutBQ NULL stream/rptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sPutBQ NULL stream/rptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
 	if (p_msg->b_wptr == NULL) {
-		printf(KERN_ERR "PutBQ NULL stream/wptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sPutBQ NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
@@ -1597,13 +1602,13 @@ void insq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 
 	if (p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "InsQ msg to NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sInsQ msg to NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "InsQ NULL msg to queue at %s:%d\n",deb_file,deb_line);
+		printf("%sInsQ NULL msg to queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		freemsg(p_msg);
 		return ;
@@ -1664,25 +1669,25 @@ void appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 
 	if (p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "AppQ msg to NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sAppQ msg to NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
 	if (p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "AppQ NULL msg to queue at %s:%d\n",deb_file,deb_line);
+		printf("%sAppQ NULL msg to queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		freemsg(p_msg);
 		return ;
 	}
 #ifdef CONFIG_DEBUG_STREAMS
 	if (p_msg->b_rptr == NULL) {
-		printf(KERN_ERR "AppQ NULL stream/rptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sAppQ NULL stream/rptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
 	if (p_msg->b_wptr == NULL) {
-		printf(KERN_ERR "AppQ NULL stream/wptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sAppQ NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
@@ -1784,7 +1789,7 @@ queue_t *backq(queue_t *p_queue)
 {
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "BackQ from NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sBackQ from NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return NULL;
 	}
@@ -1811,25 +1816,25 @@ void qreply(queue_t *p_queue, mblk_t *p_msg)
 {
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Replying with NULL msg at %s:%d\n",deb_file,deb_line);
+		printf("%sReplying with NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return;
 	}
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Replying on NULL stream at %s:%d\n",deb_file,deb_line);
+		printf("%sReplying on NULL stream at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		freemsg(p_msg);
 		return;
 	}
 #ifdef CONFIG_DEBUG_STREAMS
 	if (p_msg->b_rptr == NULL) {
-		printf(KERN_ERR "QReply NULL stream/rptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sQReply NULL stream/rptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
 	if (p_msg->b_wptr == NULL) {
-		printf(KERN_ERR "QReply NULL stream/wptr at %s:%d, last at %s:%d\n",deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		printf("%sQReply NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
@@ -1866,7 +1871,7 @@ int qsize(queue_t *p_queue)
 
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "SizeQ on NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sSizeQ on NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return 0;
 	}
@@ -1890,12 +1895,12 @@ void setq (queue_t * p_queue, struct qinit *read_init, struct qinit *write_init)
 {
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "SetQ on NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sSetQ on NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return;
 	}
 #if 0 /* def CONFIG_DEBUG_STREAMS */
-	printf(KERN_DEBUG "setq: Queue %p, read_init %p, write_init %p",p_queue,read_init,write_init);
+	printf("%ssetq: Queue %p, read_init %p, write_init %p",KERN_DEBUG ,p_queue,read_init,write_init);
 	if(read_init) printf(", read_init.minfo %p",read_init->qi_minfo);
 	if(read_init->qi_minfo) printf(" %s %d %d",read_init->qi_minfo->mi_idname,read_init->qi_minfo->mi_lowat,read_init->qi_minfo->mi_hiwat);
 	if(write_init) printf(", write_init.minfo %p",write_init->qi_minfo);
@@ -1932,7 +1937,7 @@ void qdetach (queue_t * p_queue, int do_close, int flag)
 
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Detach on NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sDetach on NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
@@ -1959,7 +1964,7 @@ void qdetach (queue_t * p_queue, int do_close, int flag)
 #endif
 	}
 	if (do_close) {
-		printf(KERN_DEBUG "Closing %s\n", p_queue->q_qinfo->qi_minfo->mi_idname);
+		printf("%sClosing %s\n",KERN_DEBUG , p_queue->q_qinfo->qi_minfo->mi_idname);
 		(*p_queue->q_qinfo->qi_qclose) (p_queue, (p_queue->q_next ? 0 : flag));
 	}
 
@@ -2015,14 +2020,14 @@ int qattach (struct streamtab *qinfo, queue_t * p_queue, dev_t dev, int flag)
 
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "Attach on NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sAttach on NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return -EIO;
 	}
 	if ((p_newqueue = allocq ()) == NULL)
 		return -ENOMEM;
 #if 0 /* def CONFIG_DEBUG_STREAMS */
-	printf(KERN_DEBUG "qattach: info %p, oldq %p, newq %p\n",qinfo,p_queue,p_newqueue);
+	printf("%sqattach: info %p, oldq %p, newq %p\n",KERN_DEBUG ,qinfo,p_queue,p_newqueue);
 #endif
 	s = splstr ();
 
@@ -2046,15 +2051,15 @@ int qattach (struct streamtab *qinfo, queue_t * p_queue, dev_t dev, int flag)
 	 * Now call the new module/driver's open routine.
 	 */
 #if 0 /* def CONFIG_DEBUG_STREAM */
-	printf(KERN_DEBUG "CallOpen %p %p %p\n",p_newqueue,p_newqueue->q_qinfo,p_newqueue->q_qinfo->qi_qopen);
+	printf("%sCallOpen %p %p %p\n",KERN_DEBUG ,p_newqueue,p_newqueue->q_qinfo,p_newqueue->q_qinfo->qi_qopen);
 #endif
 	if ((err = (*p_newqueue->q_qinfo->qi_qopen) (p_newqueue, dev, flag, open_mode)) < 0) {
-printf(KERN_DEBUG "CallOpen %s got %d\n",p_newqueue->q_qinfo->qi_minfo->mi_idname,err);
+printf("%sCallOpen %s got %d\n",KERN_DEBUG ,p_newqueue->q_qinfo->qi_minfo->mi_idname,err);
 		qdetach (p_newqueue, 0, 0);
 		splx (s);
 		return err;
 	}
-printf(KERN_DEBUG "Driver %s opened\n",p_newqueue->q_qinfo->qi_minfo->mi_idname);
+printf("%sDriver %s opened\n",KERN_DEBUG ,p_newqueue->q_qinfo->qi_minfo->mi_idname);
 	splx (s);
 	return 0;
 }
@@ -2074,14 +2079,14 @@ void qenable(queue_t *p_queue)
 
 	if(p_queue == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf(KERN_ERR "QEnable on NULL queue at %s:%d\n",deb_file,deb_line);
+		printf("%sQEnable on NULL queue at %s:%d\n",KERN_ERR ,deb_file,deb_line);
 #endif
 		return ;
 	}
 	if (p_queue->q_qinfo->qi_srvp == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
 		if(p_queue->q_next || !(p_queue->q_flag & QREADR)) /* not Stream head? */
-			printf(KERN_ERR "QEnable on queue for %s with NULL service proc at %s:%d\n",p_queue->q_qinfo->qi_minfo->mi_idname, deb_file,deb_line);
+			printf("%sQEnable on queue for %s with NULL service proc at %s:%d\n",KERN_ERR ,p_queue->q_qinfo->qi_minfo->mi_idname, deb_file,deb_line);
 #endif
 		return ;
 	}
@@ -2100,7 +2105,7 @@ void qenable(queue_t *p_queue)
 				return;
 			}
 		}
-		printf(KERN_EMERG "QErr Queue not in list, from %s:%d\n",deb_file,deb_line);
+		printf("%sQErr Queue not in list, from %s:%d\n",KERN_EMERG ,deb_file,deb_line);
 #else
 		splx(s);
 		return;
@@ -2118,7 +2123,7 @@ void qenable(queue_t *p_queue)
 #ifdef CONFIG_DEBUG_STREAMS
 	else if(sched_last == NULL) {
 		sched_first = sched_last = p_queue;
-		printf(KERN_EMERG "QErr Sched_First != NULL; _Last == NULL ; at %s:%d\n",deb_file,deb_line);
+		printf("%sQErr Sched_First != NULL; _Last == NULL ; at %s:%d\n",KERN_EMERG ,deb_file,deb_line);
 	}
 #endif
 	else
@@ -2216,7 +2221,7 @@ static void do_runqueues(void *dummy)
 	while ((p_queue = (queue_t *)sched_first) != NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
 		if((p_queue->q_link == NULL) != (p_queue == sched_last)) {
-			printf(KERN_ERR "End of Queue bad; link %p, last %p\n",
+			printf("%sEnd of Queue bad; link %p, last %p\n",KERN_ERR ,
 				p_queue->q_link, sched_last);
 #if defined(__KERNEL__) && defined(linux)
 			sysdump(NULL,NULL,0);
@@ -2229,7 +2234,7 @@ static void do_runqueues(void *dummy)
 			sched_last = NULL;
 #ifdef CONFIG_DEBUG_STREAMS
 		if(!(p_queue->q_flag & QENAB)) {
-			printf(KERN_ERR "Queue on list but QENAB not set for %s\n",p_queue->q_qinfo->qi_minfo->mi_idname);
+			printf("%sQueue on list but QENAB not set for %s\n",KERN_ERR ,p_queue->q_qinfo->qi_minfo->mi_idname);
 #if defined(__KERNEL__) && defined(linux)
 			sysdump(NULL,NULL,0);
 #endif
@@ -2245,7 +2250,7 @@ static void do_runqueues(void *dummy)
 		(void)splstr();
 		if(!--cnt) {
 			if(!looping)
-				printf(KERN_WARNING "Streams loop?\n");
+				printf("%sStreams loop?\n",KERN_WARNING);
 			looping++; looping++;
 			break;
 		}
@@ -2394,7 +2399,7 @@ int unregister_strdev (unsigned int major, struct streamtab *strtab, int nminor)
 	if (err >= 0) {
 		LESS_USE;
 	} else
-		printf("Unregister: Driver %s not deleted: %d\n",name,err);
+		printf("Unregister: Driver %s not deleted: %d\n",KERN_WARNING ,name,err);
 #endif
 	return err;
 }
@@ -2466,13 +2471,11 @@ static int do_init_module(void) {
 }
 
 static int do_exit_module( void) {
-	if (MOD_IN_USE)
-		printf(KERN_INFO "Streams: module is in use, remove delayed\n");
-
 	if(streams_inited) {
-		if (q_timeout > 1)
+		if (q_timeout > 0)
 			del_timer(&q_later);
 	}
+	return 0;
 }
 #endif
 

@@ -4,6 +4,46 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-10-21
+
+Release 14.
+
+Mit dem RP-Zeilen gibt es anscheinend Probleme. Wäre nett, wenn das jemand
+anders debuggen könnte, sonst dauert das nämlich bis Version 16 oder so.
+
+Wer kennt sich mit tcl/tk oder tclperl oder wish oder was-auch-immer aus?
+Gebraucht wird ein vernünftiges Frontend für die Konfigdatei...
+
+Login und Kermit, nächster Versuch...
+
+Aktive Karten (momentan: Bintec) tun NOCH NICHT, aber ich arbeite dran.
+
+Mehr Kommentare im Source. (Immer noch zuwenige, ich weiß. Working.)
+
+Fehler bereinigt. Insbesondere sollte der Treiber nun ca. eine Sekunde
+schneller sein beim Verbindungsaufbau, wenn gerade keine andere Verbindung
+offen ist. Grr...
+
+Debugmeldungen schreiben nun das Intervall (in Jiffies, also normalerweise
+Hundertstelsekunden) seit der letzten Debugmeldung mit.
+
+ACHTUNG, leichte Änderungen im Format der Konfigdatei (DL- und CL-Zeile:
+<Key>-Parameter ist dazugekommen); siehe Doku.
+
+Kann jemand aus Taylor-UUCP (oder sonstwoher) den Code "ist die aktuelle
+Zeit in dem durch diesen String angegebenen Zeitfenster" klauen und um die
+Angabe der Anzahl Sekunden bis zum Verlassen des Zeitfensters erweitern?
+Beispiel: wenn es jetzt Sonntag 23:00:01 Uhr ist:
+- isintime("Mon") => 0
+- isintime("Sun") => 3599
+Sonst muß ich das machen und dafür habe ich keine Zeit. Das Ganze wird
+benötigt, um zB Logins nur abends zu erlauben oder den Zeittakt
+umzustellen. Momentan braucht es dazu ein per cron aufgerufenes externes
+Programm, das /etc/isdn.conf.times von isdn.conf.times.day nach
+isdn.conf.times.night umlinkt und AT/R anstößt; geht, aber ist nicht
+besonders schön.
+
+
 *** 1995-09-31
 
 Release 13.

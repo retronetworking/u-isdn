@@ -80,6 +80,9 @@ read_data ()
 	case HDR_UIDATA:
 		xREAD (uidata);
 		break;
+	case HDR_LOAD:
+		xREAD (load);
+		break;
 	case HDR_RAWDATA:
 		xREAD (rawdata);
 		break;
@@ -132,12 +135,15 @@ static void backtime(void *nix) {
 	backtimeout = 1;
 }
 
+/* Do something until fd becomes active or timeout */
+/* Also process alerts */
+/* fd==-1: one-shot */
+/* fd==-2: continuous loop */
 int
 backrun (int fd, int timeo)
 {
 	int err;
 	fd_set rdx;
-	time_t tx = time(NULL);
 
 	if(!testonly && !FD_ISSET(fd_mon,&rd)) 
 		xquit("RD fd_set cleared",NULL);
@@ -182,7 +188,7 @@ backrun (int fd, int timeo)
 	return backtimeout;
 }
 
-
+/* Main Program Loop */
 void
 syspoll (void)
 {
@@ -196,6 +202,7 @@ syspoll (void)
 }
 
 
+/* Upper stream read */
 void
 do_h (queue_t * q)
 {
@@ -203,17 +210,18 @@ do_h (queue_t * q)
 	int len = sizeof (data) - 1;
 	int err;
 
-	while ((err = strread (xs_mon, (streamchar *) data, &len, 1)) == 0 && len > 0) {
-		do_info (data, len);
+	while ((err = strread (xs_mon, (streamchar *) data, len, 1)) > 0) {
+		do_info (data, err);
 		len = sizeof (data) - 1;
 	}
-	if (err != 0) {
-		errno = err;
+	if (err < 0) {
+		errno = -err;
 		syslog (LOG_ERR, "Read H: %m");
 	} else
 		q->q_flag |= QWANTR;
 }
 
+/* Lower stream read */
 void
 do_l (queue_t * q)
 {
@@ -224,9 +232,8 @@ do_l (queue_t * q)
 	while (1) {
 		struct iovec io[3];
 		int iovlen = 1;
-		int len = sizeof (struct _isdn23_hdr);
 
-		if ((err = strread (xs_mon, (streamchar *) &h, &len, 0)) == 0 && len == sizeof (struct _isdn23_hdr)) ;
+		if ((err = strread (xs_mon, (streamchar *) &h, sizeof (struct _isdn23_hdr), 0)) == sizeof (struct _isdn23_hdr)) ;
 
 		else
 			break;
@@ -243,21 +250,22 @@ do_l (queue_t * q)
 		case HDR_DATA:
 		case HDR_UIDATA:
 		case HDR_PROTOCMD:
+		case HDR_LOAD:
 			io[iovlen].iov_base = (caddr_t) data;
-			io[iovlen].iov_len = len = h.hdr_atcmd.len;
-			if ((err = strread (xs_mon, (streamchar *) data, &len, 0)) != 0 || len != h.hdr_atcmd.len) {
-				syslog (LOG_ERR, "do_l: Fault, %d, %m", len);
+			io[iovlen].iov_len = h.hdr_atcmd.len;
+			if ((err = strread (xs_mon, (streamchar *) data, h.hdr_atcmd.len, 0)) != h.hdr_atcmd.len) {
+				syslog (LOG_ERR, "do_l: Fault, %d, %m", err);
 				return;
 			}
 			io[iovlen].iov_base = (caddr_t) data;
-			io[iovlen].iov_len = len;
+			io[iovlen].iov_len = err;
 			iovlen++;
 			break;
 		case HDR_INVAL:
 			io[iovlen].iov_base = (caddr_t) data;
-			io[iovlen].iov_len = len = sizeof (struct _isdn23_hdr);
-			if ((err = strread (xs_mon, (streamchar *) data, &len, 0)) != 0 || len != sizeof (struct _isdn23_hdr)) {
-				syslog (LOG_ERR, "do_l: Fault, %d, %m", len);
+			io[iovlen].iov_len = sizeof (struct _isdn23_hdr);
+			if ((err = strread (xs_mon, (streamchar *) data, sizeof (struct _isdn23_hdr), 0)) != sizeof (struct _isdn23_hdr)) {
+				syslog (LOG_ERR, "do_l: Fault, %m");
 				return;
 			}
 			iovlen++;
@@ -277,7 +285,7 @@ do_l (queue_t * q)
 		}
 	}
 	if (err != 0) {
-		errno = err;
+		errno = -err;
 		syslog (LOG_ERR, "Read L: %m");
 	} else
 		q->q_flag |= QWANTR;

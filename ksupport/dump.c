@@ -1,5 +1,6 @@
 #include "f_module.h"
 #include "primitives.h"
+#include "kernel.h"
 #include "isdn_23.h"
 #ifdef KERNEL
 #define putchar(x) printf("%c",(x))
@@ -174,112 +175,145 @@ conv_ind (unsigned char xx)
 	}
 }
 
-void
-dump_hdr (isdn23_hdr hdr, const char *what, uchar_t * data)
+static void
+dump_one_hdr (isdn23_hdr hdr)
 {
-#define DUMP() do { dumpaschex(data,hdr->hdr_data.len); printf("\n");} while(0)
-
-	if(what != NULL)
-		printf (" %s: ", what);
-
+	printf("=%x_",hdr->seqnum);
 	if(hdr->key & HDR_NOERROR)
-		printf("NoErr:");
+		printf("NoErr_");
 	switch (hdr->key & ~HDR_FLAGS) {
 	default:
 #ifdef KERNEL
 		printf("??? Unknown header ID %d\n",hdr->key);
-		break;
 #else
 		syslog (LOG_ERR, "Unknown header ID %d", hdr->key);
-		abort ();
+		printf("Unknown header ID %d", hdr->key);
 #endif
+		break;
 	case HDR_ATCMD:
-		printf ("AT Cmd from %d: ", hdr->hdr_atcmd.minor);
-		if(data != NULL)
-			dumpascii (data, hdr->hdr_data.len);
-		printf ("\n");
+		printf ("ATcmd from %d", hdr->hdr_atcmd.minor);
 		break;
 	case HDR_PROTOCMD:
-		printf ("Protocol Cmd from %d: ", hdr->hdr_atcmd.minor);
-		if(data != NULL)
-			dumpascii (data, hdr->hdr_data.len);
-		printf ("\n");
+		printf ("ProtocolCmd from %d", hdr->hdr_atcmd.minor);
 		break;
 	case HDR_XDATA:
-		printf ("XData from %d:\n    ", hdr->hdr_xdata.minor);
-		if(data != NULL)
-			DUMP ();
+		printf ("XData from %d", hdr->hdr_xdata.minor);
 		break;
 	case HDR_DATA:
-		printf ("I Data from %d/%02x\n    ", hdr->hdr_data.card, hdr->hdr_data.SAPI);
-		if(data != NULL)
-			DUMP ();
+		printf ("Idata from %d/%02x", hdr->hdr_data.card, hdr->hdr_data.SAPI);
 		break;
 	case HDR_UIDATA:
-		printf ("UI Data from %d/%02x\n    ", hdr->hdr_data.card, hdr->hdr_data.SAPI);
-		if(data != NULL)
-			DUMP ();
+		printf ("UIdata from %d/%02x", hdr->hdr_data.card, hdr->hdr_data.SAPI);
 		break;
 	case HDR_RAWDATA:
-		printf ("Raw Data from %d\n    ", hdr->hdr_data.card);
-		if(data != NULL)
-			DUMP ();
+		printf ("RawData from %d", hdr->hdr_data.card);
 		break;
 	case HDR_LOAD:
-		printf("Boot from %d, stage %d, offset %d\n",hdr->hdr_load.card,hdr->hdr_load.seqnum,hdr->hdr_load.foffset);
-		if(data != NULL)
-			DUMP ();
+		printf("Boot from %d, stage %d, offset %d len %d",hdr->hdr_load.card,hdr->hdr_load.seqnum,hdr->hdr_load.foffset,hdr->hdr_load.len);
 		break;
 	case HDR_TEI:
-		printf ("TEI: card %d, TEI %d\n", hdr->hdr_tei.card, hdr->hdr_tei.TEI);
+		printf ("TEI card %d, TEI %d", hdr->hdr_tei.card, hdr->hdr_tei.TEI);
 		break;
 	case HDR_OPEN:
-		printf ("Open port %d, flags %o\n", hdr->hdr_open.minor, hdr->hdr_open.flags);
+		printf ("Open port %d, flags %o", hdr->hdr_open.minor, hdr->hdr_open.flags);
 		break;
 	case HDR_CLOSE:
-		printf ("Close port %d, errno %d\n", hdr->hdr_close.minor, hdr->hdr_close.error);
+		printf ("Close port %d, errno %d", hdr->hdr_close.minor, hdr->hdr_close.error);
 		break;
 	case HDR_ATTACH:
-		printf ("Attach chan %d/%d to port %d, mode %d, %s%s\n",
+		printf ("Attach chan %d/%d to port %d, mode %d, %s%s",
 				hdr->hdr_attach.card, hdr->hdr_attach.chan, hdr->hdr_attach.minor,
 				hdr->hdr_attach.mode, (hdr->hdr_attach.listen & 1) ? "listen" : "talk",
 									  (hdr->hdr_attach.listen & 2) ? " force" : "");
 		break;
 	case HDR_DETACH:
-		printf ("Detach port %d, errno %d, force %d\n", hdr->hdr_detach.minor, 
+		printf ("Detach port %d, errno %d, force %d", hdr->hdr_detach.minor, 
 				hdr->hdr_detach.error,hdr->hdr_detach.perm);
 		break;
 	case HDR_CARD:
-		printf ("Card %d online (%d B channels, flag 0%o)\n", hdr->hdr_card.card, hdr->hdr_card.bchans,hdr->hdr_card.flags);
+		printf ("Card %d online (%d B channels, flag 0%o)", hdr->hdr_card.card, hdr->hdr_card.bchans,hdr->hdr_card.flags);
 		break;
 	case HDR_NOCARD:
-		printf ("Card %d offline.\n", hdr->hdr_nocard.card);
+		printf ("Card %d offline.", hdr->hdr_nocard.card);
 		break;
 	case HDR_OPENPROT:
-		printf ("OpenProtocol %d/%02x, Ind %s\n", hdr->hdr_openprot.card, hdr->hdr_openprot.SAPI, conv_ind(hdr->hdr_openprot.ind));
+		printf ("OpenProtocol %d/%02x, Ind %s", hdr->hdr_openprot.card, hdr->hdr_openprot.SAPI, conv_ind(hdr->hdr_openprot.ind));
 		break;
 	case HDR_CLOSEPROT:
-		printf ("CloseProtocol %d/%02x, Ind %s\n", hdr->hdr_closeprot.card, hdr->hdr_closeprot.SAPI, conv_ind(hdr->hdr_closeprot.ind));
+		printf ("CloseProtocol %d/%02x, Ind %s", hdr->hdr_closeprot.card, hdr->hdr_closeprot.SAPI, conv_ind(hdr->hdr_closeprot.ind));
 		break;
 	case HDR_NOTIFY:
-		printf ("State Change %d/%02x, Ind %s:%x\n", hdr->hdr_notify.card, hdr->hdr_notify.SAPI, conv_ind(hdr->hdr_notify.ind), hdr->hdr_notify.add);
+		printf ("State Change %d/%02x, Ind %s:%x", hdr->hdr_notify.card, hdr->hdr_notify.SAPI, conv_ind(hdr->hdr_notify.ind), hdr->hdr_notify.add);
 		break;
 	case HDR_INVAL:
 #ifdef KERNEL
 		if(hdr->hdr_inval.error != 0)
-			printf ("Invalid header, errno %d\n    ", hdr->hdr_inval.error);
+			printf ("Error %d", hdr->hdr_inval.error);
 		else
-			printf ("Command OK:\n    ");
+			printf ("Command OK");
 #else
 		if(hdr->hdr_inval.error != 0)
-			printf ("Invalid header: %s\n    ", strerror(hdr->hdr_inval.error));
+			printf ("Error %s", strerror(hdr->hdr_inval.error));
 		else
-			printf ("Command OK:\n    ");
+			printf ("Command OK");
 #endif
-		if(data != NULL)
-			dumphex (data, sizeof (struct _isdn23_hdr));
+		break;
+	}
+}
 
+void
+dump_hdr (isdn23_hdr hdr, const char *what, uchar_t * data)
+{
+	if(what != NULL)
+		printf (" %s: ", what);
+
+	dump_one_hdr(hdr);
+	switch (hdr->key & ~HDR_FLAGS) {
+	default:
+		dumpaschex((uchar_t *)hdr,sizeof(*hdr));
+		printf("\n");
+#ifndef KERNEL
+		abort();
+#endif
+		break;
+	case HDR_ATCMD:
+	case HDR_PROTOCMD:
+	case HDR_XDATA:
+		if(data != NULL) {
+			printf (": ");
+			dumpascii (data, hdr->hdr_data.len);
+		}
 		printf ("\n");
+		break;
+	case HDR_DATA:
+	case HDR_UIDATA:
+	case HDR_RAWDATA:
+		if(data != NULL) {
+			printf (": ");
+			dumphex (data, hdr->hdr_data.len);
+		}
+		printf("\n");
+		break;
+	case HDR_LOAD:
+	case HDR_TEI:
+	case HDR_OPEN:
+	case HDR_CLOSE:
+	case HDR_ATTACH:
+	case HDR_DETACH:
+	case HDR_CARD:
+	case HDR_NOCARD:
+	case HDR_OPENPROT:
+	case HDR_CLOSEPROT:
+	case HDR_NOTIFY:
+		printf("\n");
+		break;
+	case HDR_INVAL:
+		printf(" <");
+		if(data != NULL)
+			dump_one_hdr ((isdn23_hdr) data);
+		else
+			dump_one_hdr(hdr+1);
+		printf (">\n");
 		break;
 	}
 }

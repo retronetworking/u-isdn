@@ -167,11 +167,8 @@ EXTERN int isdnterm INIT(0);	/* major number of the terminal driver */
 EXTERN int isdnstd INIT(0);	/* major number of the standard driver */
 #endif
 
-EXTERN char *cardlist[NCARDS];	/* List of available ISDN interfaces */
-EXTERN short cardnrbchan[NCARDS];	/* Nr of B channels */
-EXTERN short cardnum INIT(0);			/* Number of registered interfaces */
 EXTERN short cardidx INIT(0);			/* Used to cycle among interfaces */
-EXTERN short numidx INIT(0);			/* Ditto */
+EXTERN short numidx INIT(0);			/* Used to cycle among numbers */
 
 EXTERN void *locputchar INIT(NULL);	/* Glue */
 
@@ -201,6 +198,7 @@ EXTERN struct string {
 char *str_enter(char *master);
 char *wildmatch(char *a, char *b);
 char *classmatch(char *a, char *b);
+char *strippat(char *a);
 
 
 /* List of cards */
@@ -296,7 +294,7 @@ typedef struct conninfo {
 	unsigned got_hd:2;		/* disconnect... */
 	unsigned got_id:2;
 	unsigned char locked;
-	unsigned ignore:3;
+	unsigned ignore:3; /* 0: normal; 1: did drop it; 2: kill it; 3: reporter */
 } *conninfo;
 
 /* Special flags. */
@@ -308,7 +306,7 @@ typedef struct conninfo {
 #define F_FASTREDIAL       040 /* don't delay as much when a dialup attempt fails */
 #define F_PERMANENT       0100 /* connection doesn't really die */
 #define F_LEASED          0200 /* leased line */
-#define F_IGNOREBUSY      0400
+#define F_CHANBUSY        0400 /* busy if no free channel */
 #define F_NRCOMPLETE     01000 /* remote number is complete */
 #define F_LNRCOMPLETE    02000 /* local number is complete */
 #define F_INCOMING       04000 /* incoming call */
@@ -442,15 +440,6 @@ void chkone(void *foo);
 void chkall(void);
 #endif /* DO_DEBUG_MALLOC */
 
-struct _cf * read_line (FILE * ffile, int *theLine);
-void app (cf * where, cf who);
-
-int skipsp (char **li);
-
-#ifdef unused
-static void skipword (char **li);
-#endif
-
 void read_file (FILE * ffile, char *errf);
 
 EXTERN char **fileargs;
@@ -460,11 +449,9 @@ void read_args_run(void *nix);
 
 const char *CauseInfo(int cause, char *pri);
 
-void Xdropconn (struct conninfo *conn, int deb_line);
-#define dropconn(x) Xdropconn((x),__LINE__)
-
+void Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line);
+#define dropconn(x) Xdropconn((x),__FILE__,__LINE__)
 void rdropconn (struct conninfo *conn, int deb_line);
-void Xdropconn (struct conninfo *conn, int deb_line);
 void deadkid (void);
 
 int matchflag(long flags, char *ts);
@@ -517,11 +504,26 @@ void kill_progs(struct conninfo *xconn);
 
 
 struct loader {
-	char *card;
+	char *name;
+	struct isdncard *card;
 	FILE *file;
 	long seqnum; /* position in config file(s) */
 	int nrfile; /* loaded to card */
+	long foffset; /* position in load file */
+	struct loader *next;
+	int cardnum;
+	unsigned timer:1;
 };
 void card_load(struct loader *ld);
+void card_load_fail(struct loader *ld, int err); /* error */
+EXTERN struct loader *isdn4_loader INIT(NULL);
+
+struct isdncard {
+	struct isdncard *next;
+	char *name;
+	long cap;
+	ushort_t nrbchan;
+};
+EXTERN struct isdncard *isdn4_card INIT(NULL);
 
 #endif

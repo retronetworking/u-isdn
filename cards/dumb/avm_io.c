@@ -1,41 +1,41 @@
 inline static Byte InISAC(struct _dumb * dumb, char offset) {
 	if(offset >= 0x20)
-		return ByteIn(dumb->ioaddr+0x1400-0x20+offset);
+		return ByteIn(dumb->info.ioaddr+0x1400-0x20+offset);
 	else
-		return ByteIn(dumb->ioaddr+0x1000+offset); /* ?? */
+		return ByteIn(dumb->info.ioaddr+0x1000+offset); /* ?? */
 }
 inline static void OutISAC(struct _dumb * dumb, char offset, Byte data) {
 	if(offset >= 0x20)
-		ByteOut(dumb->ioaddr+0x1400-0x20+offset,data);
+		ByteOut(dumb->info.ioaddr+0x1400-0x20+offset,data);
 	else
-		ByteOut(dumb->ioaddr+0x1000+offset,data); /* ?? */
+		ByteOut(dumb->info.ioaddr+0x1000+offset,data); /* ?? */
 }
 
 inline static Byte InHSCX(struct _dumb * dumb, u_char hscx, char offset) {
 	if(hscx&1) {
 		if(offset >= 0x20)
-			return ByteIn(dumb->ioaddr+0x400-0x20+offset);
+			return ByteIn(dumb->info.ioaddr+0x400-0x20+offset);
 		else
-			return ByteIn(dumb->ioaddr+0x000+offset);
+			return ByteIn(dumb->info.ioaddr+0x000+offset);
 	} else {
 		if(offset >= 0x20)
-			return ByteIn(dumb->ioaddr+0xC00-0x20+offset);
+			return ByteIn(dumb->info.ioaddr+0xC00-0x20+offset);
 		else
-			return ByteIn(dumb->ioaddr+0x800+offset);
+			return ByteIn(dumb->info.ioaddr+0x800+offset);
 	}
 }
 
 inline static void OutHSCX(struct _dumb * dumb, u_char hscx, char offset, Byte data) {
 	if(hscx&1) {
 		if(offset >= 0x20)
-			ByteOut(dumb->ioaddr+0x400-0x20+offset, data);
+			ByteOut(dumb->info.ioaddr+0x400-0x20+offset, data);
 		else
-			ByteOut(dumb->ioaddr+0x000+offset, data);
+			ByteOut(dumb->info.ioaddr+0x000+offset, data);
 	} else {
 		if(offset >= 0x20)
-			ByteOut(dumb->ioaddr+0xC00-0x20+offset, data);
+			ByteOut(dumb->info.ioaddr+0xC00-0x20+offset, data);
 		else
-			ByteOut(dumb->ioaddr+0x800+offset, data);
+			ByteOut(dumb->info.ioaddr+0x800+offset, data);
 	}
 }
 
@@ -50,25 +50,25 @@ static int Init(struct _dumb * dumb) {
 	Byte foo;
 	unsigned int step = 0;
 
-	if(dumb->ioaddr == 0)
+	if(dumb->info.ioaddr == 0)
 		return -EINVAL;
 	dumb->numHSCX = 2;
 	save_flags(flags);
 	sti();
 	timout = jiffies+1;
 
-	ByteOut(dumb->ioaddr+0x1800,0x00); while(jiffies <= timout) ; timout = jiffies;
-	ByteOut(dumb->ioaddr+0x1800,0x10); while(jiffies <= timout) ; timout = jiffies;
-	ByteOut(dumb->ioaddr+0x1800,0x00); while(jiffies <= timout) ; timout = jiffies;
+	ByteOut(dumb->info.ioaddr+0x1800,0x00); while(jiffies <= timout) ; timout = jiffies;
+	ByteOut(dumb->info.ioaddr+0x1800,0x10); while(jiffies <= timout) ; timout = jiffies;
+	ByteOut(dumb->info.ioaddr+0x1800,0x00); while(jiffies <= timout) ; timout = jiffies;
 
-	ByteOut(dumb->ioaddr+0x1800,0x00); while(jiffies <= timout) ; timout = jiffies;
-	ByteOut(dumb->ioaddr+0x1800,0x01); while(jiffies <= timout) ; timout = jiffies;
-	ByteOut(dumb->ioaddr+0x1800,0x00); while(jiffies <= timout) ;
+	ByteOut(dumb->info.ioaddr+0x1800,0x00); while(jiffies <= timout) ; timout = jiffies;
+	ByteOut(dumb->info.ioaddr+0x1800,0x01); while(jiffies <= timout) ; timout = jiffies;
+	ByteOut(dumb->info.ioaddr+0x1800,0x00); while(jiffies <= timout) ;
 
 	timout = jiffies+(HZ/20);
-	ByteOut(dumb->ioaddr+0x1800,0x01); 
+	ByteOut(dumb->info.ioaddr+0x1800,0x01); 
 	while(jiffies <= timout) ;
-	ByteOut(dumb->ioaddr+0x1800,0x00); 
+	ByteOut(dumb->info.ioaddr+0x1800,0x00); 
 	timout = jiffies+(HZ/20);
 	while(jiffies <= timout) ;
 	restore_flags(flags);
@@ -76,8 +76,8 @@ static int Init(struct _dumb * dumb) {
 /*  1  2  3  4  5  6  7  8  9 */
 /* 17 07 13 03 17 07 13 03  */
 	while(++step) {
-		ByteOut(dumb->ioaddr+0x1800,(step&1)?0x10:0x00); 
-		switch((foo = ByteIn(dumb->ioaddr+0x1800)) & 0xFE) {
+		ByteOut(dumb->info.ioaddr+0x1800,(step&1)?0x10:0x00); 
+		switch((foo = ByteIn(dumb->info.ioaddr+0x1800)) & 0xFE) {
 		case 0x06:
 			if(step & 1)
 				goto def;
@@ -114,16 +114,16 @@ static int Init(struct _dumb * dumb) {
 
 	save_flags(flags);
 	timout = jiffies+(HZ/20)+1;
-	ByteOut(dumb->ioaddr+0x1800,0x01); 
+	ByteOut(dumb->info.ioaddr+0x1800,0x01); 
 	sti();
 	while(jiffies <= timout) ;
-	ByteOut(dumb->ioaddr+0x1800,0x00); 
+	ByteOut(dumb->info.ioaddr+0x1800,0x00); 
 	timout = jiffies+(HZ/20)+1;
 	while(jiffies <= timout) ;
 	restore_flags(flags);
 
-	ByteOut(dumb->ioaddr+0x1800,0x04); 
-	ByteOut(dumb->ioaddr+0x1800,0x08); 
+	ByteOut(dumb->info.ioaddr+0x1800,0x04); 
+	ByteOut(dumb->info.ioaddr+0x1800,0x08); 
 	return 0;
 }
 
@@ -166,7 +166,7 @@ static void InitHSCX_(struct _dumb * dumb, u_char hscx)
 
 static void ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 {
-	unsigned long ms = SetSPL(dumb->ipl);
+	unsigned long ms = SetSPL(dumb->info.ipl);
 	
 	if(dumb->chan[0].m_in != NULL) {
 		freemsg(dumb->chan[0].m_in);
@@ -180,7 +180,7 @@ static void ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 
 	switch(mode) {
 	case M_OFF:
-		printk(KERN_DEBUG "CIX0 0x3F\n");
+		printk("%sCIX0 0x3F\n",KERN_DEBUG );
 		ByteOutISAC(dumb,CIX0,0x3F);
 		if(dumb->polled>0) isdn2_new_state(&dumb->card,0);
 		dumb->chan[0].mode = mode;
@@ -188,10 +188,10 @@ static void ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 	case M_STANDBY:
 		if(dumb->chan[0].mode != M_STANDBY) {
 			ByteOutISAC(dumb,MODE,0xC9);
-			printk(KERN_DEBUG "CIX0 0x03\n");
+			printk("%sCIX0 0x03\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x03);
 		}
-else printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
+else printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 		ByteOutISAC(dumb,MASK,0x00);
 		dumb->chan[0].mode = mode;
 		dumb->chan[0].listen = 1;
@@ -200,10 +200,10 @@ else printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
 		ByteOutISAC(dumb,MODE,0xC9);
 		ByteOutISAC(dumb,MASK,0x00);
 		if(dumb->chan[0].mode != M_HDLC) {
-			printk(KERN_DEBUG "CIX0 0x27\n");
+			printk("%sCIX0 0x27\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x27);
 		} else {
-printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
+printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 			if(dumb->polled>0) isdn2_new_state(&dumb->card,1);
 		}
 #if 0
@@ -221,7 +221,7 @@ printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
 
 static int HSCX_mode(struct _dumb * dumb, u_char hscx, Byte mode, Byte listen)
 {
-	unsigned long ms = SetSPL(dumb->ipl);
+	unsigned long ms = SetSPL(dumb->info.ipl);
     if(dumb->chan[hscx].m_in != NULL) {
         freemsg(dumb->chan[hscx].m_in);
         dumb->chan[hscx].m_in = dumb->chan[hscx].m_in_run = NULL;
@@ -301,20 +301,20 @@ static int HSCX_mode(struct _dumb * dumb, u_char hscx, Byte mode, Byte listen)
 
 inline static void PostIRQ(struct _dumb * dumb)
 {
-	Byte foo = ByteIn(dumb->ioaddr+0x1800);
+	Byte foo = ByteIn(dumb->info.ioaddr+0x1800);
 	unsigned int doagain=0;
 	do {
 		switch(foo) {
 		case 0x07: return;
 		case 0x03:
 			if(doagain & 1) {
-				ByteOut(dumb->ioaddr+0x1800,0x00);
-				ByteOut(dumb->ioaddr+0x1800,0x10);
-				ByteOut(dumb->ioaddr+0x1800,0x00);
+				ByteOut(dumb->info.ioaddr+0x1800,0x00);
+				ByteOut(dumb->info.ioaddr+0x1800,0x10);
+				ByteOut(dumb->info.ioaddr+0x1800,0x00);
 			} else {
-				ByteOut(dumb->ioaddr+0x1800,0x04);
-				ByteOut(dumb->ioaddr+0x1800,0x08);
-				ByteOut(dumb->ioaddr+0x1800,0x00);
+				ByteOut(dumb->info.ioaddr+0x1800,0x04);
+				ByteOut(dumb->info.ioaddr+0x1800,0x08);
+				ByteOut(dumb->info.ioaddr+0x1800,0x00);
 			}
 			printf(".");
 			if(doagain < 10)

@@ -12,4 +12,6 @@
 #define VANJ_PPP CHAR2('p','p')		/* turn on PPP mode */
 #define VANJ_NORM CHAR2('n','p')	/* turn off PPP mode */
 
+#define VANJ_SIZES CHAR2('s','b')	/* length of TX and TX queues */
+
 #endif							/* __VAN_J */

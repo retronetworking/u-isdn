@@ -88,7 +88,7 @@ struct x75_ {
 static int
 x75__state (struct x75_ *x_75, uchar_t ind, ushort_t add)
 {
-	printf (KERN_DEBUG "x75__state %d: Ind %d/%o\n", x_75 ->nr, ind, add);
+	printf ("%sx75__state %d: Ind %d/%o\n",KERN_DEBUG , x_75 ->nr, ind, add);
 	switch (ind) {
 	case DL_ESTABLISH_IND:
 	case DL_ESTABLISH_CONF:{
@@ -159,7 +159,7 @@ x75__send (struct x75_ *x_75, char iscmd, mblk_t * mb2)
 	mblk_t *mb;
 
 	if (x_75->q == NULL) {
-		printf(KERN_DEBUG "X75_send EIO\n");
+		printf("%sX75_send EIO\n",KERN_DEBUG );
 		return -EIO;
 	}
 	if(x_75->wide) {
@@ -203,7 +203,7 @@ x75__recv (struct x75_ *x_75, char isUI, mblk_t * mp)
 	else if ((isUI != 0) != ((x_75->connmode & X75CONN_UI) != 0)) {
 		if (!(x_75->flags & X75_ADRWARN)) {
 			x_75->flags |= X75_ADRWARN;
-			printf (KERN_WARNING "X75: Got %s frame, but want %s\n",
+			printf ("%sX75: Got %s frame, but want %s\n",KERN_WARNING,
 					isUI ? "UI" : "I", isUI ? "I" : "UI");
 		}
 		freemsg (mp);
@@ -647,7 +647,7 @@ x75_wsrv (queue_t * q)
 				} else if ((err = x75_send (&x_75->x75, isUI, mp)) == 0)
 					break;
 				else {
-					printf (KERN_DEBUG "x75_send: Err %d\n", err);
+					printf ("%sx75_send: Err %d\n",KERN_DEBUG , err);
 					putctlerr (RD (q), err);
 					freemsg (mp);
 				}
@@ -732,7 +732,7 @@ x75_rsrv (queue_t * q)
 			if (adr != x_75->radr_cmd && adr != x_75->radr_meld) {
 				if (!(x_75->flags & X75_ADRWARN)) {
 					x_75->flags |= X75_ADRWARN;
-					printf (KERN_WARNING "X75: got address %x, expected %x or %x\n", adr, x_75->radr_cmd, x_75->radr_meld);
+					printf ("%sX75: got address %x, expected %x or %x\n",KERN_WARNING , adr, x_75->radr_cmd, x_75->radr_meld);
 				}
 				if(0) log_printmsg (NULL, "Bad Addr", mp, KERN_INFO);
 				freemsg (mp);
@@ -745,7 +745,7 @@ x75_rsrv (queue_t * q)
 				isCmd = 0;
 #endif
 			if ((err = x75_recv (&x_75->x75, isCmd, mp)) != 0) {
-				printf (KERN_DEBUG "x75_recv err %d\n", err);
+				printf ("%sx75_recv err %d\n",KERN_DEBUG , err);
 				/* putbq(q,mp); return; */
 				/* always freed, so forget it */
 			}

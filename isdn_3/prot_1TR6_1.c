@@ -10,6 +10,7 @@
 #include <sys/param.h>
 #include "prot_1TR6_1.h"
 #include "prot_1TR6_common.h"
+#include "sapi.h"
 
 #undef HAS_SUSPEND
 
@@ -323,11 +324,11 @@ report_n1_setup (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INCOMING);
 	conn_info (conn, mb);
@@ -347,11 +348,11 @@ report_n1_setup_ack (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_SETUP_ACK);
@@ -372,11 +373,11 @@ report_n1_call_sent (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_CALL_SENT);
@@ -397,11 +398,11 @@ report_n1_alert (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_ALERT);
@@ -426,11 +427,11 @@ report_n1_user_info (isdn3_conn conn, uchar_t * data, int len)
 	int qd_len;
 	uchar_t *qd_data;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_ALERT);
@@ -459,11 +460,11 @@ report_n1_conn (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_CONN);
 	conn_info (conn, mb);
@@ -485,11 +486,11 @@ report_n1_conn_ack (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_CONN_ACK);
@@ -512,11 +513,11 @@ report_n1_info (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_INFO);
@@ -540,11 +541,11 @@ report_n1_stat (isdn3_conn conn, uchar_t * data, int len)
 	int err = 0;
 	char cval;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_N1_STAT);
@@ -589,7 +590,7 @@ report_n1_terminate (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
@@ -1904,7 +1905,7 @@ send_N1_disc (isdn3_conn conn, char release, mblk_t * data)
 		if (release) {
 			goto common_off_noconn;
 		} else
-			return EBUSY;
+			return -EBUSY;
 	case 1:
 	case 2:
 	case 3:
@@ -1957,7 +1958,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			if (data == NULL) {
 				printf("DataNull: ");
 				conn->lockit--;
-				return EINVAL;
+				return -EINVAL;
 			}
 			while ((err = m_getsx (data, &typ)) == 0) {
 				switch (typ) {
@@ -1981,7 +1982,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 							data->b_rptr = oldpos;
 							printf("GetX EAZ: ");
 							conn->lockit--;
-							return EINVAL;
+							return -EINVAL;
 						}
 						((struct t_info *)conn->p_data)->eaz = data->b_rptr[1];
 					} break;
@@ -2000,7 +2001,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			if (service == ~0) {
 				printf("No Service: ");
 				conn->lockit--;
-				return EINVAL;
+				return -EINVAL;
 			}
 
 			conn->minorstate |= MS_OUTGOING | MS_WANTCONN;
@@ -2020,24 +2021,24 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				if (conn->minor == 0) {
 					printf("ConnMinorZero: ");
 					conn->lockit--;
-					return ENOENT;
+					return -ENOENT;
 				}
 				if (conn->mode == 0)
-					err = ENOEXEC;
+					err = -ENOEXEC;
 				{
-					mblk_t *asn = allocb (128, BPRI_MED);
+					mblk_t *asn = allocb (256, BPRI_MED);
 					int qd_len = 0;
 					uchar_t *qd_d;
 
 					if (asn == NULL) {
 						conn->lockit--;
-						return ENOMEM;
+						return -ENOMEM;
 					}
 
 					if (suppress) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*(uchar_t *) qd_d++ = 0;
 						*(uchar_t *) qd_d++ = N1_FAC_Unterdruecke;
@@ -2046,14 +2047,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					if (svc) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*(uchar_t *) qd_d++ = 0;
 						*(uchar_t *) qd_d++ = N1_FAC_SVC;
 						*(ushort_t *) qd_d = 0;
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*(uchar_t *) qd_d++ = 0;
 						*(uchar_t *) qd_d++ = N1_FAC_Activate;
@@ -2061,14 +2062,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					}
 					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_N6_serviceInd, 2, 0)) == NULL) {
 						conn->lockit--;
-						return EIO;
+						return -EIO;
 					}
 					*((uchar_t *) qd_d) = service >> 8;
 					*(((uchar_t *) qd_d)+1) = service & 0xFF;
 					if (((struct t_info *)conn->p_data)->eaz != 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_origAddr, 2, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*qd_d++ = 0x81;
 						*qd_d++ = ((struct t_info *)conn->p_data)->eaz;
@@ -2081,7 +2082,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 								break;
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_destAddr, i + 1, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*qd_d++ = 0x81;
 						while (i--)
@@ -2090,7 +2091,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					if (conn->bchan != 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_chanID, (conn->bchan <= 2) ? 1 : 3, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						if (conn->bchan <= 2) {
 							*qd_d = 0x80 | conn->bchan;
@@ -2116,7 +2117,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			default:
 				printf("Default %d: ", conn->state);
 				conn->lockit--;
-				return EBUSY;
+				return -EBUSY;
 			}
 		}
 		break;
@@ -2146,7 +2147,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			} break;
 		default:
 			printf("BadState1: ");
-			err = EINVAL;
+			err = -EINVAL;
 		}
 		break;
 	case CMD_ANSWER:
@@ -2169,7 +2170,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 								data->b_rptr = oldpos;
 								printf("GetEAZAns ");
 								conn->lockit--;
-								return EINVAL;
+								return -EINVAL;
 							}
 							((struct t_info *)conn->p_data)->eaz = data->b_rptr[1];
 						} break;
@@ -2181,14 +2182,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 					if ((asn = allocb (32, BPRI_MED)) == NULL) {
 						conn->lockit--;
-						return ENOMEM;
+						return -ENOMEM;
 					}
 
 					if (((struct t_info *)conn->p_data)->flags & SVC_PENDING) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
 							freeb(asn);
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*(uchar_t *) qd_d++ = 0;
 						*(uchar_t *) qd_d++ = N1_FAC_SVC;
@@ -2196,7 +2197,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
 							freeb(asn);
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*(uchar_t *) qd_d++ = 0;
 						*(uchar_t *) qd_d++ = N1_FAC_Activate;
@@ -2206,14 +2207,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_N6_serviceInd, 2, 0)) == NULL) {
 						freeb (asn);
 						conn->lockit--;
-						return EIO;
+						return -EIO;
 					}
 					*((uchar_t *) qd_d) = service >> 8;
 					*(((uchar_t *) qd_d)+1) = service & 0xFF;
 					if (((struct t_info *)conn->p_data)->eaz != 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_origAddr, 2, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*qd_d++ = 0x81;
 						*qd_d++ = ((struct t_info *)conn->p_data)->eaz;
@@ -2246,7 +2247,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				break;
 			default:
 				printf("BadState2 ");
-				err = EINVAL;
+				err = -EINVAL;
 				break;
 			}
 			if (asn != NULL)
@@ -2267,7 +2268,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 			if (data == NULL) {
 				conn->lockit--;
-				return ENOENT;
+				return -ENOENT;
 			}
 			while (m_getsx (data, &typ) == 0) {
 				switch (typ) {
@@ -2297,7 +2298,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 							data->b_rptr = oldpos;
 							printf("EAZ3 ");
 							conn->lockit--;
-							return EINVAL;
+							return -EINVAL;
 						}
 						eaz = data->b_rptr[1];
 						eaz2= data->b_rptr[0];
@@ -2319,7 +2320,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			if ((conn->minorstate & MS_CONN_MASK) == MS_CONN_NONE) {
 				printf("NoConnThere ");
 				conn->lockit--;
-				return EINVAL;
+				return -EINVAL;
 			}
 			if ((conn->minorstate & MS_CONN_MASK) != MS_CONN_INTERRUPT) {
 				isdn3_setup_conn (conn, EST_WILL_INTERRUPT);
@@ -2333,13 +2334,13 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 				if ((asn = allocb (32, BPRI_MED)) == NULL) {
 					conn->lockit--;
-					return ENOMEM;
+					return -ENOMEM;
 				}
 
 				if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, (gotservice || eaz2 != 0) ? ((eaz != 0 || eaz2 != 0) ? 6 : 4) : (eaz != 0) ? 5 : 4, 0)) == NULL) {
 					freeb (asn);
 					conn->lockit--;
-					return EIO;
+					return -EIO;
 				}
 				qd_d[0] = 0;
 				qd_d[1] = (eaz2 > 0) ? N1_FAC_Dienstwechsel2 : N1_FAC_Dienstwechsel1;
@@ -2377,7 +2378,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				break;
 			default:
 				printf("BadState4 ");
-				err = EINVAL;
+				err = -EINVAL;
 				break;
 			}
 			if (asn != NULL)
@@ -2446,7 +2447,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		break;
 	default:
 		printf("UnknownCmd ");
-		err = EINVAL;
+		err = -EINVAL;
 		break;
 	}
 	if (data != NULL && err == 0)
@@ -2515,6 +2516,6 @@ static void report (isdn3_conn conn, mblk_t *mb)
 
 struct _isdn3_prot prot_1TR6_1 =
 {
-		NULL, PD_N1,
+		NULL, SAPI_PHONE_1TR6_1,
 		NULL, &chstate, &report, &recv, NULL, &sendcmd, &killconn, NULL,
 };

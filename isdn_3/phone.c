@@ -13,48 +13,10 @@
 #include "prot_1TR6_0.h"
 #include "prot_1TR6_1.h"
 #include "prot_ETS.h"
+#include "sapi.h"
 
-int
-phone_get_vector (isdn3_conn conn, uchar_t * data, int len, int vnr, uchar_t dict, uchar_t key)
-{
-	int qd_len;
-	uchar_t *qd_data;
-	int *vec;
 
-	qd_data = qd_find (data, len, dict,key, &qd_len);
-	if (qd_data == NULL)
-		return 0;
-	if (qd_len < 1)
-		return 0;
-	if(conn->v[vnr] != NULL)
-		free(conn->v[vnr]);
-	conn->v[vnr] = vec = malloc(sizeof(int)+qd_len);
-	if (vec == NULL)
-		return 0;
-	*vec++ = qd_len;
-	memcpy(vec,qd_data,qd_len);
-	return 1;
-}
-
-int
-phone_put_vector (isdn3_conn conn, uchar_t * data, int len, int vnr, uchar_t dict, uchar_t key)
-{
-	int qd_len;
-	uchar_t *qd_data;
-	int *vec;
-
-	vec = conn->v[vnr];
-	if(vec == NULL)
-		return 0;
-	qd_len = *vec++;
-	if (qd_len < 1)
-		return 0;
-	qd_data = qd_insert (data, &len, dict,key, qd_len, 0);
-	if (qd_data == NULL)
-		return 0;
-	memcpy(qd_data,vec,qd_len);
-	return 1;
-}
+static isdn3_prot isdn3_findprot (mblk_t *info, uchar_t protocol);
 
 int
 phone_sendback (isdn3_conn conn, uchar_t msgtype, mblk_t * data)
@@ -74,14 +36,14 @@ phone_sendback (isdn3_conn conn, uchar_t msgtype, mblk_t * data)
 		creflen++;
 	} while (cref != 0);
 	if ((mb = allocb (creflen + 3, BPRI_MED)) == NULL)
-		return ENOMEM;
+		return -ENOMEM;
 	if (data != NULL)
 		linkb (mb, data);
 
 	*mb->b_wptr++ = conn->subprotocol;
 	*mb->b_wptr++ = creflen;
 
-	if (conn->subprotocol == PD_Q931) {
+	if (conn->subprotocol == SAPI_PHONE_DSS1) {
 		if(conn->card == NULL || conn->card->bchans <= 2) {
 			if (creflen < 1)
 				creflen = 1;
@@ -266,7 +228,7 @@ send (isdn3_conn conn, mblk_t * data)
 		return (*prot->send) (conn, data);
 	else {
 		isdn3_killconn (conn, 1);
-		return EINVAL;
+		return -EINVAL;
 	}
 }
 
@@ -281,7 +243,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		printf("\n !*!*! ProtNull / %ld::%s !*!*!\n",conn->subprotocol,
 				conn->card->info ? (char *)conn->card->info->b_rptr : "none");
 		isdn3_killconn (conn, 1);
-		return EINVAL;
+		return -EINVAL;
 	}
 }
 
@@ -375,8 +337,12 @@ init (void)
 	isdn_prot = NULL;
 
 	if(0) isdn3_attach_prot (&prot_1TR6_0);
+#ifdef _german_
 	isdn3_attach_prot (&prot_1TR6_1);
+#endif
+#ifdef _euro_
 	isdn3_attach_prot (&prot_ETSI);
+#endif
 }
 
 int
@@ -388,7 +354,7 @@ isdn3_attach_prot (isdn3_prot prot)
 	for (nprot = isdn_prot; nprot != NULL; nprot = nprot->next) {
 		if (nprot->protocol == prot->protocol) {
 			splx (ms);
-			return EEXIST;
+			return -EEXIST;
 		}
 	}
 
@@ -401,7 +367,7 @@ isdn3_attach_prot (isdn3_prot prot)
 	return 0;
 }
 
-isdn3_prot
+static isdn3_prot
 isdn3_findprot (mblk_t *info, uchar_t protocol)
 {
 	isdn3_prot prot;
@@ -446,5 +412,5 @@ struct _isdn3_hndl PHONE_hndl =
 {
 		NULL, SAPI_PHONE,0,
 		&init, &newcard, &modeflags, &chstate, &report, &recv, &send,
-		&sendcmd, &ckill, &killconn, &hook,
+		&sendcmd, &ckill, &killconn, &hook, NULL,
 };

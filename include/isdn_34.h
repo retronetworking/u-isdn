@@ -55,6 +55,7 @@
 										 * will be interpreted directly. This
 										 * way, specialized drivers can do
 										 * their own call management. */
+#define CMD_NOCARD CHAR2('q','C') /* (active) card is to be presumed dead */
 
 /* Commands for ISDN-B access. */
 #define CMD_DIAL   CHAR2 ('d','o')/* Dial out. */
@@ -103,6 +104,7 @@
 #define ARG_NOREJECT CHAR2('n','j') /* don't send REJ code */
 #define ARG_FASTDROP CHAR2('f','X')
 #define ARG_FASTREDIAL CHAR2('f','r')
+#define ARG_CHANBUSY CHAR2('i','b')
 #define ARG_IGNORELIMIT CHAR2('i','l')
 
 #define ARG_FORCE  CHAR2('f','d') /* In CMD_OFF: Force DISC */
@@ -124,11 +126,15 @@
 #define ARG_CONNREF  CHAR2 ('C','r')	/* uchar refnum for a connection.  */
 #define ARG_CARD     CHAR2 ('c','d')	/* ident Card */
 #define ARG_CHANNEL  CHAR2 ('b','c')	/* uchar B channel to use */
+#define ARG_ASSOC    CHAR2 ('a','=')	/* associate card IDs */
+#define ARG_LISTEN   CHAR2 ('l','p')    /* listen params */
+
 #define ARG_MINOR    CHAR2 ('m','i')	/* uchar minor number of data
 										 * connection */
 #define ARG_FMINOR   CHAR2 ('m','f')	/* uchar minor number of command
 										 * connection */
 #define ARG_CALLREF  CHAR2 ('c','r')	/* long call reference number */
+#define ARG_EAZ      CHAR2 ('e','a')	/* map EAZ to local phone nr */
 #define ARG_LNUMBER  CHAR2 ('l','r')	/* local phone nr */
 #define ARG_NUMBER   CHAR2 ('n','r')	/* remote phone nr */
 #define ARG_OUTNUMS  CHAR2 ('o','m')    /* outgoing, for build */
@@ -162,6 +168,7 @@
 
 #define ARG_SEQNUM   CHAR2('s','N') /* number of the file */
 #define ARG_OFFSET   CHAR2('o','F') /* offset within the file */
+#define ARG_LENGTH   CHAR2('l','N') /* offset within the file */
 
 #define ARG_UPDELAY CHAR2('u','d') /* Delay the data exchange */
 

@@ -40,9 +40,9 @@ typedef unsigned char streamchar;
 
 #ifdef KERNEL
 /* =()<#define CONF_MOD2 @<CONF_MOD2>@>()= */
-#define CONF_MOD2 0x00
+#define CONF_MOD2 0x30
 /* =()<#define CONF_DEBUG @<CONF_DEBUG>@>()= */
-#define CONF_DEBUG 0x0000
+#define CONF_DEBUG 0x5016
 #else
 #ifdef DO_DEBUGGING
 

@@ -16,6 +16,9 @@ unter der GPL bzw. ihrem deutschen Äquivalent verfügbar sein.
 Achtung:
 =======
 
+Version 14: Die CL- und DL-Zeilen haben sich geändert (erweitert um
+<Key>-Parameter).  Intelligente Karten funktionieren NOCH NICHT.
+
 In der Version 11 lagen noch ein paar .depend-Dateien und anderer Kram rum,
 die den Buildprozeß gestört haben. Abhilfe: "make clean".
 
@@ -226,6 +229,7 @@ done
 # Danach:
 
 vi config/config.data
+# Zeile "PROTOCOLS" und "SUBPROTOCOLS" ansehen. Siehe unten "DL-Zeile".
 make.isdn
 # Als Superuser:
 make.isdn
@@ -346,6 +350,7 @@ AT/Q
     Programmende. Kann nur vom Superuser ausgeführt werden.
 AT/R
     Reload der Konfigdatei. Kann nur vom Superuser ausgeführt werden.
+    Alle wegen eines Fehlers deaktivierten Programme werden wieder aufgeweckt.
 AT/Xn
     Abbruch der Verbindung <n>. Kann nur vom Superuser ausgeführt werden.
 ATD/sys/proto
@@ -404,6 +409,16 @@ nicht ohne weiteres beobachten lassen.) Zum Glück haben sich ein paar
 "normale" Betriebsarten herauskristallisiert, an die sich die meisten
 Systeme halten.
 
+Paketformate
+------------
+Im einfachsten Fall werden IP-Pakete direkt auf die Leitung geschickt. Wer
+zusätzlich noch Appletalk oder IPX oder so machen will, kann diese entweder
+in IP einpacken (Overhead, kein Kernelsupport unter Linux) oder ein paar
+Bytes vor die Daten stellen, die angeben, um was für Daten es sich handelt.
+
+Die Bytes können entweder genauso aussehen wie im Ethernet, oder so wie der
+Pakettyp von PPP. Wer PPP macht, braucht offensichtlich letzteres (PPP
+selber wird auch bald kommen...); normale Leute nehmen die Ethernet-Codes.
 
 Noch ein Einschub: TCP-IP-Routing
 =================================
@@ -523,12 +538,23 @@ Alle Zeilentypen:
       Zeilen in der Konfigdatei müssen zueinander passende Keys haben, d.h.
       mindestens ein Zeichen muß in allen Keys übereinstimmen. "*" paßt zu
       allen anderen Zeichen.
+      Der resultierende String ist also die Schnittmenge aller Zeichen in
+      den <Key>-Parametern aller verwendeter Konfigurationszeilen.
+      <Key>-Zeilen mit einem Pluszeichen an erster Stelle werden nur auf
+      Vorhandensein eines Zeichens geprüft, aber die Menge wird nicht
+      eingeschränkt. Beispiel:
+      "ab"  "cd"       -> leere Menge
+      "ab"  "xay"      -> "a"
+      "ab"  "+x"       -> leere Menge
+      "ab"  "+bx"      -> "b"
+      "ab"  "+bx"  "a" -> leere Menge
+      Damit läßt sich sehr flexibel einstellen, wer auf welcher Leitung /
+      Nummer mit welchen Parametern anrufen kann.
 <Mod> sind einzelne Buchstaben, der der betreffenden Zeile eine Sonder-
       behandlung verpassen.
 <Parameter...> ist eine Folge von einem oder mehr Parameter-Wert-Angaben.
                (Manche Parameter haben keine Wertangabe.)
-      Merke: Zeilen ohne Parameter sind im allgemeinen nicht sinnvoll
-      und führen (momentan noch) zu Fehlverhalten des Treibers.
+      Merke: Zeilen ohne Parameter sind nicht besonders sinnvoll.
 
 
 P-Zeile ("Protokoll")
@@ -547,33 +573,37 @@ Parameter:
     Verbindungen wird das handhabende Programm nicht unterbrochen.
     Ein "reconn"-Streamsmodul stellt sicher, daß das Programm davon nichts
     mitbekommt, außer wenn der Wiederaufbau der Verbindung nicht klappt.
-:cd Karte. Welche ISDN-Leitung verwendet werden soll. (Wichtig für SPVs.)
-    Bei Festverbindungen wird dieser Parameter nicht benötigt.
 :bc Zu verwendender B-Kanal, 1 oder 2. Nur für Festverbindungen
     interessant; im normalen ISDN managt die Vermittlung B-Kanäle für uns.
 :nj Kann der Ruf nicht angenommen werden, wird BUSY statt CallRejected
     gesendet.
 :xi Wenn ankommende und abgehende Anrufe kollidieren, soll der an-
     kommende abgewiesen werden. (Default: Der abgehende Ruf wird
-    abgebrochen.) (Nicht allzu gut getestet.)
+    abgebrochen.)
 :yi Bei einem ankommeden Ruf wird automatisch ein abgehender gestartet und
-    der ankommende wird abgewiesen. (Ungetestet.)
+    der ankommende wird abgewiesen.
 :bi Bei einem ankommenden Ruf, der nicht angenommen werden kann (belegt?),
-    wird automatisch hoffentlich auf einer anderen Leitung zurückgerufen.
+    wird automatisch auf einer anderen Leitung zurückgerufen.
     :fr ebenfalls zu setzen ist meist sinnvoll.
 :il Die CL-Zeile wird ignoriert.
 :fX Ankommende Anrufe, die (zB wegen besetzt) abgewiesen werden, werden
-    "schnell" abgelehnt. (Andere Geräte am Bus können nicht abheben.)
+    "schnell" abgelehnt. (Andere Geräte am Bus können nicht abheben, da die
+    Vermittlung nicht abwartet, ob sich noch jemand meldet.)
 :fr Abgehende Anrufe, die nicht durchkommen, werden "sofort" und "oft"
     wiederholt.
+:ib Wenn ankommend kein B-Kanal mitgeliefert wird, wird die Verbindung
+    abgewiesen. (zB wenn man dich den Anschluß mit einem anderen gerät
+    teilt.) Fehlt :ib, hört die Gegenseite in diesem Fall ein normales
+    Rufzeichen ("Anklopfen"); die Verbindung wird nach 40 Sekunden
+    ausgelöst, wenn bis dahin kein B-Kanal frei wird..
 
     Logischerweise darf :xi oder :yi nicht auf beiden Seiten angegeben
     sein..!
 
-Spezifisch für 1TR6:
+Spezifisch für 1TR6 und CAPI:
 :sv Dienstkennung; zwei Bytes in Hex. Telefon ist 0101 und 0102; DFÜ ist
     07xx (xx ist üblicherweise 00).
-:pv Semipermanente Verbindung bei abgehenden Rufen.
+:pv Semipermanente Verbindung bei abgehenden Rufen. (Noch nicht bei CAPI.)
     Ankommend werden SPVs automatisch unterstützt.
 
 Spezifisch für Euro-ISDN:
@@ -611,10 +641,11 @@ f für Festverbindungen
 d für Wählverbindungen
 p für Verbindungsaufbau nach Bedarf
 
-Der Suchalgorithmus findet zunächst eine zur Verbindung passende R-Zeile
-und hängt an deren Parameterliste dann alle ebenfalls passenden M-Zeilen
-an (dabei werden bereits angegebene Werte beibehalten, die spezifischen
-Einträge also nach oben!), bis er auf eine X-Zeile trifft. 
+Der Suchalgorithmus findet zunächst eine zur Verbindung passende Zeile mit
+R-Flag und hängt an deren Parameterliste alle ebenfalls passenden Zeilen
+mit M-Flag an (dabei werden bereits angegebene Werte beibehalten, die
+spezifischen Einträge also nach oben!), bis er auf eine Zeile mit X-Flag
+trifft. 
 
 
 ML-Zeile ("Modulliste")
@@ -704,31 +735,38 @@ DL-Zeile ("Dial Local")
 --------
 
 Form:
-DL <Karte> <Nummer> <Protokolle>
+DL <Key> <Karte> <Nummer> <Protokolle>
 
 Beispiel:
-DL Tel? +49=911-995962. :pr 0 :sp 65 :pr 63
+DL * Tel? +49=911-995962. :pr 0 :sp 65 :pr 63
 
 Eigene Telefonnummer. Im Beispiel sind alle Karten, auf die "Tel?"
 paßt, an einer ISDN-Leitung mit dieser Nummer angeschlossen.
 
 Diese Zeile wird verwendet, um die kürzestmögliche Rufnummer für
 abgehende Verbindungen zu finden und um die verwendeten Protokolle zu
-spezifizieren.
+spezifizieren. Hat eine Karte mehrere Rufnummern (MSNs), werden die
+Protokolle nur in der ersten DL-Zeile angegeben.
 
-Beispiel 1TR6:
-DL Tel0 +49=911-23456. :pr 0 :sp 65 :pr 63
+Zusätzlich werden in der DL-Zeile die Protokolle beschrieben, mit denen der
+ISDN-Treiber mit der Karte redet. Diese Protokolle müssen natürlich auch in
+den Treiber eingebaut werden, und zwar in der Datei config/config.data,
+Eintrag PROTOCOLS (spitze Klammer) und SUBPROTOCOLS (eckige Klammer).
 
-Beispiel Euro-ISDN:
-DL Tel0 +49=911-34567. :pr 0 :sp 8 :pr 63
+Beispiel 1TR6: <phone tei> [german]
+DL * Tel0 +49=911-23456. :pr 0 :sp 65 :pr 63
 
-Beispiel Festverbindung:
-DL Tel2 - :pr 64
+Beispiel Euro-ISDN: <phone tei> [euro]
+DL * Tel0 +49=911-34567. :pr 0 :sp 8 :pr 63
 
-Beispiel intelligente Karte mit CAPI:
-DL Bin0 +49=911-45678. :pr 65
+Beispiel Festverbindung: <fixed>
+DL * Tel2 - :pr 64
+
+Beispiel intelligente Karte mit CAPI: <capi> [bintec]
+DL * Bin0 +49=911-45678. :pr 65 :sp 0
 
 Bedeutung der Spezialzeichen in der Nummer: Siehe "DP" unten.
+
 
 Protokolle und Flags in der DL-Zeile:
 --------------------
@@ -751,7 +789,7 @@ Die Reihenfolge ist wichtig.
 
 :pr 0      Normaler ISDN-D-Kanal, angeschlossen am Netz oder an einer
            Telefonanlage. Darf nur zusammen mit TEI-Handler (:pr 63)
-           verwendet werden.
+           verwendet werden. <phone>
   :kl      Level-2-Verbindung zur Vermittlung nicht trennen. Bei Punkt-
            zu-Punkt-Verbindungen und bei entsprechend konfigurierten
            ISDN-Anschlüssen ("Dauerüberwachung oder sowas ähnliches")
@@ -759,8 +797,8 @@ Die Reihenfolge ist wichtig.
   :cl      Level-2-Verbindung zur Vermittlung trennen, wenn keine
            Verbindung besteht. Default.
 
-  :sp 8    DSS1, Euro-ISDN.
-  :sp 65   1TR6, deutscher Standard.
+  :sp 8    DSS1, Euro-ISDN. [euro]
+  :sp 65   1TR6, deutscher Standard. [german]
            Entweder :sp 8 oder :sp 65 muß angegeben werden, NICHT beides!
 
   :ai      Ankommenden Anruf mit dem ISDN-Äquivalent von "RINGING"
@@ -768,13 +806,24 @@ Die Reihenfolge ist wichtig.
            Notwendig bei langsamen Rechnern.
   :ad      Ankommende Anrufe erst prüfen, dann annehmen (oder auch nicht).
            Default.
-:pr 63     TEI-Handler (Transport Endpoint Identifier).
+:pr 63     TEI-Handler (Transport Endpoint Identifier). <tei>
   :ti      TEI sofort zuordnen lassen. Notwendig bei langsamen / sehr
            beschäftigten Rechnern und bei manchen Telefonanlagen.
   :td      TEI beim ersten Verbindungsaufbau zuordnen lassen. Default.
-:pr 64     Festverbindung: kein D-Kanal.
-:pr 65     Intelligente Karte mit CAPI 1.x-Schnittstelle.
-           (Noch nicht implementiert.)
+:pr 64     Festverbindung: kein D-Kanal. <fixed>
+:pr 65     Intelligente Karte mit CAPI-1.x-Schnittstelle. (Noch nicht!)
+           In der Konfiguration verhält sich eine CAPI-Karte ansonsten wie
+           der 1TR6-Treiber, und zwar AUCH DANN WENN DAS TEIl AM EURO-ISDN
+           HÄNGT. <capi>
+  :sp 0    Bintec-Karte. [bintec]
+           Auf diese Karte muß zunächst boot.68k und dann entweder bri.68k,
+           bri_4.68k oder pmx.68k geladen werden.
+     :lp X X X  CAPI-Bitmasken für EAZ, Service, Infos. Hexadezimal.
+                Default: 3FFF FFFF 003F.
+     :st XXXXX  Protokollstack XXXXX laden. Siehe Handbuch zur Karte.
+                Default ist u_dss1_pmp.
+     :ea N NNN  EAZ N auf (lokale) Endnummer NNN mappen.
+                Default ist die letzte Ziffer der Nummer.
 
 
 DP-Zeile ("Dial Prefix")
@@ -844,6 +893,7 @@ Mod:
    implementiert)
 $ Die Befehlszeile wird nicht direkt ausgeführt, sondern der Shell übergeben.
 E Beim Auftreten eines Fehlers wird dieses Programm deaktiviert.
+  (Reaktivieren: AT/R.)
 D /dev/ttyiXX wird angelegt und nach Programmende gelöscht.
 F Das Programm wird sofort gestartet, und die Verbindung wird aufgebaut.
   Interessant insbesondere bei Festverbindungen und SPVs.
@@ -910,10 +960,10 @@ framelo     ... oder die unteren Bits. Sinnvoll dann, wenn jemand den Daten-
 CL-Zeile ("Card Limit")
 --------
 
-Form: CL <Karte> <Zahl> <Modus>
+Form: CL <Karte> <Key> <Zahl>
 
 Beispiel>
-CM Tel? 2 
+CM Tel? * 2 
 Begrenzt die Zahl der verwendbaren B-Kanäle einer Karte.
 Ueber das Limit hinausgehende Anrufe werden mit BUSY abgelehnt, es sei denn
 in der entsprechenden P-Zeile steht der entsprechende Parameter.
@@ -925,7 +975,8 @@ LF-Zeile ("Load File")
 Form: LF <Karte> <Segmentgröße> <Dateiname>
 
 Lädt die Datei auf die (aktive) Karte. Mehrere LF-Zeilen können angegeben
-werden.
+werden (in der richtigen Reihenfolge!). Die maximal mögliche Segmentgröße
+ist 4096. 
 
 
 RP-Zeile ("Run Program")
@@ -1030,6 +1081,10 @@ Paketformat:
 :.N                TCP/IP (Default).
 :.E                Ethernet-Paketheader.
 :.P                PPP-Paketheader.
+:eT xxxx           xxxx: hexadezimal. Angabe des übertragenen Pakettyps (:.N).
+                   TCP/IP ist 0800 (Default). Damit können zB statt
+                   "nackter" IP-Pakete ebensolche Appletalk-Pakete
+                   übertragen werden.
 
 ioctl(x,SIOCGETU,int) ioctl-Aufruf zur Uebertragung der Unit-Nummer ("strX",
 0 <= X <= 15) an ein Anwenderprogramm. Das Programm kann damit die IP-
@@ -1393,4 +1448,54 @@ Beispiel:
 
 Ansonsten: Sich von der Gegenstelle anrufen zu lassen und die betreffenden
 Daten einfach einzutragen ist wohl die einfachste Methode.
+
+
+Karten mit CAPI: Die CAPI ist doof...
+===============
+
+Im Internet heißt es in so gut wie jedem RFC, daß reservierte Bits beim
+Senden auf Null zu setzen und beim Empfangen zu ignorieren sind. Nicht so
+in der CAPI 1.1, dort sind gesetzte reservierte Bits ein Grund für eine
+Fehlermeldung. Da aber nirgends definiert oder abfragbar ist, welche Bits
+eigentlich erlaubt sind, ist es so gut wie unmöglich, ohne Ratespiel neue
+Features zu unterstützen...
+
+Wie dem auch sei, die Infobits haben folgende Bedeutung:
+00000001  Gebühreneinheiten
+00000002  Datum
+00000004  Display
+00000008  User-User Info
+00000010  Cause
+00000020  Status des gerufenen Teilnehmers
+00000040...
+80000000  reserviert
+
+Die EAZ-Bits:
+0001  Null ("Global Call", wird aber nicht besonders behandelt)
+0002  Eins ...
+0200  Neun
+0400...
+8000  reserviert
+
+Die Dienstkennungen, entsprechend :sv 00xx ... 0Fxx:
+0001  Bildtelefon
+0002  Telefonie
+0004  a/b-Dienste
+0008  X.21-Dienste
+0010  Telefax Gruppe 4
+0020  BTX, 64 KBit/sec
+0040  ?
+0080  DFÜ
+0100  X.25
+0200  Teletext
+0400  Mixed Mode
+0800  ?
+1000  ?
+2000  Fernwirken
+4000  Grafiktelefon
+8000  BTX (CEPT-Standard)
+
+Ankommende Rufe, die zu diesen EAZs und Diensten passen, werden
+durchgereicht (und die angeforderten Informationen werden gemeldet, wenn
+die Vermittlung sie sendet(!)); andere Rufe werden ignoriert.
 

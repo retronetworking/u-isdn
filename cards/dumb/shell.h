@@ -4,10 +4,11 @@
 #include "isdn_12.h"
 #include "smallq.h"
 #include <stream.h>
+#include "loader.h"
 
 extern int dumb_num;
 
-#define DEBUG(_x) if((DEBUG_##_x) & dumb->debug)
+#define DEBUG(_x) if((DEBUG_##_x) & dumb->info.debug)
 #define DEBUG_memory  0x01
 #define DEBUG_uart    0x00
 #define DEBUG_isac    0x04
@@ -32,18 +33,14 @@ typedef struct _hdlc_buf {
 
 typedef struct _dumb {
 	struct _isdn1_card card; /* must be first */
-
-	long memaddr;
-	short ioaddr;
-	unsigned char irq, ipl, numHSCX;
-	unsigned long ID;
-	unsigned int debug;
+	struct cardinfo info, *infoptr;
 
 	struct _hdlc_buf chan[MAX_B+1];
 #ifdef NEW_TIMEOUT
 	long timer;
 #endif
 	struct _dumb *next;
+	int numHSCX;
 	long countme; signed char polled; char circ;
 } *__dumb;
 

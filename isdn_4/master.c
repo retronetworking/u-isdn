@@ -16,20 +16,20 @@ main (int argc, char *argv[])
 	extern int optind;
 
 	char *devnam = "/dev/isdnmon";
-	char *execf = NULL;
 	int pushlog = 0;
 	int debug = 0;
 	int x;
 
 #ifdef linux
 	reboot(0xfee1dead,0x17392634,1);		/* Magic to make me nonswappable */
+	/* TODO: 1.3.xx kernel / libc: use appropriate system call */
 #endif
 #ifdef DO_DEBUG_MALLOC
 	mcheck(NULL);
 	mmtrace();
 #endif
 	chkall();
-	setlinebuf(stdout); setlinebuf(stderr);
+	setlinebuf(stdout); setlinebuf(stderr); /* no(t much) buffering */
 
 	progname = strrchr (*argv, '/');	/* basename */
 	if (progname == NULL)
@@ -37,8 +37,12 @@ main (int argc, char *argv[])
 	else
 		progname++;
 
-	while ((x = getopt (argc, argv, "iItf:x:dlLwWqQ"))!= EOF) {
+	while ((x = getopt (argc, argv, "iIf:dlLwWqQ"))!= EOF) {
 		switch (x) {
+		/*
+		 * Logging. Small letters are usermode, capitals log in the kernel.
+		 * 'l' is raw data, 'w' is interpreted data, 'q' is queue info.
+		 */
 		case 'l':
 			pushlog |= 1;
 			break;
@@ -57,43 +61,37 @@ main (int argc, char *argv[])
 		case 'Q':
 			pushlog |= 32;
 			break;
-		case 'd':
+
+		case 'd': /* do not fork */
 			debug = 1;
 			break;
-		case 't':
-			testonly = 1;
-			break;
-		case 'x':
-			if (execf != NULL)
-				goto usage;
-			execf = optarg;
-			break;
-		case 'I':
+		case 'I': /* for testing */
 			igstdin = 0;
 			break;
 		case 'i':
 			igstdin = 1;
 			break;
-		case 'f':
+		case 'f': /* alternate device to open */
 			if (getuid ()!= 0)
 				goto usage;
 			devnam = optarg;
 			break;
 		default:
 		  usage:
-			fprintf (stderr, "Usage: %s -t[est] -x Data -l[ogging] -F epromfile -f devfile\n"
-					"\t-M load+direct+Leo -m direct+Leo \n", progname);
+			fprintf (stderr, "Usage: %s -WQLwql[ogging] [ -f device ] \n"
+					"\t-d[ebug]", progname);
 			exit (1);
 		}
 	}
 	openlog (progname, debug ? LOG_PERROR : 0, LOG_LOCAL7);
 
+	/* Remember all files to scan */
 	fileargs = &argv[optind];
-	read_args (NULL);
+	read_args (NULL); /* This also schedules starting all configured programs */
 
 	seteuid (getuid ());
 
-	if (!debug) {
+	if (!debug) { /* Disassociate */
 		switch (fork ()){
 		case -1:
 			xquit ("fork", NULL);
@@ -118,7 +116,6 @@ main (int argc, char *argv[])
 			for (i=getdtablesize()-1;i>=0;i--)
 				(void) close(i);
 		}
-		igstdin=1;
 		open("/dev/null",O_RDWR);
 		dup(0); dup(0);
 #ifdef HAVE_SETPGRP_2
@@ -130,7 +127,7 @@ main (int argc, char *argv[])
 	}
 
 #ifdef linux
-	{
+	{	/* (Re)Create all our device files */
 		FILE * fd;
 		if((fd = fopen("/proc/devices","r")) == NULL)
 			syslog(LOG_ERR,"Reading device numbers: %m");
@@ -184,60 +181,43 @@ main (int argc, char *argv[])
 	}
 #endif
 
+	/* Standard signal handling -- TODO: Use sigaction() instead. */
 	signal (SIGALRM, (sigfunc__t) alarmsig);
 	signal (SIGPIPE, SIG_IGN);
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
 		signal (SIGHUP, SIG_DFL);
 	if(signal(SIGINT,SIG_IGN) != SIG_IGN)
-		signal (SIGINT, do_quitnow);
+		signal (SIGINT, (void *)do_quitnow); /* Always these "incompatible" pointers... */
 	signal (SIGQUIT, (sigfunc__t) do_quitnow);
 	signal (SIGUSR1, (sigfunc__t) kill_progs);
 	signal (SIGCHLD, (sigfunc__t) deadkid);
 
-	chkall();
+	/* Create a stream within the program */
 	xs_mon = stropen (0);
 	if (xs_mon == NULL)
 		xquit ("xs_mon = NULL", "");
 
-	if (!testonly) {
+	/* Open the device and push kernel stream modules */
 	fd_mon = open (devnam, O_RDWR);
 	if (fd_mon < 0)
 		xquit ("Open Dev", devnam);
-		if (ioctl (fd_mon, I_SRDOPT, RMSGN) < 0)
-			if (errno != ENOTTY)
+	if (ioctl (fd_mon, I_SRDOPT, RMSGN) < 0) /* Message mode */
 		xquit ("SetStrOpt", "");
 
 	if (pushlog & 2)
 		if (ioctl (fd_mon, I_PUSH, "strlog") < 0)
-				if (errno != ENOTTY)
 			xquit ("Push", "strlog 1");
 	if (pushlog & 8)
 		if (ioctl (fd_mon, I_PUSH, "logh") < 0)
-				if (errno != ENOTTY)
 			xquit ("Push", "strlog 1");
 	if (pushlog & 32)
 		if (ioctl (fd_mon, I_PUSH, "qinfo") < 0)
-				if (errno != ENOTTY)
 			xquit ("Push", "strlog 1");
-#if LEVEL < 4
-		if (xnkernel) {
-			if (ioctl (fd_mon, I_PUSH, "isdn_3") < 0) {
-				syslog (LOG_ERR, "No kernel ISDN module: %m");
-				xnkernel = 0;
-			} else {
-				if (pushlog & 1)
-					if (ioctl (fd_mon, I_PUSH, "strlog") < 0)
-						xquit ("Push", "strlog 1");
-				if (pushlog & 4)
-					if (ioctl (fd_mon, I_PUSH, "logh") < 0)
-						xquit ("Push", "strlog 1");
-				if (pushlog & 16)
-					if (ioctl (fd_mon, I_PUSH, "qinfo") < 0)
-						xquit ("Push", "strlog 1");
-			}
-		}
+#if LEVEL > 3
+	if (ioctl (fd_mon, I_PUSH, "isdn_3") < 0)
+		xquit ("ISDN_3 module");
 #endif
-	} {
+	{	/* Associate the kernel stream with the user stream */
 		typedef int (*F) ();
 		extern void isdn3_init (void);
 		extern void isdn_init (void);
@@ -264,31 +244,25 @@ main (int argc, char *argv[])
 #endif
 		register_strmod (&strloginfo);
 		register_strmod (&loghinfo);
+
 #if LEVEL < 4
-		if (!xnkernel || testonly) {
+		/* push user-mode streams modules */
 		if (pushlog & 1)
-				strioctl (xs_mon, I_PUSH, (long) "log");
+			strioctl (xs_mon, I_PUSH, (long) "strlog");
 		if (pushlog & 4)
 			strioctl (xs_mon, I_PUSH, (long) "logh");
 		if (pushlog & 16)
 			strioctl (xs_mon, I_PUSH, (long) "qinfo");
 		strioctl (xs_mon, I_PUSH, (long) "isdn_3");
-		}
 #endif
 	}
 
-	if(0)callout_async ();
-	timeout (log_idle, NULL, 5 * HZ);
-	timeout (queue_idle, NULL, HZ);
-	if (execf != NULL) {
-		FILE *efile = fopen (execf, "r");
+	if(0)callout_async (); /* We prefer to do everything synchronously */
+	timeout (log_idle, NULL, 5 * HZ); /* Tell everybody that we're still alive */
+	timeout (queue_idle, NULL, HZ/3); /* process the user-mode streams */
+	syspoll ();	/* Now go and do some work */
 
-		if (efile == NULL)
-			xquit ("Exec File", execf);
-	}
-	syspoll ();
-
+	/* Shut down. Ungracefully. Graceful shutdown of active cards TODO. */
 	strclose (xs_mon, 0);
-	exit (0);
-	return 0;
+	return 0; /* -> exit(0) */
 }

@@ -81,7 +81,7 @@ static void setmode(struct _proto *proto, enum Pmode mode)
 	case P_LISTEN : x = "listen" ; break;
 	case P_CONN   : x = "connect"; break;
 	}
-if(proto->mode != mode) printf("Switch mode to %s, talk %d\n",x,proto->talker);
+if(proto->mode != mode) printf("%sSwitch mode to %s, talk %d\n",KERN_DEBUG,x,proto->talker);
 	proto->mode = mode;
 }
 
@@ -92,7 +92,7 @@ proto_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 
 	if (q->q_ptr) {
 		if (0)
-			printf ("Protocol: already open?\n");
+			printf ("%sProtocol: already open?\n",KERN_DEBUG);
 		return 0;
 	}
 	proto = malloc(sizeof(*proto));
@@ -133,7 +133,7 @@ static void mm_reply (struct _proto *proto, queue_t * q, mblk_t * mp, int err)
 		mblk_t *mq = allocb (err ? 17 : 9, BPRI_HI);
 
 		if (mq == NULL) {
-			printf("* NoMem m_reply %d\n",err);
+			printf("%s* NoMem m_reply %d\n",KERN_DEBUG,err);
 			freemsg (mq);
 			return;
 		}
@@ -722,7 +722,7 @@ proto_wsrv (queue_t * q)
 	int realq = 1;
 
 	while ((mp = getq (q)) != NULL || (realq = 0) || (mp = S_dequeue(&proto->write_delay)) != NULL) {
-if(!realq)printf("FromDel %p\n", &proto->write_delay);
+if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 		switch (DATA_TYPE(mp)) {
 		case MSG_PROTO:
 			freemsg (mp);
@@ -900,7 +900,7 @@ if(!realq)printf("FromDel %p\n", &proto->write_delay);
 
 				iocb = (struct iocblk *) mp->b_rptr;
 
-				if(0)printf("Proto IOC %x\n",iocb->ioc_cmd);
+				if(0)printf("%sProto IOC %x\n",KERN_DEBUG,iocb->ioc_cmd);
 				switch (iocb->ioc_cmd) {
 #if 1 /* ndef linux */
 #ifdef TCGETA
@@ -1046,7 +1046,7 @@ if(!realq)printf("FromDel %p\n", &proto->write_delay);
 						int ms;
 
 						if (mp->b_cont == NULL || iocb->ioc_count != sizeof (struct termios)) {
-							printf("termios: want %d, got %d\n",sizeof(struct termios),iocb->ioc_count);
+							printf("%stermios: want %d, got %d\n",KERN_DEBUG,sizeof(struct termios),iocb->ioc_count);
 							goto iocnak;
 						}
 						ms = splstr ();
@@ -1214,7 +1214,7 @@ proto_close (queue_t * q, int dummy)
 
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
-if(0)printf("FlushDel %p\n", &proto->write_delay);
+if(0)printf("%sFlushDel %p\n",KERN_DEBUG, &proto->write_delay);
 	S_flush (&proto->write_delay);
 
 	proto->qptr = NULL;

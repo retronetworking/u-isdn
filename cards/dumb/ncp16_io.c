@@ -3,22 +3,22 @@ inline static void PostIRQ(struct _dumb * dumb)
 }
 
 inline static Byte InISAC(struct _dumb * dumb, char offset) {
-	ByteOut(dumb->ioaddr+1,offset);
-	return ByteIn(dumb->ioaddr+2);
+	ByteOut(dumb->info.ioaddr+1,offset);
+	return ByteIn(dumb->info.ioaddr+2);
 }
 inline static void OutISAC(struct _dumb * dumb, char offset, Byte data) {
-	ByteOut(dumb->ioaddr+1,offset);
-	ByteOut(dumb->ioaddr+2,data);
+	ByteOut(dumb->info.ioaddr+1,offset);
+	ByteOut(dumb->info.ioaddr+2,data);
 }
 
 inline static Byte InHSCX(struct _dumb * dumb, unsigned char hscx, char offset) {
-	ByteOut(dumb->ioaddr+1,offset+((hscx&1)?0x80:0xC0));
-	return ByteIn(dumb->ioaddr+2);
+	ByteOut(dumb->info.ioaddr+1,offset+((hscx&1)?0x80:0xC0));
+	return ByteIn(dumb->info.ioaddr+2);
 }
 
 inline static void OutHSCX(struct _dumb * dumb, unsigned char hscx, char offset, Byte what) {
-	ByteOut(dumb->ioaddr+1,offset+((hscx&1)?0x80:0xC0));
-	ByteOut(dumb->ioaddr+2,what);
+	ByteOut(dumb->info.ioaddr+1,offset+((hscx&1)?0x80:0xC0));
+	ByteOut(dumb->info.ioaddr+2,what);
 }
 inline static Byte Slot(struct _dumb * dumb, unsigned char hscx) {
 	printf(" Slot %d: ",hscx);
@@ -30,25 +30,25 @@ static int Init(struct _dumb * dumb) {
 	long flags;
 	char iflag;
 
-	if(dumb->ioaddr == 0)
+	if(dumb->info.ioaddr == 0)
 		return -EINVAL;
 	dumb->numHSCX = 2;
 	save_flags(flags);
 	timout = jiffies+(HZ/20)+1;
-	ByteOut(dumb->ioaddr,0xF0); 
+	ByteOut(dumb->info.ioaddr,0xF0); 
 	sti();
 	while(jiffies <= timout) ;
-	ByteOut(dumb->ioaddr,0xE0); 
+	ByteOut(dumb->info.ioaddr,0xE0); 
 	timout = jiffies+(HZ/20)+1;
 	while(jiffies <= timout) ;
 	restore_flags(flags);
-	switch(ByteIn(dumb->ioaddr) & 0xE0) {
+	switch(ByteIn(dumb->info.ioaddr) & 0xE0) {
 	case 0: break;
 	default:
-		printf (" unknown card code %d ",ByteIn(dumb->ioaddr) >> 5);
+		printf (" unknown card code %d ",ByteIn(dumb->info.ioaddr) >> 5);
 		return -ENXIO;
 	}
-	switch(dumb->irq) {
+	switch(dumb->info.irq) {
 	case 3: iflag = 0; break;
 	case 5: iflag = 4; break;
 	case 7: iflag = 2; break;
@@ -59,10 +59,10 @@ static int Init(struct _dumb * dumb) {
 	case 15:iflag = 3; break;
 	case 0: iflag = 7; break;
 	default:
-		printf (" impossible irq %d ",dumb->irq);
+		printf (" impossible irq %d ",dumb->info.irq);
 		return -EINVAL;
 	}
-	ByteOut(dumb->ioaddr,(iflag<<5));
+	ByteOut(dumb->info.ioaddr,(iflag<<5));
 	return 0;
 }
 
@@ -108,7 +108,7 @@ static void InitHSCX_(struct _dumb * dumb, unsigned char hscx)
 
 static int ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 {
-	unsigned long ms = SetSPL(dumb->ipl);
+	unsigned long ms = SetSPL(dumb->info.ipl);
 	
 	if(dumb->chan[0].m_in != NULL) {
 		freemsg(dumb->chan[0].m_in);
@@ -122,7 +122,7 @@ static int ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 
 	switch(mode) {
 	case M_OFF:
-		printk(KERN_DEBUG "CIX0 0x3F\n");
+		printk("%sCIX0 0x3F\n",KERN_DEBUG );
 		ByteOutISAC(dumb,CIX0,0x3F);
 		if(dumb->polled>0) isdn2_new_state(&dumb->card,0);
 		dumb->chan[0].mode = mode;
@@ -130,10 +130,10 @@ static int ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 	case M_STANDBY:
 		if(dumb->chan[0].mode != M_STANDBY) {
 			ByteOutISAC(dumb,MODE,0xCA);
-			printk(KERN_DEBUG "CIX0 0x03\n");
+			printk("%sCIX0 0x03\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x03);
 		}
-else printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
+else printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 		ByteOutISAC(dumb,MASK,0x00);
 		dumb->chan[0].mode = mode;
 		dumb->chan[0].listen = 1;
@@ -142,10 +142,10 @@ else printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
 		ByteOutISAC(dumb,MODE,0xCA);
 		ByteOutISAC(dumb,MASK,0x00);
 		if(dumb->chan[0].mode != M_HDLC) {
-			printk(KERN_DEBUG "CIX0 0x27\n");
+			printk("%sCIX0 0x27\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x27);
 		} else {
-printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
+printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 			if(dumb->polled>0) isdn2_new_state(&dumb->card,1);
 		}
 #if 0
@@ -166,7 +166,7 @@ printk(KERN_DEBUG "NoCIX0 %d\n",dumb->chan[0].mode);
 
 static int HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte listen)
 {
-	unsigned long ms = SetSPL(dumb->ipl);
+	unsigned long ms = SetSPL(dumb->info.ipl);
     if(dumb->chan[hscx].m_in != NULL) {
         freemsg(dumb->chan[hscx].m_in);
         dumb->chan[hscx].m_in = dumb->chan[hscx].m_in_run = NULL;

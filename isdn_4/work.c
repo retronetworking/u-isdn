@@ -6,8 +6,9 @@
  */
 
 #include "master.h"
+#include "isdn_12.h"
 
-
+/* Handle dead processes */
 void
 deadkid (void)
 {
@@ -69,6 +70,7 @@ deadkid (void)
 }
 
 
+/* Push protocols onto stream */
 int
 pushprot (conngrab cg, int minor, char update)
 {
@@ -84,7 +86,7 @@ pushprot (conngrab cg, int minor, char update)
 		break;
 	}
 	if (prot == NULL)
-		return ENOENT;
+		return -ENOENT;
 	if(update) 
 		cg->flags = (cg->flags & ~F_SETINITIAL) | F_SETLATER;
 	else
@@ -93,8 +95,7 @@ pushprot (conngrab cg, int minor, char update)
 		char *sp1, *sp2;
 		char *sx;
 
-		if(!update) {
-			mblk_t *mj = allocb (40 + strlen (prot->args), BPRI_LO);
+		mblk_t *mj = allocb (60 + strlen (prot->args), BPRI_LO);
 		int len;
 		mods = prot->args;
 
@@ -102,17 +103,22 @@ pushprot (conngrab cg, int minor, char update)
 		m_putsx (mj, ARG_MINOR);
 		m_puti (mj, minor);
 		m_putdelim (mj);
+		if(update)
+			m_putid (mj, PROTO_UPDATEMODLIST);
+		else
 			m_putid (mj, PROTO_MODLIST);
+		m_putsx (mj, ARG_MODE); /* set card mode */
+		m_putsz (mj, prot->arg);
 		m_putdelim (mj);
 		m_putsz(mj, mods);
 		len = mj->b_wptr - mj->b_rptr;
 		DUMPW (mj->b_rptr, len);
-			(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, &len, 1);
+		(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
 		freeb (mj);
-		}
+
 		sx = (char *)malloc (strlen (prot->args) + 5 + strlen (PROTO_NAME));
 		if (sx == NULL)
-			return ENOMEM;
+			return -ENOMEM;
 		sprintf (sx, " %s %s", prot->args, PROTO_NAME);
 		sp1 = sx;
 		while (*sp1 != '\0' && !isspace (*sp1))
@@ -129,7 +135,7 @@ pushprot (conngrab cg, int minor, char update)
 				*sp2++ = '\0';
 			if ((mi = allocb (256, BPRI_MED)) == NULL) {
 				free (sx);
-				return ENOMEM;
+				return -ENOMEM;
 			}
 			for (cm = cf_MP; cm != NULL; cm = cm->next) {
 				ushort_t id;
@@ -209,7 +215,7 @@ pushprot (conngrab cg, int minor, char update)
 			int len;
 
 			if (mj == NULL)
-				return ENOMEM;
+				return -ENOMEM;
 			m_putid (mj, CMD_PROT);
 			m_putsx (mj, ARG_MINOR);
 			m_puti (mj, minor);
@@ -217,7 +223,7 @@ pushprot (conngrab cg, int minor, char update)
 			m_putc (mj, PROTO_MODE);
 			len = mj->b_wptr - mj->b_rptr;
 			DUMPW (mj->b_rptr, len);
-			(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, &len, 1);
+			(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
 			freeb (mj);
 		}
 
@@ -226,12 +232,21 @@ pushprot (conngrab cg, int minor, char update)
 }
 
 
+/* Set ISDN card mode */
 int
 pushcardprot (conngrab cg, int minor)
 {
 	cf prot;
 	cf cmod = NULL;
+	int num = 0; /* Grrr, GCC */
+	struct isdncard *card;
 
+	for(card = isdn4_card; card != NULL; card = card->next) {
+		if(wildmatch(cg->card,card->name))
+			break;
+	}
+	if(card == NULL)
+		return -ENOENT;
 	for (prot = cf_ML; prot != NULL; prot = prot->next) {
 		if(!matchflag(cg->flags,prot->type)) continue;
 		if (!wildmatch (cg->site, prot->site)) continue;
@@ -239,38 +254,46 @@ pushcardprot (conngrab cg, int minor)
 		if (!wildmatch (cg->card, prot->card)) continue;
 		if (!classmatch (cg->cclass, prot->cclass)) continue;
 
+		if(card->cap & CHM_INTELLIGENT) {
+			num = 1;
+		} else {
 			for (cmod = cf_CM; cmod != NULL; cmod = cmod->next) {
 				if (!wildmatch (cg->card, cmod->card)) continue;
 				if (!wildmatch(prot->arg,cmod->arg)) continue;
 				break;
 			}
-		if (cmod != NULL)
+			if (cmod == NULL)
+				return -ENOENT;
+			num = cmod->num;
 			break;
 		}
+	}
 	if (prot == NULL) 
-		return ENOENT;
+		return -ENOENT;
+	
 	if (minor != 0) {
 		mblk_t *mj = allocb (32, BPRI_LO);
 		int len;
 
 		if (mj == NULL)
-			return ENOMEM;
+			return -ENOMEM;
 		m_putid (mj, CMD_CARDSETUP);
 		m_putsx (mj, ARG_MINOR);
 		m_puti (mj, minor);
 		m_putdelim (mj);
 		m_putc (mj, PROTO_MODE);
-		m_puti (mj, cmod->num);
+		m_puti (mj, num);
 		m_puti (mj, prot->num);
 		len = mj->b_wptr - mj->b_rptr;
 		DUMPW (mj->b_rptr, len);
-		(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, &len, 1);
+		(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
 		freeb (mj);
 	}
 	return 0;
 }
 
 
+/* Startup a connection... */
 struct conninfo *
 startconn(conngrab cg, int fminor, int connref, char **ret)
 {
@@ -341,6 +364,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 	}
 	if(conn == NULL) {
 		dropgrab(cg);
+		*ret = "Internal error: Connection not found";
 		return NULL;
 	}
 
@@ -490,7 +514,6 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
  * Start a new program.
  * - if foo is NULL (and conn isn't), start a subprogram.
  */
-
 char *
 runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 {
@@ -778,7 +801,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				if(conn->cg->protocol != NULL)
 					putenv2 ("PROTOCOL", conn->cg->protocol);
 				if(conn->cg->cclass != NULL)
-					putenv2 ("CLASS", conn->cg->cclass);
+					putenv2 ("CLASS", strippat(conn->cg->cclass));
 				if(conn->cg->nr != NULL)
 					putenv2 ("PHONE", conn->cg->nr);
 				if(conn->cg->lnr != NULL)
@@ -824,7 +847,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			else
 				(*arg)++;
 			alarm(0);
-			execv (ap, arg);
+			execvp (ap, arg);
 			syslog (LOG_ERR, "Could not execute %s for %s/%s: %m", *arg,cg->site,cg->protocol);
 			if (cfr != NULL && cg != NULL)
 				write (pip[1], "EXEC", 4);
@@ -894,9 +917,6 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 	syslog (LOG_INFO, "exec %x:%x %d %s/%s %s", dev, dev2, pid, cfr->site,cfr->protocol, cfr->args);
 	printf ("* PID %d\n", pid);
 
-	if (conn != NULL) {
-	}
-
 	if(prog != NULL) {
 		prog->next = conn->run;
 		conn->run = prog;
@@ -916,7 +936,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			m_puti (&yy, conn->minor);
 			xlen = yy.b_wptr - yy.b_rptr;
 			DUMPW (yy.b_rptr, xlen);
-			(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 			yy.b_wptr = yy.b_rptr;
 
 			if (conn->fminor != 0 && conn->fminor != conn->minor) {
@@ -925,7 +945,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				m_puti (&yy, conn->fminor);
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (yy.b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 				yy.b_wptr = yy.b_rptr;
 			}
 			m_putid (&yy, CMD_PROT);
@@ -943,7 +963,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 
 			xlen = yy.b_wptr - yy.b_rptr;
 			DUMPW (yy.b_rptr, xlen);
-			(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 			yy.b_wptr = yy.b_rptr;
 
 			if(conn->fminor != 0 && conn->fminor != conn->minor) {
@@ -957,11 +977,13 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				m_putsx (&yy, PROTO_ONLINE);
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (yy.b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 				yy.b_wptr = yy.b_rptr;
 			}
 
 			if(cg != NULL && (cg->flags & (F_INCOMING|F_OUTGOING))) {
+				char *msg = NULL;
+
 				cg->refs++;
 				dropgrab(conn->cg);
 				conn->cg = cg;
@@ -973,10 +995,10 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 					else
 						cg->delay = 0;
 				}
-				if(startconn(conn->cg,0,0, NULL) == conn) 
+				if(startconn(conn->cg,0,0, &msg) == conn) 
 					setconnstate(conn,c_going_up);
 				else {
-					syslog(LOG_CRIT,"Bug in runprog->startconn for %s:%s",cg->site,cg->protocol);
+					syslog(LOG_CRIT,"Bug in runprog->startconn (%s) for %s:%s",msg ? msg : "(unknown reason)", cg->site,cg->protocol);
 					dropgrab(conn->cg);
 					conn->cg = NULL;
 					chkone(conn);
@@ -990,7 +1012,7 @@ printf("NoProtoEnable NotPushprot\n");
 					m_puti (&yy, conn->minor);
 					xlen = yy.b_wptr - yy.b_rptr;
 					DUMPW (yy.b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 					conn->minor = 0;
 					if(conn->pid == 0)
 						dropconn(conn);
@@ -1006,7 +1028,7 @@ printf("NoProtoEnable NotPushprot\n");
 					m_putid(&yy,PROTO_ENABLE);
 					xlen = yy.b_wptr - yy.b_rptr;
 					DUMPW (yy.b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 				}
 else printf("NoProtoEnable NotPermanent\n");
 				cg->card = str_enter("*"); /* cosmetic */
@@ -1021,6 +1043,8 @@ else printf("NoProtoEnable NotPermanent\n");
 	return NULL;
 }
 
+
+/* Kill applicable subprograms */
 void
 kill_rp(struct conninfo *conn, char whatnot)
 {
@@ -1053,6 +1077,7 @@ kill_rp(struct conninfo *conn, char whatnot)
 	}
 }
 
+/* Start applicable subprograms. */
 void
 run_rp(struct conninfo *conn, char what)
 {
@@ -1099,6 +1124,8 @@ run_rp(struct conninfo *conn, char what)
 	}
 }
 
+
+/* Find the next program to run */
 void
 run_now(void *nix)
 {
@@ -1184,6 +1211,8 @@ printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 	do_run_now = 0;
 }
 
+
+/* Any programs still running? */
 int
 has_progs(void)
 {
@@ -1201,6 +1230,7 @@ has_progs(void)
 	return 0;
 }
 
+/* Kill one program / all programs */
 void
 kill_progs(struct conninfo *xconn)
 {
@@ -1227,7 +1257,7 @@ kill_progs(struct conninfo *xconn)
 
 			xlen = mb->b_wptr - mb->b_rptr;
 			DUMPW (mb->b_rptr, xlen);
-			(void) strwrite (xs_mon, mb->b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, mb->b_rptr, xlen, 1);
 			freemsg(mb);
 			conn->minor = 0;
 			if(xconn != NULL)

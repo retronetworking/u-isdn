@@ -9,6 +9,7 @@
 #include <sys/param.h>
 #include "prot_1TR6_0.h"
 #include "prot_1TR6_common.h"
+#include "sapi.h"
 
 #define RUN_N0_T308 01
 #define RUN_N0_T3D1 02
@@ -83,7 +84,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 #if 0
 	QD_INIT (data, len) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 #endif
 	switch (msgtype) {
@@ -221,6 +222,6 @@ killconn (isdn3_conn conn, char force)
 
 struct _isdn3_prot prot_1TR6_0 =
 {
-		NULL, PD_N0,
+		NULL, SAPI_PHONE_1TR6_0,
 		NULL, &chstate, NULL, &recv, NULL, &sendcmd, &killconn, NULL,
 };

@@ -16,10 +16,12 @@
 #include "ip_mon.h"
 #include <sys/stropts.h>
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #ifdef linux
 #include <linux/fs.h>
 #endif
+#include <sys/uio.h>
 
 #if 0
 #define FD_SETSIZE      (sizeof(fd_set) * 8)
@@ -75,6 +77,9 @@ set_inval (unsigned long inv)
 	if (next_inval >= MAXINVAL)
 		next_inval = 0;
 }
+
+int tostr (char *bf, struct _monitor *mon);
+int tomon (char *bf, struct _monitor *mon);
 
 int main (int argc, char *argv[])
 {
@@ -145,7 +150,7 @@ int main (int argc, char *argv[])
 
 	openlog (progname, LOG_PID, LOG_USER);
 	if(logtime) 
-		printf("*%ld\n",lastpri = time(NULL));
+		printf("*%d\n",lastpri = time(NULL));
 #ifdef linux
 	{
 		FILE * fd;
@@ -174,8 +179,6 @@ int main (int argc, char *argv[])
 			if(monitordev == 0)
 				syslog(LOG_CRIT, "No IP monitor driver found!");
 			else {
-				int i;
-
 				unlink(IP_MON_NAME);
 				mknod (IP_MON_NAME, S_IFCHR | S_IRUSR | S_IWUSR, MKDEV(monitordev,0));
 				syslog(LOG_DEBUG,"ISDN: monitor: major number %d\n",monitordev);
@@ -266,7 +269,7 @@ int main (int argc, char *argv[])
 int
 tomon (char *bf, struct _monitor *mon)
 {
-	struct sockaddr_in server;
+	/* struct sockaddr_in server; */
 	struct hostent *hp, *gethostbyname ();
 
 	char a[256], b[256];
@@ -305,11 +308,12 @@ void alju(int nix) { longjmp(jp,1); }
 int
 tostr (char *bf, struct _monitor *mon)
 {
-	struct sockaddr_in server;
 	struct hostent *hp;
 	struct protoent *proto;
 	struct servent *serv1, *serv2;
 	char a[256], b[256];
+	static char *bfx;
+	bfx = bf; /* to prevent longjmp clobber */
 
 	if (mon->sofar_p == 0 && mon->sofar_b == 0)
 		return -1;
@@ -346,10 +350,10 @@ tostr (char *bf, struct _monitor *mon)
 	alarm(0);
 	if(logtime) {
 		unsigned long thispri = time(NULL);
-		bf += sprintf(bf,"%d:",thispri-lastpri);
+		bfx += sprintf(bfx,"%ld:",thispri-lastpri);
 		lastpri=thispri;
 	}
-	bf += sprintf (bf, "%s %s %d %d  ", a, b, mon->sofar_p, mon->sofar_b);
+	bfx += sprintf (bfx, "%s %s %d %ld  ", a, b, mon->sofar_p, mon->sofar_b);
 	if(!notprotocol && (proto = getprotobynumber(mon->p_protocol)) != NULL) {
 		if((serv1 = getservbyport((mon->p_local), proto->p_name)) != NULL)
 			strcpy(a, serv1->s_name);
@@ -359,9 +363,9 @@ tostr (char *bf, struct _monitor *mon)
 			strcpy(b, serv2->s_name);
 		else
 			sprintf(b,"_%u",ntohs(mon->p_remote));
-		bf += sprintf (bf, "%s %s %s",proto->p_name,a,b);
+		bfx += sprintf (bfx, "%s %s %s",proto->p_name,a,b);
 	} else {
-		bf += sprintf (bf, "_%d _%u _%u", mon->p_protocol, ntohs(mon->p_local), ntohs(mon->p_remote));
+		bfx += sprintf (bfx, "_%d _%u _%u", mon->p_protocol, ntohs(mon->p_local), ntohs(mon->p_remote));
 	}
 	return 0;
 }

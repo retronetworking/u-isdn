@@ -7,7 +7,7 @@
 
 #include "master.h"
 
-
+/* Textual representation of a connection state */
 char *state2str(CState state) {
 	switch(state) {
 	case c_up: return "up";
@@ -21,7 +21,7 @@ char *state2str(CState state) {
 	}
 }
 
-
+/* Textual representation of a L2<->3 information element */
 char *HdrName (int hdr)
 {
 	switch(hdr) {
@@ -48,6 +48,7 @@ char *HdrName (int hdr)
 	}
 }
 
+/* Textual representation of flags */
 char *FlagInfo(int flag)
 {
 	static char fbuf[30];
@@ -62,7 +63,7 @@ char *FlagInfo(int flag)
 	if (flag & F_FASTREDIAL)   strcat(fbuf, ":fr");
 	if (flag & F_PERMANENT)    strcat(fbuf, ":dP");
 	if (flag & F_LEASED)       strcat(fbuf, ":dL");
-	if (flag & F_IGNOREBUSY)   strcat(fbuf, ":ib");
+	if (flag & F_CHANBUSY)     strcat(fbuf, ":ib");
 	if (flag & F_NRCOMPLETE)   strcat(fbuf, ":nc");
 	if (flag & F_LNRCOMPLETE)  strcat(fbuf, ":lc");
 	if (flag & F_INCOMING)     strcat(fbuf, ":in");
@@ -78,6 +79,8 @@ char *FlagInfo(int flag)
 		strcpy(fbuf,"-");
 	return fbuf;
 }
+
+/* Textual representation of ISDN causes */
 const char *CauseInfo(int cause, char *pri)
 {
 	if (cause == 999999) return "-";

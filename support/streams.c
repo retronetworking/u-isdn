@@ -84,6 +84,7 @@ mblk_t * allocb (ushort_t size, ushort_t pri)
 	databp = (dblk_t *)malloc (sizeof (dblk_t)+size+1);
 	if (databp == NULL)
 		return NULL;
+	((streamchar *)databp)[sizeof (dblk_t)+size] = 0;
 	bp = (mblk_t *)malloc (sizeof (mblk_t));
 	if (bp == NULL) {
 		free (databp);
@@ -216,8 +217,11 @@ void freeb (mblk_t * bp)
 		return;
 	}
 #endif
-	if (!--bp->b_datap->db_ref) 
+	if (!--bp->b_datap->db_ref)  {
+		bp->deb_file = deb_file;
+		bp->deb_line = deb_line;
 		free (bp->b_datap);
+	}
 	free (bp);
 	chkall();
 	splx (s);
@@ -378,7 +382,7 @@ strclose (struct xstream *xp, int flag)
  */
 
 int
-strread (struct xstream *xp, streamchar *data, int *len, int usehq)
+strread (struct xstream *xp, streamchar *data, int len, int usehq)
 {
 	mblk_t *bp, *nbp;
 	queue_t *q;
@@ -391,10 +395,9 @@ strread (struct xstream *xp, streamchar *data, int *len, int usehq)
 	else
 		q = &xp->rl;
 
-	/* loop terminates when *len == 0 */
+	/* loop terminates when len == 0 */
 	for (;;) {
 		if ((bp = getq (q)) == NULL) {
-			*len = 0;
 			return 0;
 		}
 		runqueues ();
@@ -412,17 +415,16 @@ strread (struct xstream *xp, streamchar *data, int *len, int usehq)
 					putbq (q, bp);
 				else
 					freemsg (bp);
-				*len = nlen;
-				return 0;
+				return nlen;
 			}
 			rflg = 1;
-			while (bp && *len) {
-				if ((n = min (*len, bp->b_wptr - bp->b_rptr)) > 0) {
+			while (bp && len) {
+				if ((n = min (len, bp->b_wptr - bp->b_rptr)) > 0) {
 					bcopy (bp->b_rptr, data, n);
 					bp->b_rptr += n;
 					data += n;
 					nlen += n;
-					*len -= n;
+					len -= n;
 				}
 				while (bp && (bp->b_rptr >= bp->b_wptr)) {
 					nbp = bp;
@@ -434,19 +436,16 @@ strread (struct xstream *xp, streamchar *data, int *len, int usehq)
 			if (bp)
 				putbq (q, bp);
 
-			if (*len && !usehq)
+			if (len && !usehq)
 				printf ("NotEnoughData\n");
-			*len = nlen;
-			return 0;
+			return nlen;
 
 		case M_HANGUP:
-			*len = 0;
 			putbq (q, bp);
 			return 0;
 		case M_ERROR:
-			*len = 0;
 			putbq (q, bp);
-			return *bp->b_rptr;
+			return -*bp->b_rptr;
 		default:
 			/*
 			 * Garbage on stream head read queue
@@ -522,7 +521,11 @@ strrput (queue_t * q, mblk_t * bp)
 
 
 int
-strwrite (struct xstream *xp, streamchar * data, int *len, int usehq)
+#ifdef CONFIG_DEBUG_STREAMS
+deb_strwrite (const char *deb_file, unsigned int deb_line, struct xstream *xp, streamchar * data, int len, int usehq)
+#else
+strwrite (struct xstream *xp, streamchar * data, int len, int usehq)
+#endif
 {
 	mblk_t *mp;
 	queue_t *q;
@@ -533,21 +536,28 @@ strwrite (struct xstream *xp, streamchar * data, int *len, int usehq)
 	else
 		q = &xp->wl;
 
-	mp = allocb (*len, BPRI_LO);
+#ifdef CONFIG_DEBUG_STREAMS                                         
+	mp = deb_allocb (deb_file,deb_line, len, BPRI_LO);
+#else
+	mp = allocb (len, BPRI_LO);
+#endif
 	if (mp == NULL)
-		return ENOMEM;
-	bcopy (data, mp->b_wptr, *len);
-	mp->b_wptr += *len;
-	*len = 0;
+		return -ENOMEM;
+	bcopy (data, mp->b_wptr, len);
+	mp->b_wptr += len;
 
 	(*q->q_next->q_qinfo->qi_putp) (q->q_next, mp);
 	runqueues ();
-	return 0;
+	return len;
 }
 
 
 int
+#ifdef CONFIG_DEBUG_STREAMS
+deb_strwritev (const char *deb_file,unsigned int deb_line, struct xstream *xp, struct iovec *iov, int iovlen, int usehq)
+#else
 strwritev (struct xstream *xp, struct iovec *iov, int iovlen, int usehq)
+#endif
 {
 	mblk_t *mp, *bp = NULL;
 	queue_t *q;
@@ -559,11 +569,15 @@ strwritev (struct xstream *xp, struct iovec *iov, int iovlen, int usehq)
 		q = &xp->wl;
 
 	while (iovlen--) {
+#ifdef CONFIG_DEBUG_STREAMS
+		mp = deb_allocb (deb_file,deb_line, iov->iov_len, BPRI_LO);
+#else
 		mp = allocb (iov->iov_len, BPRI_LO);
+#endif
 		if (mp == NULL) {
 			if (bp != NULL)
 				freemsg (bp);
-			return ENOMEM;
+			return -ENOMEM;
 		}
 		bcopy (iov->iov_base, mp->b_wptr, iov->iov_len);
 		mp->b_wptr += iov->iov_len;
@@ -638,7 +652,7 @@ strioctl (struct xstream *xp, long cmd, long arg)
 			 * find module in fmodsw
 			 */
 			if ((i = findmod (mname)) < 0) {
-				return EINVAL;
+				return -EINVAL;
 			}
 			/* look downstream to see if module is there */
 			for (q = q->q_next;
@@ -662,13 +676,13 @@ strioctl (struct xstream *xp, long cmd, long arg)
 			 */
 			strncpy (mname, (char *) arg, FMNAMESZ + 1);
 			if ((i = findmod (mname)) < 0) {
-				return EINVAL;
+				return -EINVAL;
 			}
 			/*
 			 * push new module and call its open routine via qattach
 			 */
 			if (!qattach (fmod_sw[i].f_str, RD (q), 0,0))
-				return ENXIO;
+				return -ENXIO;
 
 			/*
 			 * If flow control is on, don't break it - enable first back queue
@@ -698,7 +712,7 @@ strioctl (struct xstream *xp, long cmd, long arg)
 			qdetach (RD (q->q_next), 1, 0);
 			return 0;
 		}
-		return EINVAL;
+		return -EINVAL;
 
 
 
@@ -714,7 +728,7 @@ strioctl (struct xstream *xp, long cmd, long arg)
 					strncpy ((char *) arg, fmod_sw[i].f_name, FMNAMESZ + 1);
 					return 0;
 				}
-			return ENOENT;
+			return -ENOENT;
 		}
 
 
@@ -726,10 +740,10 @@ strioctl (struct xstream *xp, long cmd, long arg)
 		 * read/write queue
 		 */
 		if (arg & ~FLUSHRW) {
-			return EINVAL;
+			return -EINVAL;
 		}
 		if (!putctl1 (q->q_next, M_FLUSH, arg))
-			return ENOMEM;
+			return -ENOMEM;
 
 		runqueues ();
 		return 0;

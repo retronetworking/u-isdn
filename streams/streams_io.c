@@ -47,6 +47,8 @@ static void stream_rput (queue_t *, mblk_t *);
 static void stream_wsrv (queue_t *);
 static void stream_rsrv (queue_t *);
 
+int fasync_helper(struct inode * inode, struct file * filp, int on, struct fasync_struct **fapp);
+
 static struct stream_header *first_stream = NULL;
 /**
  * streams_open
@@ -937,15 +939,15 @@ static int xstream_write(struct stream_header *p_stream, int fromuser, const cha
 			if (p_msg != NULL) {
 				if (p_stream->flag & (SF_MSGDISCARD | SF_MSGKEEP)) {
 					freemsg (p_msg);
-					printk(KERN_DEBUG "ExWrite 8\n");
+					printk("%sExWrite 8\n",KERN_DEBUG );
 					return -ENOSR;
 				} else {
 					putq (p_stream->write_queue, p_msg);
-					printk(KERN_DEBUG "ExWriteS %d\n",bytes);
+					printk("%sExWriteS %d\n",KERN_DEBUG,bytes);
 					return bytes;
 				}
 			} else {
-				printk(KERN_DEBUG "ExWrite 9\n");
+				printk("%sExWrite 9\n",KERN_DEBUG );
 				return -ENOSR;
 			}
 		}
@@ -971,7 +973,7 @@ static int xstream_write(struct stream_header *p_stream, int fromuser, const cha
 	}
 
 	if(bytes <= 0) 	
-		printk(KERN_DEBUG "ExWriteT %d\n",bytes);
+		printk("%sExWriteT %d\n",KERN_DEBUG,bytes);
 	return bytes;
 }
 
@@ -982,19 +984,19 @@ streams_write (struct inode *inode, struct file *file, const char *buf, int coun
 	unsigned long s;
 
 	if ((p_stream = (struct stream_header *)inode->u.generic_ip) == NULL) {
-		printk(KERN_DEBUG "ExWrite 7\n");
+		printk("%sExWrite 7\n",KERN_DEBUG );
 		return -ENXIO;
 	}
 	if(p_stream->magic != STREAM_MAGIC) {
-		printk(KERN_DEBUG "ExWrite 8\n");
+		printk("%sExWrite 8\n",KERN_DEBUG );
 		return -EIO;
 	}
 
 	if (p_stream->error < 0) {
-		printk(KERN_DEBUG "ExWrite 5\n");
+		printk("%sExWrite 5\n",KERN_DEBUG );
 		return p_stream->error;
 	} else if (p_stream->flag & SF_HANGUP)  {
-		printk(KERN_DEBUG "ExWrite 6\n");
+		printk("%sExWrite 6\n",KERN_DEBUG );
 		return -ENXIO;
 	}
 	/*
@@ -1006,7 +1008,7 @@ streams_write (struct inode *inode, struct file *file, const char *buf, int coun
 	while (!canput (p_stream->write_queue)) {
 		if (file->f_mode & O_NDELAY) {
 			splx(s);
-			printk(KERN_DEBUG "ExWrite 1\n");
+			printk("%sExWrite 1\n",KERN_DEBUG );
 			return -EAGAIN;
 		}
 
@@ -1014,17 +1016,17 @@ streams_write (struct inode *inode, struct file *file, const char *buf, int coun
 
 		if (p_stream->error < 0) {
 			splx(s);
-			printk(KERN_DEBUG "ExWrite 3\n");
+			printk("%sExWrite 3\n",KERN_DEBUG );
 			return p_stream->error;
 		}
 		if (p_stream->flag & SF_HANGUP) {
 			splx(s);
-			printk(KERN_DEBUG "ExWrite 4\n");
+			printk("%sExWrite 4\n",KERN_DEBUG );
 			return -ENXIO;
 		}
 		if (current->signal & ~current->blocked) {
 			splx(s);
-			printk(KERN_DEBUG "ExWrite 2\n");
+			printk("%sExWrite 2\n",KERN_DEBUG );
 			return -ERESTARTSYS;
 		}
 	}
@@ -1070,10 +1072,10 @@ stream_wsrv (queue_t * p_queue)
  */
 
 #ifdef CONFIG_DEBUG_STREAMS
-#define do_ioctl(a,b) deb_do_ioctl(__FILE__,__LINE__,a,b)
-int deb_do_ioctl (const char *deb_file, unsigned int deb_line, struct stream_header *p_stream, struct strioctl *strioctl_pb)
+#define do_ioctl(a,b,c) deb_do_ioctl(__FILE__,__LINE__,(a),(b),(c))
+int deb_do_ioctl (const char *deb_file, unsigned int deb_line, struct stream_header *p_stream, struct strioctl *strioctl_pb, unsigned long cmd)
 #else
-int do_ioctl (struct stream_header *p_stream, struct strioctl *strioctl_pb)
+int do_ioctl (struct stream_header *p_stream, struct strioctl *strioctl_pb, unsigned long cmd)
 #endif
 {
 	mblk_t *p_msg;
@@ -1099,7 +1101,7 @@ int do_ioctl (struct stream_header *p_stream, struct strioctl *strioctl_pb)
 	/*
 	 * Send down data, if any.
 	 */
-	if (ioctl_pb->ioc_count && (ioctl_pb->ioc_cmd & IOC_IN)) {
+	if (ioctl_pb->ioc_count && (cmd & IOC_IN)) {
 		mblk_t *p_cont = allocb (ioctl_pb->ioc_count, BPRI_HI);
 
 		if (p_cont == NULL) {
@@ -1213,7 +1215,7 @@ int do_ioctl (struct stream_header *p_stream, struct strioctl *strioctl_pb)
 		/*
 		 * Data returned?
 		 */
-		if ((ioctl_pb->ioc_cmd & IOC_OUT) && ioctl_pb->ioc_count) {
+		if ((cmd & IOC_OUT) && ioctl_pb->ioc_count) {
 			int count;
 			char *arg = strioctl_pb->ic_dp;
 
@@ -1279,7 +1281,7 @@ xstreams_ioctl (struct stream_header *p_stream, unsigned int cmd, unsigned long 
 	case TCSETSW:
 	case TCSETSF:
 		strioc.ic_len = sizeof(struct termios);
-		strioc.ic_cmd |= IOC_IN;
+		cmd |= IOC_IN;
 		goto doit;
 #endif
 #ifdef TCSETA
@@ -1287,25 +1289,25 @@ xstreams_ioctl (struct stream_header *p_stream, unsigned int cmd, unsigned long 
 	case TCSETAW:
 	case TCSETAF:
 		strioc.ic_len = sizeof(struct termio);
-		strioc.ic_cmd |= IOC_IN;
+		cmd |= IOC_IN;
 		goto doit;
 #endif
 #ifdef TCGETS
 	case TCGETS:
 		strioc.ic_len = sizeof(struct termios);
-		strioc.ic_cmd |= IOC_OUT;
+		cmd |= IOC_OUT;
 		goto doit;
 #endif
 #ifdef TCGETA
 	case TCGETA:
 		strioc.ic_len = sizeof(struct termio);
-		strioc.ic_cmd |= IOC_OUT;
+		cmd |= IOC_OUT;
 		goto doit;
 #endif
 #ifdef UIOCTTSTAT
 	case UIOCTTSTAT:
 		strioc.ic_len = 3;
-		strioc.ic_cmd |= IOC_OUT;
+		cmd |= IOC_OUT;
 		goto doit;
 #endif
 	default:
@@ -1323,11 +1325,13 @@ xstreams_ioctl (struct stream_header *p_stream, unsigned int cmd, unsigned long 
 		if (strioc.ic_len < 0 || strioc.ic_timout < TIMEOUT_INFINITE)
 			return -EINVAL;
 
+		cmd = strioc.ic_cmd;
+
 	  do_strioctl:
 		if (p_stream->flag & SF_HANGUP)
 			return -ENXIO;
 
-		error = do_ioctl (p_stream, &strioc);
+		error = do_ioctl (p_stream, &strioc, cmd);
 
 		if(cmd == I_STR) 
 			memcpy_tofs ((caddr_t) arg, &strioc, sizeof (struct strioctl));
@@ -1521,7 +1525,7 @@ static int streams_select(struct inode *inode, struct file *file, int sel_type, 
 	if (inode == NULL || (p_stream = (struct stream_header *)inode->u.generic_ip) == NULL 
 			|| p_stream->magic != STREAM_MAGIC) {
 #if 0 /* def CONFIG_DEBUG_STREAMS */
-		printf(KERN_EMERG "STREAMS SELECT inode %p, file %p, selTable %p!\n",inode,file,wait);
+		printf("%sSTREAMS SELECT inode %p, file %p, selTable %p!\n",KERN_EMERG,inode,file,wait);
 		sysdump(NULL,NULL,0xdeadbeef);
 #endif
 		return 1;

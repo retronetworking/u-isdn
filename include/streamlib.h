@@ -78,15 +78,15 @@ int putctlx1 (queue_t * q, char type, streamchar msg);
 
 #ifdef CONFIG_DEBUG_STREAMS
 
-#define pullupm(q,x) deb_pullupm(__FILE__,__LINE__,q,x)
+#define pullupm(q,x) deb_pullupm(__FILE__,__LINE__,(q),(x))
 mblk_t *deb_pullupm (const char *deb_file, unsigned int deb_line, mblk_t * mb, short what);
 
-#define putctlx(q,t) deb_putctlx(__FILE__,__LINE__,q,t)
-#define putctlx1(q,t,p) deb_putctlx1(__FILE__,__LINE__,q,t,p)
+#define putctlx(q,t) deb_putctlx(__FILE__,__LINE__,(q),(t))
+#define putctlx1(q,t,p) deb_putctlx1(__FILE__,__LINE__,(q),(t),(p))
 int deb_putctlx (const char *deb_file, unsigned int deb_line, queue_t * q, char type);
 int deb_putctlx1 (const char *deb_file, unsigned int deb_line, queue_t * q, char type, streamchar msg);
 
-#define putbqf(q,m) deb_putbqf(__FILE__,__LINE__,q,m)
+#define putbqf(q,m) deb_putbqf(__FILE__,__LINE__,(q),(m))
 void deb_putbqf (const char *deb_file, unsigned int deb_line, queue_t * q, mblk_t *mb);
 
 #endif							/* CONFIG_DEBUG_STREAMS */
@@ -112,18 +112,23 @@ int m_getlx (mblk_t * mb, ulong_t * id);
 int m_geti (mblk_t * mb, long *id);
 int m_getx (mblk_t * mb, ulong_t * id);
 int m_getstr (mblk_t * mb, char *str, int maxlen);
+int m_getstrlen (mblk_t * mb);
 int m_getc (mblk_t * mb, char *c);
 int m_gethex (mblk_t *mb, uchar_t *data, int len);
 int m_gethexlen (mblk_t *mb);
 
+
 #ifdef CONFIG_DEBUG_STREAMS
 void deb_m_reply (const char*, unsigned int, queue_t * q, mblk_t * mb, int err);
-#define m_reply(a,b,c) deb_m_reply(__FILE__,__LINE__,a,b,c)
+#define m_reply(a,b,c) deb_m_reply(__FILE__,__LINE__,(a),(b),(c))
 void deb_md_reply (const char*, unsigned int, queue_t * q, mblk_t * mb, int err);
-#define md_reply(a,b,c) deb_md_reply(__FILE__,__LINE__,a,b,c)
+#define md_reply(a,b,c) deb_md_reply(__FILE__,__LINE__,(a),(b),(c))
+mblk_t * deb_make_reply (const char*, unsigned int, int err);
+#define make_reply(a) deb_make_reply(__FILE__,__LINE__,(a))
 #else
 void m_reply (queue_t * q, mblk_t * mb, int err);
 void md_reply (queue_t * q, mblk_t * mb, int err);
+mblk_t * make_reply (int err);
 #endif
 
 #endif							/* _STREAMLIB_H */

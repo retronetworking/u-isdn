@@ -90,6 +90,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/skbuff.h>
+#include "kernel.h"
 
 #ifdef CONFIG_DEBUG_STREAMS
 int strl_debug = 1;
@@ -103,6 +104,7 @@ struct strl_local {
 	struct enet_statistics stats;
 	queue_t *q;
 	short offset;
+	unsigned short ethertype;
 #if 0
 #ifdef NEW_TIMEOUT
 	long timer;
@@ -144,7 +146,9 @@ strl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
 #if LINUX_VERSION_CODE < 66304 /* 1.3.0 */
 static unsigned short strl_type_trans (struct sk_buff *skb, struct device *dev)
 {
-  return htons(ETH_P_IP);
+	struct strl_local *lp = (struct strl_local *)dev->priv;
+
+	return lp->ethertype;
 }
 #endif
 
@@ -194,6 +198,14 @@ printk("Q NULL\n");
 		return -ENXIO;
 	}
 	
+#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
+	if(!lp->encap && (skb->protocol != lp->ethertype)) {
+		lp->stats.tx_dropped++;
+		dev_kfree_skb (skb, FREE_WRITE);
+		return 0;
+	}
+#endif
+
 	if(!canput(WR(lp->q)->q_next)) {
 /* printk("Queue full\n"); */
 		dev->tbusy = 1;
@@ -217,7 +229,7 @@ printk("No Buff\n");
 #if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 			*(ushort_t *)mb->b_rptr = skb->protocol;
 #else
-			*(ushort_t *)mb->b_rptr = htons(ETH_P_IP);
+			*(ushort_t *)mb->b_rptr = lp->ethertype;
 #endif
 		else if(lp->encap == ENCAP_PPP) {
 #if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
@@ -371,6 +383,11 @@ str_if_proto (queue_t * q, mblk_t * mp, char isdown)
 					goto err;
 				case PROTO_MODULE:
 					break;
+				case STRIF_ETHERTYPE:
+					if ((error = m_getx (mp, &z)) != 0)
+						goto err;
+					lp->ethertype = z;
+					break;
 				case STRIF_MTU:
 					if ((error = m_geti (mp, &z)) != 0)
 						goto err;
@@ -379,12 +396,18 @@ str_if_proto (queue_t * q, mblk_t * mp, char isdown)
 					dev->mtu = z;
 					break;
 				case PROTO_TYPE_NONE:
+					if((lp->encap != ENCAP_NONE) && (lp->offset >= 2))
+						lp->offset -= 2;
 					lp->encap = ENCAP_NONE;
 					break;
 				case PROTO_TYPE_ETHER:
+					if(lp->encap == ENCAP_NONE)
+						lp->offset += 2;
 					lp->encap = ENCAP_ETHER;
 					break;
 				case PROTO_TYPE_PPP:
+					if(lp->encap == ENCAP_NONE)
+						lp->offset += 2;
 					lp->encap = ENCAP_PPP;
 					break;
 				}
@@ -491,6 +514,7 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	netdev->mtu = 1500;
 	netdev->family = AF_INET;
 	netdev->pa_alen = sizeof(unsigned long);
+	lp->ethertype = htons(ETH_P_IP);
 
 	lp->q = q;
 	WR (q)->q_ptr = q->q_ptr = (caddr_t) netdev;
@@ -673,7 +697,7 @@ str_if_rsrv (queue_t *q)
 
 	struct device *dev = (struct device *)q->q_ptr;
 	struct strl_local *lp = (struct strl_local *)dev->priv;
-	ushort_t encap = htons(ETH_P_IP);
+	ushort_t encap = lp->ethertype;
 
 	while ((mp = getq (q)) != NULL) {
 		switch (DATA_TYPE(mp)) {
@@ -709,7 +733,7 @@ str_if_rsrv (queue_t *q)
 
 				skb = alloc_skb(len, GFP_ATOMIC);
 				if (skb == NULL) {
-					printk(KERN_INFO "%s: Memory squeeze, dropping packet.\n", dev->name);
+					printk("%s%s: Memory squeeze, dropping packet.\n", KERN_INFO,dev->name);
 					lp->stats.rx_dropped++;
 					putbqf(q,mp);
 					return;

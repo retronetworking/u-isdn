@@ -1,24 +1,19 @@
 #ifndef _PRIM_H
 #define _PRIM_H
 
-#ifdef linux
-#ifdef KERNEL
 #include <linux/config.h>
-#endif
-#include <linux/major.h>
 #include <linux/syscompat.h>
-#endif
-
 #include "config.h"
+#include "kernel.h"
+
 #include "msgtype.h"
 #include <sys/types.h>
 #include <sys/param.h>
 #ifdef linux
+#include <linux/major.h>
 #ifdef KERNEL
 #include <linux/syscompat.h>
-#include <linux/kernel.h>
 #else
-#include "kernel.h"
 #include <stdio.h> /* printf */
 #include <unistd.h>
 #include <stddef.h>

@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include "q_data.h"
 #include "phone_ETSI.h"
+#include "sapi.h"
 
 #undef HAS_SUSPEND
 
@@ -306,10 +307,10 @@ Xpr_setstate (isdn3_conn conn, uchar_t state, int deb_line)
 		timer (ET_T310, conn);
 		break;
 	case 6:
-		timer (ET_TALERT, conn);
+		ftimer (ET_TALERT, conn);
 		/* FALL THRU */
 	case 7:
-		timer (ET_TCONN, conn);
+		ftimer (ET_TCONN, conn);
 		break;
 	case 8:
 		timer (ET_T313, conn);
@@ -445,7 +446,7 @@ printf("FooL" ##s " is %d,%d\n",nlen,ilen); 						\
 					}												\
 					nlen -= ilen+2;									\
 					if((*qd_data & 0xFF) == (a)) {					\
-						int nlen = ilen;			\
+						int nlen __attribute__((unused)) = ilen;	\
 						qd_data += 2;								\
 						b;											\
 					} else {										\
@@ -747,11 +748,11 @@ report_ET_setup (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INCOMING);
 	conn_info (conn, mb);
@@ -772,11 +773,11 @@ report_ET_generic (isdn3_conn conn, uchar_t * data, int len, ushort_t id)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, id);
@@ -803,11 +804,11 @@ report_ET_user_info (isdn3_conn conn, uchar_t * data, int len)
 	int qd_len;
 	uchar_t *qd_data;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_ET_USER_INFO);
@@ -856,11 +857,11 @@ report_ET_conn (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_CONN);
 	conn_info (conn, mb);
@@ -884,11 +885,11 @@ report_ET_conn_ack (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_ET_CONN_ACK);
@@ -913,11 +914,11 @@ report_ET_stat (isdn3_conn conn, uchar_t * data, int len)
 	int err = 0;
 	char cval;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
-		return ENOMEM;
+		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
 	m_putid (mb, ID_ET_STAT);
@@ -961,7 +962,7 @@ Xreport_ET_terminate (isdn3_conn conn, uchar_t * data, int len, int deb_line)
 {
 	int err = 0;
 
-	mblk_t *mb = allocb (128, BPRI_MED);
+	mblk_t *mb = allocb (256, BPRI_MED);
 
 printf("\nET Terminate at %d.\n",deb_line);
 	if (mb == NULL) {
@@ -1056,7 +1057,7 @@ ET_T304 (isdn3_conn conn)
 					data = NULL;
 				} else {
 					*qd_d++ = 0x80;
-					*qd_d++ = 0x90; /* normal call clearing */
+					*qd_d++ = 0x80 | ET_TimerRecovery;
 					data->b_wptr += qd_len;
 				}
 			}
@@ -1089,8 +1090,25 @@ ET_T308 (isdn3_conn conn)
 	conn->timerflags &= ~RUN_ET_T308;
 	switch (conn->state) {
 	case 19:
-		/* DSS1: Retry! */
+		{
+			mblk_t *data;
+			data = allocb(16,BPRI_MED);
+			if(data != NULL) {
+				unsigned char * qd_d;
+				int qd_len = 0;
+				if ((qd_d = qd_insert ((uchar_t *) data->b_rptr, &qd_len, 0, PT_E0_cause, 2, 0)) == NULL) {
+					freemsg(data);
+				} else {
+					*qd_d++ = 0x80;
+					*qd_d++ = 0x80 | ET_TimerRecovery;
+					data->b_wptr += qd_len;
+					if (phone_sendback (conn, MT_ET_DISC, data) < 0)
+						freemsg(data);
+				}
+			}
+		}
 		pr_setstate(conn,0);
+		break;
 	}
 	et_checkterm (conn, NULL, 0);
 }
@@ -1124,7 +1142,7 @@ ET_T310 (isdn3_conn conn)
 					data = NULL;
 				} else {
 					*qd_d++ = 0x80;
-					*qd_d++ = 0x90; /* normal call clearing */
+					*qd_d++ = 0x80 | ET_TimerRecovery;
 					data->b_wptr += qd_len;
 				}
 			}
@@ -1155,7 +1173,7 @@ ET_T313 (isdn3_conn conn)
 					data = NULL;
 				} else {
 					*qd_d++ = 0x80;
-					*qd_d++ = 0x90; /* normal call clearing */
+					*qd_d++ = 0x80 | ET_TimerRecovery;
 					data->b_wptr += qd_len;
 				}
 			}
@@ -1350,7 +1368,7 @@ release_postET (isdn3_conn conn, uchar_t minor, char force)
 				data = NULL;
 			} else {
 				*qd_d++ = 0x80;
-				*qd_d++ = 0x90; /* normal call clearing */
+				*qd_d++ = 0x80 | ET_TimerRecovery;
 				data->b_wptr += qd_len;
 			}
 		}
@@ -1487,6 +1505,10 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 		report_ET_generic (conn, data, len, ID_ET_INFO);
 		break;
 	
+	case MT_ET_FAC:
+		report_ET_generic (conn, data, len, ID_ET_FAC);
+		break;
+
 	case MT_ET_STAT:
 		{
 			int qd_len;
@@ -1509,7 +1531,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			goto do_continue;
 		isdn3_setup_conn (conn, EST_DISCONNECT);
 		report_ET_terminate (conn, data, len);
-		if(conn->state == 6 || conn->state == 7)
+	  ComEx:
+		if(conn->state == 6 || conn->state == 7 || conn->state == 99)
 			pr_setstate (conn, 99);
 		else
 			pr_setstate (conn, 0);
@@ -1523,8 +1546,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 		phone_sendback (conn, MT_ET_REL_COM, NULL);
 		isdn3_setup_conn (conn, EST_DISCONNECT);
 		report_ET_terminate (conn, data, len);
-		pr_setstate (conn, 0);
-		break;
+		goto ComEx;
 	case MT_ET_DISC:
 		if (conn->state == 0 || conn->state == 1 || conn->state == 6
 					|| conn->state == 11 || conn->state == 12
@@ -2113,7 +2135,7 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 							data = NULL;
 						} else {
 							*qd_d++ = 0x80;
-							*qd_d++ = 0x90; /* normal call clearing */
+							*qd_d++ = 0x80 | ET_TempFailure;
 							data->b_wptr += qd_len;
 						}
 					}
@@ -2136,7 +2158,7 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 							data = NULL;
 						} else {
 							*qd_d++ = 0x80;
-							*qd_d++ = 0x90; /* normal call clearing */
+							*qd_d++ = 0x80 | ET_TempFailure;
 							data->b_wptr += qd_len;
 						}
 					}
@@ -2178,7 +2200,7 @@ send_ET_disc (isdn3_conn conn, char release, mblk_t * data)
 #ifdef HAS_SUSPEND
 	case 15:
 	case 17:
-		return EBUSY;
+		return -EBUSY;
 #endif
 	case 12:
 		if (((err = phone_sendback (conn, MT_ET_REL, data)) != 0) && (data != NULL))
@@ -2189,7 +2211,7 @@ send_ET_disc (isdn3_conn conn, char release, mblk_t * data)
 		if (release) {
 			goto common_off_noconn; /* Is this confirming? */
 		} else
-			return EBUSY;
+			return -EBUSY;
 	case 1:
 	case 2:
 	case 3:
@@ -2209,7 +2231,7 @@ send_ET_disc (isdn3_conn conn, char release, mblk_t * data)
 					freemsg(owndata);
 				} else {
 					*qd_d++ = 0x80;
-					*qd_d++ = 0x90; /* normal call clearing */
+					*qd_d++ = 0x80 | ET_NormalClear;
 					data->b_wptr += qd_len;
 				}
 			}
@@ -2224,7 +2246,7 @@ send_ET_disc (isdn3_conn conn, char release, mblk_t * data)
 			goto common_off; /* XXX experimental */
 		if ((err = phone_sendback (conn, MT_ET_REL_COM, data)) != 0 && data != NULL)
 			freemsg(data);
-		pr_setstate (conn, 19);
+		pr_setstate (conn, 99); /* was 19 -- mistake */
 		break;
 	case 19:
 	case 99:
@@ -2311,7 +2333,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 						data->b_rptr = oldpos;
 						printf("GetX EAZ: ");
 						conn->lockit--;
-						return EINVAL;
+						return -EINVAL;
 					}
 					conn->eaz = *data->b_rptr++;
 				} break;
@@ -2344,7 +2366,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			if (data == NULL) {
 				printf("DataNull: ");
 				conn->lockit--;
-				return EINVAL;
+				return -EINVAL;
 			}
 
 			conn->minorstate |= MS_OUTGOING | MS_WANTCONN;
@@ -2363,38 +2385,38 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				if (conn->minor == 0) {
 					printf("ConnMinorZero: ");
 					conn->lockit--;
-					return ENOENT;
+					return -ENOENT;
 				}
 				if (conn->mode == 0)
-					err = ENOEXEC;
+					err = -ENOEXEC;
 				{
-					mblk_t *asn = allocb (128, BPRI_MED);
+					mblk_t *asn = allocb (256, BPRI_MED);
 					int qd_len = 0;
 					uchar_t *qd_d;
 
 					if (asn == NULL) {
 						conn->lockit--;
-						return ENOMEM;
+						return -ENOMEM;
 					}
 
 					if (info->bearer_len > 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_bearer_cap, info->bearer_len, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						bcopy(info->bearer,qd_d,info->bearer_len);
 					}
 					if (info->llc_len > 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_compatLo, info->llc_len, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						bcopy(info->llc,qd_d,info->llc_len);
 					}
 					if (info->ulc_len > 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_compatLo, info->ulc_len, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						bcopy(info->ulc,qd_d,info->ulc_len);
 					}
@@ -2424,7 +2446,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 								break;
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_destAddr, j - i + 1, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*qd_d++ = nrtype | 0x80;
 						qd_d -= i; /* compensate for i-offset of the number */
@@ -2459,7 +2481,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 								break;
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_origAddr, j - i + 1, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						*qd_d++ = nrtype | 0x80;
 						qd_d -= i; /* compensate for i-offset of the number */
@@ -2470,7 +2492,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 						int basic = (conn->card ? conn->card->bchans <= 2 : 1);
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_chanID, basic ? 1 : 3, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						if (basic) {
 							*qd_d = 0x80 | conn->bchan;
@@ -2496,7 +2518,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			default:
 				printf("Default %d: ", conn->state);
 				conn->lockit--;
-				return EBUSY;
+				return -EBUSY;
 			}
 		}
 		break;
@@ -2530,7 +2552,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			break;
 		default:
 			printf("BadState1: ");
-			err = EINVAL;
+			err = -EINVAL;
 		}
 		break;
 	case CMD_ANSWER:
@@ -2542,14 +2564,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					int qd_len = 0;
 					uchar_t *qd_d;
 
-					if ((asn = allocb (128, BPRI_MED)) == NULL) {
+					if ((asn = allocb (256, BPRI_MED)) == NULL) {
 						conn->lockit--;
-						return ENOMEM;
+						return -ENOMEM;
 					}
 					if (info->llc_len > 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_compatLo, info->llc_len, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						bcopy(info->llc,qd_d,info->llc_len);
 					}
@@ -2557,14 +2579,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					if (info->ulc_len > 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_compatLo, info->ulc_len, 0)) == NULL) {
 							conn->lockit--;
-							return EIO; 
+							return -EIO; 
 						}
 						bcopy(info->ulc,qd_d,info->ulc_len);
 					}
 					if (info->bearer_len > 0) {
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_bearer_cap, info->bearer_len, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						bcopy(info->bearer,qd_d,info->bearer_len);
 					}
@@ -2575,7 +2597,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 						int basic = (conn->card ? conn->card->bchans <= 2 : 1);
 						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_chanID, basic ? 1 : 3, 0)) == NULL) {
 							conn->lockit--;
-							return EIO;
+							return -EIO;
 						}
 						if (basic) {
 							*qd_d = 0x80 | conn->bchan;
@@ -2625,7 +2647,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				break;
 			default:
 				printf("BadState2 ");
-				err = EINVAL;
+				err = -EINVAL;
 				break;
 			}
 			if (asn != NULL)
@@ -2647,7 +2669,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 			if (data == NULL) {
 				conn->lockit--;
-				return ENOENT;
+				return -ENOENT;
 			}
 			while (m_getsx (data, &typ) == 0) {
 				switch (typ) {
@@ -2676,7 +2698,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 							data->b_rptr = oldpos;
 							printf("EAZ3 ");
 							conn->lockit--;
-							return EINVAL;
+							return -EINVAL;
 						}
 						eaz = *data->b_rptr++;
 					} break;
@@ -2686,7 +2708,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 							data->b_rptr = oldpos;
 							printf("EAZ4 ");
 							conn->lockit--;
-							return EINVAL;
+							return -EINVAL;
 						}
 						eaz2 = *data->b_rptr++;
 					} break;
@@ -2707,7 +2729,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			if ((conn->minorstate & MS_CONN_MASK) == MS_CONN_NONE) {
 				printf("NoConnThere ");
 				conn->lockit--;
-				return EINVAL;
+				return -EINVAL;
 			}
 			if ((conn->minorstate & MS_CONN_MASK) != MS_CONN_INTERRUPT) {
 				isdn3_setup_conn (conn, EST_WILL_INTERRUPT);
@@ -2722,13 +2744,13 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 				if ((asn = allocb (32, BPRI_MED)) == NULL) {
 					conn->lockit--;
-					return ENOMEM;
+					return -ENOMEM;
 				}
 
 				if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, (gotservice || eaz2 != 0) ? ((eaz != 0 || eaz2 != 0) ? 6 : 4) : (eaz != 0) ? 5 : 4, 0)) == NULL) {
 					freeb (asn);
 					conn->lockit--;
-					return EIO;
+					return -EIO;
 				}
 				qd_d[0] = 0;
 				qd_d[1] = (eaz2 > 0) ? ET_FAC_Dienstwechsel2 : ET_FAC_Dienstwechsel1;
@@ -2767,7 +2789,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				break;
 			default:
 				printf("BadState4 ");
-				err = EINVAL;
+				err = -EINVAL;
 				break;
 			}
 			if (asn != NULL)
@@ -2835,7 +2857,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		break;
 	default:
 		printf("UnknownCmd ");
-		err = EINVAL;
+		err = -EINVAL;
 		break;
 	}
 	if (data != NULL && err == 0)
@@ -2911,7 +2933,7 @@ static void report (isdn3_conn conn, mblk_t *mb)
 
 struct _isdn3_prot prot_ETSI =
 {
-		NULL, PD_Q931,
+		NULL, SAPI_PHONE_DSS1,
 		NULL, &chstate, &report, &recv, NULL, &sendcmd, &killconn, NULL,
 };
 

@@ -8,6 +8,9 @@
 #include "master.h"
 
 
+/* Clone a connection info record ("conngrab" because I use it to collect
+   all pertinent information to grab data out of the configuration files
+   with), or create a new one. */
 conngrab Xnewgrab(conngrab master, int lin)
 {
 	conngrab slave;
@@ -15,9 +18,10 @@ conngrab Xnewgrab(conngrab master, int lin)
 	slave = malloc(sizeof(*slave));
 	if(slave == NULL)
 		return NULL;
-	if(master == NULL)
+	if(master == NULL) {
 		bzero(slave,sizeof(*slave));
-	else {
+		slave->cclass = str_enter("*");
+	} else {
 		if(master->refs == 0 || master->protocol == (char *)0xdeadbeef)
 			panic("FreeGrab");
 		*slave = *master;
@@ -26,12 +30,11 @@ conngrab Xnewgrab(conngrab master, int lin)
 		if(slave->par_in != NULL)
 			slave->par_in = dupmsg(slave->par_in);
 	}
-if(0)printf("\nNG + %p %d\n",slave,lin);
 	slave->refs = 1;
 	return slave;
 }
 
-#define dropgrab(x) Xdropgrab((x),__LINE__)
+/* Forget one... */
 void Xdropgrab(conngrab cg,int lin)
 {
 	if(cg == NULL)
@@ -53,18 +56,18 @@ void Xdropgrab(conngrab cg,int lin)
 		cg->card    = (void *)0xdeadbeef;
 		chkone(cg);
 		free(cg);
-if(0)printf("\nNG - %p %d\n",cg,lin);
 		return;
 	}
-if(0)printf("\nNG ? %p %d %d\n",cg,lin,cg->refs);
 }
 
+/* Set the reference number. For debugging. */
 void Xsetconnref(const char *deb_file, unsigned int deb_line, conninfo conn, int connref)
 {
-	printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
+	if(0)printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
 	conn->connref = connref;
 }
 
+/* Print the text foo onto all ATL/ channels. */
 void connreport(char *foo)
 {
 	conninfo conn;
@@ -101,6 +104,7 @@ void connreport(char *foo)
 	}
 }
 
+/* Print the state of this connection with connreport(). */
 void ReportConn(conninfo conn)
 {
 	char sp[200], *spf = sp;
@@ -130,6 +134,8 @@ void ReportConn(conninfo conn)
 	connreport(sp);
 }
 
+/* Sets the state of a connection; does all the housekeeping associated
+   with the change. */
 void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState state)
 {
 	chkone(conn);
@@ -239,19 +245,19 @@ void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CS
 	}
 }
 
-
+/* "rdrop" means "really drop". */
 void rdropconn (struct conninfo *conn, int deb_line) {
 	conn->ignore=2; dropconn(conn); }
 
 void
-Xdropconn (struct conninfo *conn, int deb_line)
+Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 {
 	chkone(conn);
 	if(conn->locked) {
-		printf ("DropConn %d: LOCK %d/%d/%ld\n", deb_line, conn->minor, conn->fminor, conn->connref);
+		if(1)printf ("DropConn %s:%d: LOCK %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
 		return;
 	}
-	printf ("DropConn %d: %d/%d/%ld\n", deb_line, conn->minor, conn->fminor, conn->connref);
+	if(1)printf ("DropConn %s:%d: %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
 	if(!conn->ignore) {
 		conn->ignore=1;
 		setconnstate(conn,c_forceoff);
@@ -261,24 +267,25 @@ Xdropconn (struct conninfo *conn, int deb_line)
 		else
 			ReportConn(conn);
 #endif
-		timeout(rdropconn,conn,HZ*60*5);
+		timeout(rdropconn,conn,HZ*60*5); /* Drop the record after five minutes */
 		return;
-	} else if(conn->ignore == 1) {
+	} else if(conn->ignore == 1) { /* already going to drop it */
 		setconnstate(conn,c_forceoff);
 		return;
 	} else
 		setconnstate(conn,c_forceoff);
-	if (theconn == conn)
-		theconn = conn->next;
-	else {
-		struct conninfo *sconn;
 
-		for (sconn = theconn; sconn != NULL; sconn = sconn->next) {
-			if (sconn->next == conn) {
-				sconn->next = conn->next;
+	{	/* unchain the conn from the list */
+		/* Could use a doubly-linked list here, but what the ... */
+		struct conninfo **pconn = &theconn;
+		while(*pconn != NULL) {
+			if(*pconn == conn) {
+				*pconn = conn->next;
 				break;
 			}
+			pconn = &(*pconn)->next;
 		}
+
 	}
 	{
 		struct proginfo *run;
@@ -289,7 +296,7 @@ Xdropconn (struct conninfo *conn, int deb_line)
 			run->master = NULL;
 		}
 	}
-	{
+	{	/* Say that we forgot the thing. */
 		char xs[10];
 		sprintf(xs,"-%d",conn->seqnum);
 		connreport(xs);
@@ -315,7 +322,7 @@ void retime(struct conninfo *conn)
 				m_putid (mb, PROTO_ENABLE);
 				xlen = mb->b_wptr - mb->b_rptr;
 				DUMPW (mb->b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 				freemsg(mb);
 			}
 		}
@@ -335,6 +342,7 @@ void time_reconn(struct conninfo *conn)
 	}
 }
 
+/* Reestablish a connection, eg. because data are to be transmitted. */
 void try_reconn(struct conninfo *conn)
 {
 	mblk_t *md;
@@ -412,7 +420,7 @@ void try_reconn(struct conninfo *conn)
 					m_putid (mb, PROTO_DISABLE);
 					xlen = mb->b_wptr - mb->b_rptr;
 					DUMPW (mb->b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+					(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 					freeb(mb);
 				}
 			} else {
@@ -434,7 +442,7 @@ printf("DropThis, %s\n",ret);
 
 		xlen=md->b_wptr-md->b_rptr;
 		DUMPW (md->b_rptr, xlen);
-		(void) strwrite (xs_mon, md->b_rptr, &xlen, 1);
+		(void) strwrite (xs_mon, md->b_rptr, xlen, 1);
 		freeb(md);
 	} else
 		setconnstate(conn,c_off);

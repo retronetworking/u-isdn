@@ -27,6 +27,9 @@ char *resp;
 long fminor;
 long minor;
 long callref;
+long foffset;
+long thelength;
+long seqnum;
 struct conninfo *conn;
 char crd[5];
 char prot[20];
@@ -42,7 +45,11 @@ int has_force;
 long bchan;
 long hdrval;
 char no_error;
+struct loader *loader;
+long errnum;
 
+
+/* Take the incoming arguments and put them into their variables. */
 int
 parse_arg(void) 
 {
@@ -65,7 +72,7 @@ parse_arg(void)
 			int err2;
 
 			if ((err2 = m_getstr (&xx, nr, MAXNR)) != 0) {
-				if (err2 != ENOENT && err2 != ESRCH) {
+				if (err2 != -ENOENT && err2 != -ESRCH) {
 					printf (" XErr 0\n");
 					return 2;
 				}
@@ -76,7 +83,7 @@ parse_arg(void)
 			int err2;
 
 			if ((err2 = m_getstr (&xx, lnr, MAXNR)) != 0) {
-				if (err2 != ENOENT && err2 != ESRCH) {
+				if (err2 != -ENOENT && err2 != -ESRCH) {
 					printf (" XErr 02\n");
 					return 2;
 				}
@@ -86,6 +93,10 @@ parse_arg(void)
 		if (m_getstr (&xx, crd, 4) != 0) {
 			printf (" XErr 1\n");
 			return 2;
+		}
+		for(loader = isdn4_loader; loader != NULL; loader = loader->next) {
+			if(!strcmp(crd,loader->name))
+				break;
 		}
 		break;
 	case PROTO_INCOMING:
@@ -104,10 +115,34 @@ parse_arg(void)
 			return 2;
 		}
 		break;
+	case ARG_LENGTH:
+		if (m_geti (&xx, &thelength) != 0) {
+			printf (" XErr len\n");
+			return 2;
+		}
+		break;
+	case ARG_OFFSET:
+		if (m_geti (&xx, &foffset) != 0) {
+			printf (" XErr off\n");
+			return 2;
+		}
+		break;
+	case ARG_SEQNUM:
+		if (m_geti (&xx, &seqnum) != 0) {
+			printf (" XErr seq\n");
+			return 2;
+		}
+		break;
 	case ARG_UID:
 		if (m_geti (&xx, &uid) != 0) {
 			printf (" XErr u\n");
 			return 2;
+		}
+		break;
+	case ARG_ERRNO:
+		if (m_geti (&xx, &errnum) != 0) {
+			printf (" XErr en\n");
+			if(0)return 2;
 		}
 		break;
 	case ARG_ERRHDR:
@@ -161,6 +196,8 @@ parse_arg(void)
 	return 0;
 }
 
+
+/* Get the best-matching connection for the arguments we found. */
 void
 find_conn(void)
 {
@@ -230,6 +267,7 @@ find_conn(void)
 	}
 }
 
+/* Self-explanatory... */
 int
 init_vars (void)
 {
@@ -252,6 +290,10 @@ init_vars (void)
 	bchan = -1;
 	hdrval = -1;
 	no_error = 0;
+	seqnum = 0;
+	foffset = -1;
+	thelength = -1;
+	errnum = 0;
 
 	*(ulong_t *) crd = 0;
 	crd[4] = '\0';
@@ -271,14 +313,16 @@ init_vars (void)
 	return 0;
 }
 
+/* Incoming IND_CARD -- a new ISDN card is recognized, or somebody put the
+   ISDN cable back in. */
 int
 do_card(void)
 {
-	short cpos;
 	cf dl;
 	long nbchan;
 	long cardcap;
 	int ret;
+	struct isdncard *card;
 
 	if ((ret = m_getstr (&xx, crd, 4)) != 0)
 		return ret;
@@ -286,29 +330,45 @@ do_card(void)
 		return ret;
 	if ((ret = m_getx (&xx, &cardcap)) != 0)
 		return ret;
-	for (cpos = 0; cpos < cardnum; cpos++) {
-		if (!strcmp(cardlist[cpos], crd))
+	for(card = isdn4_card; card != NULL; card = card->next) {
+		if (!strcmp(card->name, crd))
 			return -EEXIST;
 	}
-	if (cardnum >= NCARDS)
-		return -ENOSPC;
-	cardlist[cardnum] = str_enter(crd);
-	cardnrbchan[cardnum] = nbchan;
-	cardnum++;
+	card = malloc(sizeof(*card));
+	if(card == NULL)
+		return -ENOMEM;
+	bzero(card,sizeof(*card));
+	card->name = str_enter(crd);
+	card->nrbchan = nbchan;
+	card->cap = cardcap;
+	card->next = isdn4_card;
+	isdn4_card = card;
+
 	if(cardcap & CHM_INTELLIGENT) {
 		struct loader *ld = malloc(sizeof(struct loader));
 		if(ld == NULL)
 			return -errno;
 		bzero(ld,sizeof(*ld));
-		ld->card = str_enter(crd);
+		ld->card = card;
+		ld->name = str_enter(crd);
 
+		ld->next = isdn4_loader;
+		isdn4_loader = ld;
+
+		card->name = str_enter("NULL");
+		ld->card = card;
 		card_load(ld);
-	} else for(dl = cf_DL; dl != NULL; dl = dl->next) {
+	} else {
 		struct iovec io[3];
 		int len;
+		for(dl = cf_DL; dl != NULL; dl = dl->next) {
+			if(wildmatch(crd,dl->card))
+				break;
+		}
+		if(dl == NULL) 
+			return -ENXIO;
+		card->name = str_enter(crd);
 
-		if(!wildmatch(crd,dl->card))
-			continue;
 		xx.b_rptr = xx.b_wptr = ans;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
@@ -333,7 +393,6 @@ do_card(void)
 			len++;
 		}
 		(void) strwritev (xs_mon, io,len, 1);
-		break;
 	}
 	do_run_now++;
 	timeout(run_now,NULL,3*HZ);
@@ -341,27 +400,28 @@ do_card(void)
 	return 0;
 }
 
+/* IND_NOCARD; an ISDN cable got pulled. */
 int
 do_nocard(void)
 {
-	short cpos;
 	int ret;
+	struct isdncard **pcard;
 
 	if ((ret = m_getstr(&xx, crd, 4)) != 0)
 		return ret;
-	for (cpos = 0; cpos < cardnum; cpos++) {
-		if (!strcmp(cardlist[cpos], crd)) {
-			--cardnum;
-			cardlist[cpos] = cardlist[cardnum];
-			cardnrbchan[cpos] = cardnrbchan[cardnum];
-			if(cardidx >= cardnum)
-				cardidx = 0;
+	for (pcard = &isdn4_card; *pcard != NULL; pcard = &(*pcard)->next) {
+		if (!strcmp((*pcard)->name, crd)) {
+			struct isdncard *card = *pcard;
+			*pcard = card->next;
+			free(card);
 			return 0;
 		}
 	}
 	return -ENOENT;
 }
 
+/* IND_CARDPROTO: request to set the mode of a channel. */
+/* Maps to a call of pushcardprot(). */
 int
 do_cardproto(void)
 {
@@ -395,7 +455,7 @@ do_cardproto(void)
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
-printf("Dis10 ");
+			if(1)printf("Dis10 ");
 			m_putid (&xx, CMD_OFF);
 			if(minor > 0) {
 				m_putsx (&xx, ARG_MINOR);
@@ -416,7 +476,7 @@ printf("Dis10 ");
 
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, &xlen, 1);
+			(void) strwrite (xs_mon, ans, xlen, 1);
 
 			return 2;
 		}
@@ -430,7 +490,7 @@ printf("Dis10 ");
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
-printf("Dis11 ");
+			if(1)printf("Dis11 ");
 			m_putid (&xx, CMD_OFF);
 			if(minor > 0) {
 				m_putsx (&xx, ARG_MINOR);
@@ -451,7 +511,7 @@ printf("Dis11 ");
 
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, &xlen, 1);
+			(void) strwrite (xs_mon, ans, xlen, 1);
 
 
 			resp = "ERROR";
@@ -461,6 +521,8 @@ printf("Dis11 ");
 	return 0;
 }
 
+/* IND_PROTO: Request to set the connection information. 
+   Maps to a call of pushprot(). */
 int
 do_proto(void)
 {
@@ -505,7 +567,7 @@ do_proto(void)
 
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, &xlen, 1);
+			(void) strwrite (xs_mon, ans, xlen, 1);
 			return 2;
 		}
 		if (pushprot (cg, minor, ind == IND_PROTO_AGAIN) == 0) {
@@ -525,7 +587,7 @@ do_proto(void)
 
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, &xlen, 1);
+			(void) strwrite (xs_mon, ans, xlen, 1);
 
 			resp = "ERROR";
 			return 1;
@@ -534,6 +596,7 @@ do_proto(void)
 	return 0;
 }
 
+/* IND_INCOMING: Incoming call processing. */
 int
 do_incoming(void)
 {
@@ -568,7 +631,8 @@ do_incoming(void)
 	}
 	{
 		char *sit = NULL,*pro = NULL,*car = NULL,*cla = NULL; /* GCC */
-printf("Hunt for %s/%s/%s/%s/%o\n",cg->site,cg->protocol,cg->card,cg->cclass,cg->flags);
+		if(0)printf("Hunt for %s/%s/%s/%s/%o\n",cg->site,cg->protocol,cg->card,cg->cclass,cg->flags);
+		/* Figure out which program to run. */
 		for (cfr = cf_R; cfr != NULL; cfr = cfr->next) {
 			if(cfr->got_err) continue;
 			if (!matchflag(cg->flags,cfr->type)) continue;
@@ -578,13 +642,18 @@ printf("Hunt for %s/%s/%s/%s/%o\n",cg->site,cg->protocol,cg->card,cg->cclass,cg-
 			if ((cla =classmatch (cg->cclass, cfr->cclass)) == NULL) continue;
 			break;
 		}
-		if (cfr == NULL) {
+		if (cfr == NULL) { /* None. Sorry, won't do; ATA isn't implemented yet... */
 			resp = "NO PROGRAM";
 			goto inc_err;
 		}
 		cg->site = sit; cg->protocol = pro; cg->cclass = cla; cg->card = car;
 	}
+	if((bchan < 0) && (cg->flags & F_CHANBUSY)) {
+		resp = "0BUSY other";
+		goto inc_err;
+	}
 	if(((conn = startconn(cg,fminor,connref,&resp)) != NULL) && (resp != NULL)) {
+		/* An existing connection feels responsible for this. */
 		mblk_t *mz;
 		if(conn->state == c_forceoff) {
 			goto cont;
@@ -593,12 +662,12 @@ printf("Hunt for %s/%s/%s/%s/%o\n",cg->site,cg->protocol,cg->card,cg->cclass,cg-
 				goto cont;
 		}
 
-		printf("\n*** ConnRef Clash! old is %ld, new %ld\n",conn->connref,connref);
+		if(0)printf("\n*** ConnRef Clash! old is %ld, new %ld\n",conn->connref,connref);
 
 		mz = allocb(40,BPRI_HI); if(mz == NULL) goto cont;
 
-		if(*resp != '+') {
-printf("Dis1 ");
+		if(*resp != '+') { /* Throw away the incoming call */
+			if(1)printf("Dis1 ");
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ARG_FORCE);
@@ -624,7 +693,7 @@ printf("Dis1 ");
 				syslog (LOG_WARNING, "DropIn '??' for ???/%s", nr);
 			xlen = mz->b_wptr - mz->b_rptr;
 			DUMPW (mz->b_rptr, xlen);
-			(void) strwrite (xs_mon, mz->b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, mz->b_rptr, xlen, 1);
 			freeb(mz);
 
 			if(*resp == '=') {
@@ -647,11 +716,8 @@ printf("Dis1 ");
 				dropconn(conn);
 			}
 			resp = NULL;
-		} else {
-#if 0
-		  dropother:
-#endif
-printf("Dis2 ");
+		} else { /* Throw away the outgoing call */
+			if(1)printf("Dis2 ");
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ID_N0_cause);
@@ -672,7 +738,7 @@ printf("Dis2 ");
 				syslog (LOG_WARNING, "DropOut '??' for ??/??/%s", nr);
 			xlen = mz->b_wptr - mz->b_rptr;
 			DUMPW (mz->b_rptr, xlen);
-			(void) strwrite (xs_mon, mz->b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, mz->b_rptr, xlen, 1);
 			freeb(mz);
 			resp = NULL;
 			dropgrab(conn->cg); cg->refs++; conn->cg = cg;
@@ -698,8 +764,11 @@ printf("Dis2 ");
 			}
 		}
 		goto cont;
-	} else if(conn != NULL)
+	} else if(conn != NULL) /* existing connection record */
 		goto cont;
+	
+	/* At this point we don't have a connection. The call is valid, so
+	   record the thing and start the program for it. */
 	conn = (struct conninfo *)malloc (sizeof (struct conninfo));
 
 	if (conn == NULL) {
@@ -717,22 +786,23 @@ printf("Dis2 ");
 	conn->cause = 999999;
 	setconnstate(conn, c_down);
 	ReportConn(conn);
+	conn->next = theconn;
+	theconn = conn;
 	resp = runprog (cfr, &conn, &cg);
-	chkone(cg); chkone(conn);
+	if(resp != NULL)
+		dropconn(conn);
+	else 
+		chkone(conn);
+	chkone(cg);
   cont:
-#if 0
-	if (conn != NULL) {
-		conn->cg->nr = str_enter(nr);
-	}
-#endif
-  inc_err:
 	if (resp != NULL) {
+      inc_err:
 		xx.b_wptr = xx.b_rptr = ans;
 		xx.b_datap = &db;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
 
-printf("Dis3 ");
+		if(1)printf("Dis3 ");
 		m_putid (&xx, CMD_OFF);
 		if(connref != 0) {
 			m_putsx (&xx, ARG_CONNREF);
@@ -741,23 +811,29 @@ printf("Dis3 ");
 
 		/* BUSY-if-no-channel is very ugly but unavoidable when
 			sharing the bus with brain-damaged devices (there are
-			many out there) */
+			many out there) which don't answer at all when they're busy.
+			Grr. The PBX should catch this case. */
+		/* We send the BUSY fast if _we_re busy, else we have to send it slow
+		  because somebody else might in fact answer... */
 		m_putsx (&xx, ARG_CAUSE);
-		if((bchan < 0) || !strcmp(resp,"0BUSY")) {
+		if((bchan < 0) || !strncmp(resp+1,"BUSY",4)) {
 			m_putsx2 (&xx, ID_N1_UserBusy);
+			if(!strcmp(resp+1,"BUSY") || (cg->flags & F_FASTDROP))
+				m_putsx(&xx,ARG_FASTDROP);
 
 			if(conn != NULL && (conn->flags & F_BACKCALL)) {
 				if(conn->want_reconn == 0)
 					conn->want_reconn = MAX_RECONN - (MAX_RECONN >> 1);
 				setconnstate(conn,conn->state);
 			}
-		}
-		else if(cg->flags & F_NOREJECT)
+		} else {
+			if(cg->flags & F_NOREJECT)
 				m_putsx2 (&xx, ID_N1_NoChans);
 			else
 				m_putsx2 (&xx, ID_N1_CallRejected);
 			if(cg->flags & F_FASTDROP)
 				m_putsx(&xx,ARG_FASTDROP);
+		}
 		if(crd[0] != '\0') {
 			m_putsx(&xx,ARG_CARD);
 			m_putsz(&xx,crd);
@@ -773,7 +849,7 @@ printf("Dis3 ");
 			syslog (LOG_WARNING, "Got '%s' for ???,%s", resp, nr);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (ans, xlen);
-		(void) strwrite (xs_mon, ans, &xlen, 1);
+		(void) strwrite (xs_mon, ans, xlen, 1);
 
 		conn = malloc(sizeof(*conn));
 		if(conn != NULL) {
@@ -782,7 +858,7 @@ printf("Dis3 ");
 			conn->cause = ID_priv_Print;
 			conn->causeInfo = resp;
 			cg->refs++;
-			/* dropgrab(conn->cg; ** is new anyway */
+			/* dropgrab(conn->cg); ** is new anyway */
 			conn->cg = cg;
 			conn->next = theconn;
 			theconn = conn;
@@ -794,6 +870,8 @@ printf("Dis3 ");
 	return 0;
 }
 
+/* IND_CONN: The B channel is connected, but the protocols may not be
+   synced yet. */
 int
 do_conn(void)
 {
@@ -816,7 +894,7 @@ do_conn(void)
 			m_putsz (&xx, (uchar_t *) resp);
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, &xlen, 1);
+			(void) strwrite (xs_mon, ans, xlen, 1);
 		}
 	}
 #if 0 /* not yet */
@@ -834,11 +912,12 @@ do_conn(void)
 	m_putsx (&xx, PROTO_ONLINE);
 	xlen = xx.b_wptr - xx.b_rptr;
 	DUMPW (xx.b_rptr, xlen);
-	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 #endif
 	return 0;
 }
 
+/* PROTO_ENABLE was successful -> mark a connection as DOWN. */
 int
 do_hasenable(void)
 {
@@ -857,6 +936,7 @@ do_hasenable(void)
 	return 0;
 }
 
+/* PROTO_ENABLE was successful -> mark a connection as OFF. */
 int
 do_hasdisable(void)
 {
@@ -869,21 +949,21 @@ do_hasdisable(void)
 	return 0;
 }
 
+/* IND_DISC: Connection broken. */
 int
 do_disc(void)
 {
 	if (conn != NULL) {
 		conn->got_id = 1;
+		if(conn->cg->nr != NULL)
 			conn->cg->oldnr = conn->cg->nr;
+		if(conn->cg->lnr != NULL)
 			conn->cg->oldlnr = conn->cg->lnr;
 		if(!conn->want_fast_reconn)
 			conn->cg->nr = NULL;
 		conn->cg->lnr = NULL;
-#if 0
-		after_ind:
-#endif
 		conn->fminor = 0;
-		if(conn->got_hd) { /* really down */
+		if(conn->got_hd) { /* Protocol stack is down also */
 			switch(conn->state) {
 			case c_offdown:
 			case c_off:
@@ -906,14 +986,14 @@ do_disc(void)
 						m_putid (mb, PROTO_DISABLE);
 						xlen = mb->b_wptr - mb->b_rptr;
 						DUMPW (mb->b_rptr, xlen);
-						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 						freemsg(mb);
 					}
 				}
 				break;
 			case c_going_up:
-				if(conn->charge > 0 || (++conn->retries > cardnum*2 && !(conn->flags & F_FASTREDIAL))
-							|| (conn->retries > cardnum*10 && (conn->flags & F_FASTREDIAL)))
+				if(conn->charge > 0 || (++conn->retries > 20 && !(conn->flags & F_FASTREDIAL))
+							|| (conn->retries > 10 && (conn->flags & F_FASTREDIAL)))
 					goto conn_off;
 				/* else FALL THRU */
 			case c_up:
@@ -935,7 +1015,7 @@ do_disc(void)
 						m_putid (mb, PROTO_DISABLE);
 						xlen = mb->b_wptr - mb->b_rptr;
 						DUMPW (mb->b_rptr, xlen);
-						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 						freemsg(mb);
 					}
 					setconnstate(conn,c_off);
@@ -952,28 +1032,28 @@ do_disc(void)
 						m_putid (mb, PROTO_ENABLE);
 						xlen = mb->b_wptr - mb->b_rptr;
 						DUMPW (mb->b_rptr, xlen);
-						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 						freemsg(mb);
 					}
 				}
 				break;
 			default:;
 			}
-		} else  { /* not wholly there yet */
+		} else  { /* protocol stack isn't yet down */
 			switch(conn->state) {
 			case c_going_up:
 				if((conn->flags & F_INCOMING) && !(conn->flags & F_PERMANENT)) {
 					xx.b_rptr = xx.b_wptr = ans;
 					db.db_base = ans;
 					db.db_lim = ans + sizeof (ans);
-printf("Dis4d ");
+					if(1)printf("Dis4d ");
 					m_putid (&xx, CMD_CLOSE);
 					m_putsx (&xx, ARG_MINOR);
 					m_puti (&xx, minor);
 					m_putsx (&xx, ARG_NOCONN);
 					xlen = xx.b_wptr - xx.b_rptr;
 					DUMPW (xx.b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+					(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 					if(conn->minor == minor) {
 						conn->minor = 0;
 						if(conn->pid == 0)
@@ -983,10 +1063,11 @@ printf("Dis4d ");
 					}
 
 				}					
-				if(conn->charge > 0 || ++conn->retries > 3) 
-					goto conn_off;
+				if(conn->charge > 0 || ++conn->retries > 5) 
+					goto conn_off; /* Disable, temporarily. */
 				else
-					goto hitme;
+					goto hitme; /* Reenable -- will get another WANT_CONN
+					               if the data are still there. */
 				break;
 			case c_up:
 				setconnstate(conn,c_going_down);
@@ -1016,7 +1097,7 @@ printf("Dis4d ");
 					m_putsx (&xx, ARG_NOCONN);
 				xlen = xx.b_wptr - xx.b_rptr;
 				DUMPW (xx.b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 				if(conn->minor == minor) {
 					conn->minor = 0;
 					if(conn->pid == 0)
@@ -1036,14 +1117,14 @@ printf("Dis4d ");
 		xx.b_rptr = xx.b_wptr = ans;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
-printf("Dis4 ");
+		if(1)printf("Dis4 ");
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
 		m_putsx (&xx, ARG_NOCONN);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
-		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 	}
 #endif
 #if 1
@@ -1055,6 +1136,7 @@ printf("Dis4 ");
 	return 0;
 }
 
+/* IND_CLOSE: a /dev/isdn/isdnXX or /dev/ttyiXX port got closed. */
 int
 do_close(void)
 {
@@ -1093,7 +1175,8 @@ do_close(void)
 		}
 	}
 	unlockdev(minor);
-	{
+
+	{	/* Now update our UTMP record, if we have one. */
 		struct utmp ut;
 
 		bzero (&ut, sizeof (ut));
@@ -1119,6 +1202,7 @@ do_close(void)
 	return 0;
 }
 
+/* IND_OPEN: a /dev/isdn/isdnXX device was openend. */
 int
 do_open(void)
 {
@@ -1132,6 +1216,7 @@ do_open(void)
 	if(conn != NULL)
 		return 0;
 
+	/* Configure the thing to be an AT command interpreter. */
 	xx.b_rptr = xx.b_wptr = ans;
 	db.db_base = ans;
 	db.db_lim = ans + sizeof (ans);
@@ -1154,15 +1239,15 @@ do_open(void)
 	m_puti (&xx, 1);
 	m_putsx (&xx, PROTO_BREAK);
 	m_puti (&xx, 1);
-	printf("On2 %p %d\n",conn,dialin);
 	m_putsx (&xx, ((conn != NULL) || (dialin > 0)) ? PROTO_ONLINE : PROTO_OFFLINE);
 
 	len = xx.b_wptr - xx.b_rptr;
 	DUMPW (xx.b_rptr, len);
-	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &len, 1);
+	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, len, 1);
 	return 0;
 }
 
+/* A connection has been fully established. */
 int
 do_hasconnected(void)
 {
@@ -1171,9 +1256,7 @@ do_hasconnected(void)
 			conn->flags |= conn->cg->flags & F_MOVEFLAGS;
 		setconnstate(conn,c_up);
 	}
-#if 1
 	resp = "CONNECT";
-#endif
 
 	if(conn != NULL && conn->cg != NULL)
 		syslog(LOG_INFO,"UP %s:%s",conn->cg->site,conn->cg->protocol);
@@ -1193,9 +1276,10 @@ do_hasconnected(void)
 		m_putsz (&xx, (uchar_t *) resp);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (ans, xlen);
-		(void) strwrite (xs_mon, ans, &xlen, 1);
+		(void) strwrite (xs_mon, ans, xlen, 1);
 	}
 
+	/* Tell the command interpreter to be transparent. */
 	xx.b_rptr = xx.b_wptr = ans;
 	db.db_base = ans;
 	db.db_lim = ans + sizeof (ans);
@@ -1206,14 +1290,14 @@ do_hasconnected(void)
 	m_putid (&xx, PROTO_MODULE);
 	m_putsx (&xx, PROTO_MODULE);
 	m_putsz (&xx, (uchar_t *) "proto");
-	printf("On3\n");
 	m_putsx (&xx, PROTO_ONLINE);
 	xlen = xx.b_wptr - xx.b_rptr;
 	DUMPW (xx.b_rptr, xlen);
-	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 	return 0;
 }
 
+/* Disconnecting.. */
 int
 do_disconnect(void)
 {
@@ -1229,22 +1313,23 @@ do_disconnect(void)
 	xx.b_rptr = xx.b_wptr = ans;
 	db.db_base = ans;
 	db.db_lim = ans + sizeof (ans);
-printf("Dis5 ");
+	if(1)printf("Dis5 ");
 	m_putid (&xx, CMD_OFF);
 	m_putsx (&xx, ARG_MINOR);
 	m_puti (&xx, minor);
 	xlen = xx.b_wptr - xx.b_rptr;
 	DUMPW (xx.b_rptr, xlen);
-	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 #endif
 	resp = NULL;
 	return 0;
 }
 	
+/* ... disconnect complete. */
 int
 do_hasdisconnect(void)
 {
-	if (minor == fminor) {
+	if (minor == fminor) { /* Tell the interpreter to revert to command line. */
 		xx.b_rptr = xx.b_wptr = ans;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
@@ -1259,14 +1344,14 @@ do_hasdisconnect(void)
 		m_putsx (&xx, ((conn != NULL) || (dialin > 0)) ?  PROTO_ONLINE : PROTO_OFFLINE);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
-		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 	}
 #if 1
 	if(minor > 0) {
 		xx.b_rptr = xx.b_wptr = ans;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
-printf("Dis6 ");
+		if(1)printf("Dis6 ");
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
@@ -1274,7 +1359,7 @@ printf("Dis6 ");
 			m_putsx (&xx, ARG_NOCONN);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
-		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 	}
 #endif
 	if(conn != NULL) {
@@ -1315,6 +1400,7 @@ printf("Dis6 ");
 	return 0;
 }
 
+/* Some interface has data to transmit -> open a connection. */
 int
 do_wantconnect(void)
 {
@@ -1330,7 +1416,7 @@ do_wantconnect(void)
 				m_putid (mb, PROTO_ENABLE);
 				xlen = mb->b_wptr - mb->b_rptr;
 				DUMPW (mb->b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 				freemsg(mb);
 			}
 		}
@@ -1338,28 +1424,29 @@ do_wantconnect(void)
 			setconnref(conn,0);
 			try_reconn(conn);
 		}
-	} else {
+	} else { /* No way right now. Disable. */
 		if(minor > 0) {
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
-printf("Dis7 ");
+			if(1)printf("Dis7 ");
 			m_putid (&xx, CMD_OFF);
 			m_putsx (&xx, ARG_MINOR);
 			m_puti (&xx, minor);
 			m_putsx (&xx, ARG_NOCONN);
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (xx.b_rptr, xlen);
-			(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 		}
 	}
 	return 0;
 }
 
+/* Somebody typed a command line. */
 int
 do_atcmd(void)
 {
-	for (;;) {
+	for (;;) { /* Find the AT prefix. */
 		while (xx.b_rptr < xx.b_wptr && *xx.b_rptr != 'a' && *xx.b_rptr != 'A')
 			xx.b_rptr++;
 		if (xx.b_rptr == xx.b_wptr)
@@ -1369,15 +1456,14 @@ do_atcmd(void)
 		if (xx.b_rptr < xx.b_wptr && (*xx.b_rptr == 't' || *xx.b_rptr == 'T'))
 			break;
 	}
-	{
+	/* AT recognized */
+	/* If we're AT/Listening, stop it. */
 	for(conn = theconn; conn != NULL; conn = conn->next) {
 		if(conn->minor == minor && conn->ignore == 3) {
 			dropconn(conn);
 			break;
 		}
 	}
-	}
-	/* AT recognized */
 	xx.b_rptr++;
 	resp = "OK";
 	while (1) {
@@ -1387,15 +1473,14 @@ do_atcmd(void)
 		m_getskip (&xx);
 		if (xx.b_rptr >= xx.b_wptr)
 			return 1;
-		printf ("AT %c\n", *xx.b_rptr);
 		switch (*xx.b_rptr++) {
-		case '/':
+		case '/': /* AT/ */
 			m_getskip (&xx);
 			switch (*xx.b_rptr++) {
 			default:
 				return 3;
-			case 'k':
-			case 'K': /* Kill running programs. Restart in half a minute. */
+			case 'k': /* AT/K#, kill one program; AT/K, kill all programs */
+			case 'K': /* Restart in half a minute. */
 				if(user[fminor] != 0) {
 					resp = "NO PERMISSION";
 					return 1;
@@ -1418,7 +1503,7 @@ do_atcmd(void)
 					return 1;
 				}
 				break;
-			case 'r':
+			case 'r': /* AT/R */
 			case 'R': /* Reload database. */
 				if(user[fminor] != 0) {
 					resp = "NO PERMISSION";
@@ -1428,16 +1513,17 @@ do_atcmd(void)
 				do_run_now++;
 				run_now(NULL);
 				break;
-			case 'q':
-			case 'Q': /* Shutdown. */
+			case 'q': /* AT/Q */
+			case 'Q': /* Shutdown the ISDN system. */
 				if(user[fminor] != 0) {
 					resp = "NO PERMISSION";
 					return 1;
 				}
 				do_quitnow(NULL);
 				break;
-			case 'b':
-			case 'B': { /* Reenable a connection. */
+			case 'b': /* AT&B# */
+			case 'B': /* Reenable a connection. */
+				{
 					if(m_geti(&xx,&minor) != 0) {
 						return 3;
 					}
@@ -1460,7 +1546,7 @@ do_atcmd(void)
 								m_putid (mb, PROTO_ENABLE);
 								xlen = mb->b_wptr - mb->b_rptr;
 								DUMPW (mb->b_rptr, xlen);
-							(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+								(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 								freeb(mb);
 							}
 							conn->retries = conn->retiming = 0;
@@ -1472,14 +1558,15 @@ do_atcmd(void)
 					}
 					resp = "NOT FOUND";
 					return 1;
-				} break;
-			case 'f':
+				}
+				break;
+			case 'f': /* AT/F# */
 			case 'F': /* freeze the connection, i.e. state = OFF */
 				dodrop = 1;
 				/* FALL THRU */
-			case 'x':
-			case 'X':
-				{ /* Drop a connection. */
+			case 'x': /* AT#X# */
+			case 'X': /* Drop a connection, i.e. state = DOWN */
+				{
 					if(user[fminor] != 0) {
 						resp = "NO PERMISSION";
 						return 1;
@@ -1502,7 +1589,7 @@ do_atcmd(void)
 								setconnstate(conn, c_forceoff);
 							else
 								setconnstate(conn, c_down);
-printf("Dis8 ");
+							if(1)printf("Dis8 ");
 							if(mb != NULL) {
 
 {
@@ -1511,7 +1598,7 @@ printf("Dis8 ");
 								m_puti (mb, minor);
 								xlen = mb->b_wptr - mb->b_rptr;
 								DUMPW (mb->b_rptr, xlen);
-								(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+								(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 
 								if(dodrop) {
 									m_putid (mb, CMD_PROT);
@@ -1521,7 +1608,7 @@ printf("Dis8 ");
 									m_putid (mb, PROTO_DISABLE);
 									xlen = mb->b_wptr - mb->b_rptr;
 									DUMPW (mb->b_rptr, xlen);
-									(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+									(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 									mb->b_wptr=mb->b_rptr;
 								}
 
@@ -1538,9 +1625,9 @@ printf("Dis8 ");
 					}
 				}
 				break;
-			case 'l':
-			case 'L':
-				{ /* List connections. */
+			case 'l': /* AT/L */
+			case 'L': /* List connections and state changes. */
+				{
 					struct conninfo *fconn;
 					char *sp;
 					msgbuf = malloc(10240);
@@ -1572,15 +1659,16 @@ printf("Dis8 ");
 						conn->next = theconn;
 						theconn = conn;
 					}
-					sprintf(sp,"OK");
+					/* sprintf(sp,"OK"); */
+					*--sp = '\0'; *--sp = '\0';  /* Take off the CRLF at the end; the driver will put it back */
 
 					return 1;
 				}
 				break;
 
-			case 'i':
-			case 'I':
-				{ /* List state. */
+			case 'i': /* AT/I */
+			case 'I': /* List of active cards, and Level 3 state. */
+				{
 					char *sp;
 #if LEVEL < 4
 					extern int l3print(char *);
@@ -1592,10 +1680,9 @@ printf("Dis8 ");
 					}
 					sp = resp = msgbuf;
 					{
-						int cd;
-						for(cd=0;cd<cardnum;cd++) {
-							sp += sprintf(sp,"%s(%d) ",cardlist[cd],cardnrbchan[cd]);
-						}
+						struct isdncard *card;
+						for(card = isdn4_card;card != NULL; card = card->next) 
+							sp += sprintf(sp,"%s(%d) ",card->name,card->nrbchan);
 						*sp++ = '\r'; *sp++ = '\n';
 					}
 #if LEVEL < 4
@@ -1608,15 +1695,15 @@ printf("Dis8 ");
 				}
 				break;
 
-			case 'm':
-			case 'M':
+			case 'm': /* AT/M foo */
+			case 'M': /* send "foo" to L3. */
 				{
 					m_getskip (&xx);
 					if (xx.b_rptr == xx.b_wptr)
 						return 3;
 					xlen = xx.b_wptr - xx.b_rptr;
 					DUMPW (xx.b_rptr, xlen);
-					(void) strwrite (xs_mon, xx.b_wptr, &xlen, 1);
+					(void) strwrite (xs_mon, xx.b_wptr, xlen, 1);
 					return 0;
 				}
 				break;
@@ -1645,15 +1732,15 @@ printf("Dis8 ");
 					}
 					xlen = yy.b_wptr - yy.b_rptr;
 					DUMPW (ans, xlen);
-					(void) strwrite (xs_mon, ans, &xlen, 1);
+					(void) strwrite (xs_mon, ans, xlen, 1);
 					resp = NULL;
 				}
 				break;
 #endif
 			}
 			break;
-		case 'o':
-		case 'O':
+		case 'o': /* ATO */
+		case 'O': /* go online again */
 			{
 				mblk_t yy;
 
@@ -1676,7 +1763,7 @@ printf("Dis8 ");
 				m_putsz (&yy, (uchar_t *) resp);
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (ans, xlen);
-				(void) strwrite (xs_mon, ans, &xlen, 1);
+				(void) strwrite (xs_mon, ans, xlen, 1);
 
 				yy.b_rptr = yy.b_wptr = ans;
 				db.db_base = ans;
@@ -1692,12 +1779,12 @@ printf("Dis8 ");
 				m_putsx (&yy, PROTO_ONLINE);
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (yy.b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 				resp = NULL;
 			}
 			return 0;
-		case 'H':
-		case 'h':
+		case 'H': /* ATH */
+		case 'h':  /* hang up. */
 			{
 				mblk_t yy;
 				struct datab dbb;
@@ -1706,18 +1793,18 @@ printf("Dis8 ");
 				yy.b_rptr = yy.b_wptr = ans;
 				dbb.db_base = ans;
 				dbb.db_lim = ans + sizeof (ans);
-printf("Dis9 ");
+				if(1)printf("Dis9 ");
 				m_putid (&yy, CMD_OFF);
 				m_putsx (&yy, ARG_MINOR);
 				m_puti (&yy, minor);
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (yy.b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
+				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
 				resp = NULL;
 			}
 			break;
-		case 'D':
-		case 'd':
+		case 'D': /* ATD###, ATD/site, .../protocol, .../card */
+		case 'd': /* Dial out. */
 			{
 				/* cf cfr; */
 				streamchar *m1, *m2, *m3;
@@ -1751,7 +1838,7 @@ printf("Dis9 ");
 					m_puti (md, fminor);
 					xlen=md->b_wptr-md->b_rptr;
 					DUMPW (md->b_rptr, xlen);
-					(void) strwrite (xs_mon, md->b_rptr, &xlen, 1);
+					(void) strwrite (xs_mon, md->b_rptr, xlen, 1);
 					md->b_wptr=md->b_rptr;
 				}
 
@@ -1851,8 +1938,8 @@ printf("Dis9 ");
 				return 1;
 			}
 			break;
-		case 'A':
-		case 'a':
+		case 'A': /* ATA */
+		case 'a': /* Sorry, no answer yet. */
 			return 3;
 		default:
 			return 3;
@@ -1861,12 +1948,14 @@ printf("Dis9 ");
 	return 0;
 }
 
+/* IND_INFO -- informational message received */
 int
 do_getinfo(void)
 {
 	if(conn != NULL && conn-charge != 0 && (conn->charge % 10) == 0)
 		syslog(LOG_INFO,"Cost %s:%s %ld",conn->cg->site,conn->cg->protocol,conn->charge);
-	{
+	if((charge > 0) && (conn->state >= c_going_up)) {
+			/* Send a TICK messge to the protocol stack to sync timers. */
 		mblk_t *mb = allocb(30,BPRI_MED);
 
 		if(mb != NULL) {
@@ -1877,7 +1966,7 @@ do_getinfo(void)
 			m_putid (mb, PROTO_TICK);
 			xlen = mb->b_wptr - mb->b_rptr;
 			DUMPW (mb->b_rptr, xlen);
-			(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, &xlen, 1);
+			(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
 			freemsg(mb);
 		}
 		setconnstate(conn,conn->state);
@@ -1885,12 +1974,27 @@ do_getinfo(void)
 	return 0;
 }
 
+/* IND_ERROR. An error has occurred. Oh no... */
 int
 do_error(void)
 {
 printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrval));
-	if(hdrval == HDR_CLOSE) /* Ignore? */
+	if(hdrval == HDR_CLOSE) /* Ignore if uncloseable */
 		return 0;
+	if(hdrval == HDR_LOAD) {
+		if(loader != NULL) {
+			if ((foffset >= 0) && (errnum == -EAGAIN) && (seqnum == loader->nrfile)) {
+				loader->foffset = foffset;
+				if(loader->timer) 
+					untimeout(card_load,loader);
+				loader->timer = 1;
+				timeout(card_load,loader,HZ*5);
+				return 0;
+			}
+			card_load_fail(loader,errnum);
+		}
+		return 0;
+	}
 	if(conn == NULL && connref != 0) {
 		for(conn = theconn; conn != NULL; conn = conn->next) {
 			if(conn->connref == connref)
@@ -1936,6 +2040,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 		db.db_lim = ans + sizeof (ans);
 
 		*xx.b_wptr++ = PREF_NOERR;
+		if(1)printf("DisA ");
 		m_putid (&xx, CMD_OFF);
 		m_putsx(&xx,ARG_FORCE);
 		if(minor > 0) {
@@ -1953,7 +2058,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
-		(void) strwrite (xs_mon, ans, &xlen, 1);
+		(void) strwrite (xs_mon, ans, xlen, 1);
 
 	}
 	if((minor ? minor : fminor) != 0) {
@@ -1968,7 +2073,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 		m_puti (&xx, (minor ? minor : fminor));
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
-		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, &xlen, 1);
+		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 		if(conn != NULL && conn->minor == (minor ? minor : fminor)) {
 			conn->minor = 0;
 			if(conn->pid == 0)
@@ -1983,6 +2088,27 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 	return 3;
 }
 
+
+/* No error. Wow... */
+int
+do_noerror(void)
+{
+	if(hdrval == HDR_CLOSE) /* Ignore if uncloseable */
+		return 0;
+	if((hdrval == HDR_LOAD) && (loader != NULL)) {
+		if(thelength == 0) { /* End of file. Do now if there's no timeout set. */
+			if(!loader->timer)
+				card_load(loader);
+		} else { /* Continue file. Kick now. */
+			if(loader->timer)
+				untimeout(card_load,loader);
+			card_load(loader);
+		}
+	}
+	return 0;
+}
+
+/* Main code of do_info() follows. Finally... */
 	int ret;
 
 	if(init_vars())
@@ -2015,6 +2141,8 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 	case PROTO_HAS_ENABLE:     ret = do_hasenable();     break;
 	case PROTO_HAS_DISABLE:    ret = do_hasdisable();    break;
 	case ID_N1_INFO:           ret = do_getinfo();       break;
+	case ID_ET_FAC:            ret = do_getinfo();       break;
+		/* for now */
 	case ID_N1_REL:
 	case IND_DISC:             ret = do_disc();          break;
 	case IND_CLOSE:            ret = do_close();         break;
@@ -2025,18 +2153,19 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 	case PROTO_WANT_CONNECTED: ret = do_wantconnect();   break;
 	case PROTO_AT:             ret = do_atcmd();         break;
 	case IND_ERR:              ret = do_error();         break;
+	case IND_NOERR:            ret = do_noerror();       break;
 
-	case IND_INFO:
+	case IND_INFO: /* Skip the INFO thing and parse what's beneach. */
 		if (m_getid (&xx, &ind) != 0)
 			goto err;
 		goto redo;
-	case ID_N1_FAC_ACK:
+	case ID_N1_FAC_ACK: /* Something or other... */
 		resp = "OK";
 		goto print;
 	case ID_N1_FAC_REJ:
 		resp = "ERROR";
 		goto print;
-	case ID_N1_ALERT:
+	case ID_N1_ALERT: /* Hey, there is somebody at the other end! */
 		resp = "RRING";
 		goto print;
 #if 0
@@ -2077,7 +2206,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 			m_putsz (&xx, (uchar_t *) resp);
 			xlen = xx.b_wptr - xx.b_rptr;
 			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, &xlen, 1);
+			(void) strwrite (xs_mon, ans, xlen, 1);
 		}
 		if(msgbuf != NULL && resp == msgbuf)
 			free(msgbuf);

@@ -8,8 +8,7 @@
 #include <sys/time.h>
 #include <sys/param.h>
 #include <sys/utsname.h>
-
-#define SAPI_TEI 63
+#include "sapi.h"
 
 #define TEI_IDREQ 1
 #define TEI_IDASS 2
@@ -19,10 +18,13 @@
 #define TEI_IDREMOVE 6
 #define TEI_IDVERIFY 7
 
-#define NR talk_a
-#define TEI_id talk_b
+#if NITALK <= 2
+#error "Need NITALK > 2"
+#endif
+#define NR talki[0]
+#define TEI_id talki[1]
 #ifdef NEW_TIMEOUT
-#define timer talk_c
+#define timer talki[2]
 #endif
 #define N201 2
 #define T201 2
@@ -40,16 +42,18 @@ tei_send_id (isdn3_card card, uchar_t TEI)
 	mblk_t *mb;
 	isdn23_hdr hdr;
 	int err;
+	extern int hdrseq;
 
 	mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
 
 	if (mb == NULL)
-		return EAGAIN;
+		return -EAGAIN;
 	hdr = ((isdn23_hdr) mb->b_wptr)++;
 #ifdef __CHECKER__
 	bzero(hdr,sizeof(*hdr));
 #endif
 	hdr->key = HDR_TEI;
+	hdr->seqnum = hdrseq; hdrseq += 2;
 	hdr->hdr_tei.card = card->nr;
 	hdr->hdr_tei.TEI = TEI;
 	if ((err = isdn3_sendhdr (mb)) != 0)
@@ -183,14 +187,14 @@ tei_verify (isdn3_talk talk)
 static void
 tei_T201 (isdn3_talk talk)
 {
-	printf ("Timer TEI T201 %d\n", talk->NR);
+	printf ("Timer TEI T201 %ld\n", talk->NR);
 	if (talk->state & ST_T201) {
 		talk->state &= ~ST_T201;
 		if (!(talk->state & ST_up)) {
 			talk->state |= ST_want_T202;
 			return;
 		}
-		if (talk->NR >= N201 && tei_send_id (talk->card, TEI_BROADCAST) != EAGAIN) {
+		if (talk->NR >= N201 && tei_send_id (talk->card, TEI_BROADCAST) != -EAGAIN) {
 			tei_enquiry(talk);
 		} else {
 			talk->NR++;
@@ -203,7 +207,7 @@ tei_T201 (isdn3_talk talk)
 static void
 tei_T202 (isdn3_talk talk)
 {
-	printf ("Timer TEI T202 %d\n", talk->NR);
+	printf ("Timer TEI T202 %ld\n", talk->NR);
 	if (talk->state & ST_T202) {
 		talk->state &= ~ST_T202;
 		if (!(talk->state & ST_up)) {
@@ -211,7 +215,7 @@ tei_T202 (isdn3_talk talk)
 			return;
 		}
 		if (talk->NR >= N202) {
-			if (tei_send_id (talk->card, TEI_BROADCAST) == EAGAIN) {
+			if (tei_send_id (talk->card, TEI_BROADCAST) == -EAGAIN) {
 				talk->state |= ST_T202;
 				talk->state &=~ ST_want_T202;
 #ifdef NEW_TIMEOUT
@@ -306,11 +310,11 @@ tei_recv (isdn3_talk talk, char isUI, mblk_t * data)
 	}
 	if (!(isUI & 2)) {			  /* got to be a broadcast */
 		printf("TEI RejNoBroadcast\n");
-		return EINVAL;
+		return -EINVAL;
 	}
 	mb = pullupm (data, 4);
 	if (mb == NULL)
-		return ENOMEM;
+		return -ENOMEM;
 	/* Do not return nonzero after this point */
 
 	if (*mb->b_rptr++ != 0x0F) {
@@ -455,13 +459,13 @@ static int
 tei_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 {
 	printf("TEI SendCmd Foo ");
-	return EINVAL;
+	return -EINVAL;
 }
 
 static int
 tei_send (isdn3_conn conn, mblk_t * data)
 {
-	return EINVAL;
+	return -EINVAL;
 }
 
 static void
@@ -511,9 +515,9 @@ tei_getid (isdn3_card card)
 	isdn3_talk talk;
 
 	if ((hndl = isdn3_findhndl (SAPI_TEI)) == NULL)
-		return ENXIO;
+		return -ENXIO;
 	if ((talk = isdn3_findtalk (card, hndl, NULL, 0)) == NULL)
-		return ENXIO;
+		return -ENXIO;
 
 	if (!talk->state & ST_inited)
 		tei_init (talk);
@@ -529,5 +533,6 @@ tei_getid (isdn3_card card)
 struct _isdn3_hndl TEI_hndl =
 {
 		NULL, SAPI_TEI,1,
-		NULL, &tei_newcard, &tei_modeflags, &tei_chstate, NULL, &tei_recv, &tei_send, &tei_sendcmd, &tei_kill, NULL, NULL,
+		NULL, &tei_newcard, &tei_modeflags, &tei_chstate, NULL, &tei_recv,
+		&tei_send, &tei_sendcmd, &tei_kill, NULL, NULL, NULL,
 };

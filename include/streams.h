@@ -90,9 +90,16 @@ mblk_t *allocsb (ushort_t size, streamchar *data);
 void modregister (struct streamtab *info);
 struct xstream *stropen (int flag);
 void strclose (struct xstream *xp, int flag);
-int strread (struct xstream *xp, streamchar *data, int *len, int usehq);
-int strwrite (struct xstream *xp, streamchar *data, int *len, int usehq);
+int strread (struct xstream *xp, streamchar *data, int len, int usehq);
+#ifdef CONFIG_DEBUG_STREAMS
+#define strwrite(a,b,c,d) deb_strwrite(__FILE__,__LINE__,(a),(b),(c),(d))
+int deb_strwrite (const char *deb_file,unsigned int deb_line, struct xstream *xp, streamchar *data, int len, int usehq);
+#define strwritev(a,b,c,d) deb_strwritev(__FILE__,__LINE__,(a),(b),(c),(d))
+int deb_strwritev (const char *deb_file,unsigned int deb_line, struct xstream *xp, struct iovec *iov, int iovlen, int usehq);
+#else
+int strwrite (struct xstream *xp, streamchar *data, int len, int usehq);
 int strwritev (struct xstream *xp, struct iovec *iov, int iovlen, int usehq);
+#endif
 int strioctl (struct xstream *xp, long cmd, long arg);
 
 #endif							/* KERNEL */

@@ -50,7 +50,7 @@ struct streamtab ip_mon2info =
 {&ip_mon_rinit, &ip_mon_winit, NULL, NULL};
 
 #define NIP_MON 8
-#define NIP_INFO 40
+#define NIP_INFO 50
 
 struct _ip_mon {
 	queue_t *qptr;
@@ -348,7 +348,7 @@ static mblk_t *count_packet (struct _ip_mon *ipmon, mblk_t *mp, char doswap)
 		return mp; /* oh well -- don't count it */
 	}
 	ms = splstr();
-	ipp = (struct ip *) (mq->b_rptr+ipmon->encap ? 2 : 0);
+	ipp = (struct ip *) (mq->b_rptr+(ipmon->encap ? 2 : 0));
 
 	switch (ipp->ip_p) {
 	default:
@@ -361,7 +361,7 @@ static mblk_t *count_packet (struct _ip_mon *ipmon, mblk_t *mp, char doswap)
 			struct tcphdr *tcp;
 
 			mq = mp;
-			ipp = (struct ip *) (mq->b_rptr+ipmon->encap ? 2 : 0);
+			ipp = (struct ip *) (mq->b_rptr+(ipmon->encap ? 2 : 0));
 			tcp = (struct tcphdr *) (((char *)ipp) + (ipp->ip_hl << 2));
 			localp = tcp->th_sport;
 			remotep = tcp->th_dport;
@@ -375,7 +375,7 @@ static mblk_t *count_packet (struct _ip_mon *ipmon, mblk_t *mp, char doswap)
 			struct udphdr *udp;
 
 			mq = mp;
-			ipp = (struct ip *) (mq->b_rptr+ipmon->encap ? 2 : 0);
+			ipp = (struct ip *) (mq->b_rptr+(ipmon->encap ? 2 : 0));
 			udp = (struct udphdr *) (((char *)ipp) + (ipp->ip_hl << 2));
 			localp = udp->uh_sport;
 			remotep = udp->uh_dport;
@@ -388,7 +388,7 @@ static mblk_t *count_packet (struct _ip_mon *ipmon, mblk_t *mp, char doswap)
 			struct icmp *icm;
 
 			mq = mp;
-			ipp = (struct ip *) (mq->b_rptr+ipmon->encap ? 2 : 0);
+			ipp = (struct ip *) (mq->b_rptr+(ipmon->encap ? 2 : 0));
 			icm = (struct icmp *) (((char *)ipp) + (ipp->ip_hl << 2));
 			if(doswap) {
 				localp = htons(icm->icmp_code);

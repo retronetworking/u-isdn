@@ -10,6 +10,7 @@
 #define UAREA
 
 #include "f_module.h"
+#include "kernel.h"
 #include "primitives.h"
 #include "isdn_2.h"
 #include <sys/time.h>
@@ -35,9 +36,12 @@
 #include "x75lib.h"
 #include "smallq.h"
 #include "lap.h"
+#include "sapi.h"
 #include "isdn_limits.h"
 #include "isdn_proto.h"
 #include <sys/termios.h>
+
+ushort_t hdrseq = 1;
 
 extern void log_printmsg (void *log, const char *text, mblk_t * mp, const char*);
 extern void logh_printmsg (void *log, const char *text, mblk_t * mp);
@@ -135,10 +139,17 @@ static int D_send (isdn2_state state, char cmd, mblk_t * data);
 static int D_recv (isdn2_state state, char isUI, mblk_t * data);
 static int D_backenable (isdn2_state state);
 
+#ifdef CONFIG_DEBUG_ISDN
+#define D_L1_up(a) deb_D_L1_up(__FILE__,__LINE__,(a))
+static int deb_D_L1_up (const char *deb_file, unsigned int deb_line, isdn2_card card);
+#define D_L1_down(a) deb_D_L1_down(__FILE__,__LINE__,(a))
+static int deb_D_L1_down (const char *deb_file, unsigned int deb_line, isdn2_card card);
+#else
 static int D_L1_up (isdn2_card card);
+static int D_L1_down (isdn2_card card);
+#endif
 static void D_L1_not_up (isdn2_card card);
 static void D_L1_re_up (isdn2_card card);
-static int D_L1_down (isdn2_card card);
 
 static void D_checkactive (isdn2_card card);
 static void D_takedown (isdn2_card card);
@@ -168,7 +179,7 @@ D_kill_one (isdn2_state state, char ind)
 	ch = 0;
 #endif
 	if (isdn2_debug & 0x10)
-		printf ("D_kill_one %x %p %d\n", state->SAPI, state, ind);
+		printf ("%sD_kill_one %x %p %d\n",KERN_DEBUG, state->SAPI, state, ind);
 	
 	/* Unhook the state info from the card's chain */
 
@@ -223,9 +234,9 @@ D_kill_all (isdn2_card card, char ind)
 
 	if (isdn2_debug & 0x10) {
 #ifdef CONFIG_DEBUG_ISDN
-		printf ("D_kill_all %s:%d %d:%d\n", deb_file,deb_line, card->nr, ind);
+		printf ("%sD_kill_all %s:%d %d:%d\n",KERN_DEBUG, deb_file,deb_line, card->nr, ind);
 #else
-		printf ("D_kill_all %d:%d\n", card->nr, ind);
+		printf ("%sD_kill_all %d:%d\n",KERN_DEBUG, card->nr, ind);
 #endif
 	}
 	if (ind == 0) {
@@ -329,7 +340,7 @@ D_register (isdn2_card card, uchar_t SAPI, uchar_t ch, uchar_t broadcast)
 	int ms = splstr ();
 
 	if (isdn2_debug & 0x40)
-		printf ("D_register %d %x/%x\n",
+		printf ("%sD_register %d %x/%x\n",KERN_DEBUG,
 			card->nr, SAPI,card->TEI[ch]);
 
 	/* Check if this SAPI is in use. */
@@ -341,7 +352,7 @@ D_register (isdn2_card card, uchar_t SAPI, uchar_t ch, uchar_t broadcast)
 			if (state->SAPI == SAPI) {
 				splx (ms);
 				if (isdn2_debug & 0x10)
-					printf ("D_register: State table already present for %d:%x/%x\n",
+					printf ("%sD_register: State table already present for %d:%x/%x\n",KERN_DEBUG,
 						card->nr, SAPI, card->TEI[ch]);
 				return -EEXIST;
 			}
@@ -351,7 +362,7 @@ D_register (isdn2_card card, uchar_t SAPI, uchar_t ch, uchar_t broadcast)
 	if (state == NULL) {
 		splx (ms);
 		if (isdn2_debug & 0x10)
-			printf ("D_register: No state table free for %d:%x/%x\n",
+			printf ("%sD_register: No state table free for %d:%x/%x\n",KERN_DEBUG,
 				card->nr, SAPI, card->TEI[ch]);
 		return -ENOMEM;
 	}
@@ -409,10 +420,10 @@ D_state (isdn2_state state, uchar_t ind, short add)
 	ch = 0;
 #endif
 	if (isdn2_debug & 0x40)
-		printf ("D_state %d %x:%x\n", state->card->nr, ind, add);
+		printf ("%sD_state %d %x:%x\n",KERN_DEBUG, state->card->nr, ind, add);
 	if (ind == MDL_ERROR_IND) {
 		if(add & (ERR_C | ERR_D | ERR_G /* | ERR_H */ )) {
-			printf("\nISDN Fatal Error, TEI cleared\n");
+			printf("%s\nISDN Fatal Error, TEI cleared\n",KERN_DEBUG);
 			state->card->TEI[ch] = TEI_BROADCAST;
 		}
 	}
@@ -421,7 +432,7 @@ D_state (isdn2_state state, uchar_t ind, short add)
 
 	if (mb == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("D_state: nomem to send ind %x:%x for %d:%x/%x\n", ind, add,
+			printf ("%sD_state: nomem to send ind %x:%x for %d:%x/%x\n",KERN_DEBUG, ind, add,
 					state->card->nr, state->SAPI, state->card->TEI[ch]);
 		return -ENOMEM;
 	}
@@ -430,6 +441,7 @@ D_state (isdn2_state state, uchar_t ind, short add)
 	case DL_ESTABLISH_IND:
 	case DL_ESTABLISH_CONF:
 		hdr->key = HDR_OPENPROT;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_openprot.card = state->card->nr;
 		hdr->hdr_openprot.SAPI = state->SAPI;
 #ifdef DO_MULTI_TEI
@@ -440,6 +452,7 @@ D_state (isdn2_state state, uchar_t ind, short add)
 	case DL_RELEASE_IND:
 	case DL_RELEASE_CONF:
 		hdr->key = HDR_CLOSEPROT;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_closeprot.card = state->card->nr;
 		hdr->hdr_closeprot.SAPI = state->SAPI;
 		hdr->hdr_closeprot.ind = ind;
@@ -450,6 +463,7 @@ D_state (isdn2_state state, uchar_t ind, short add)
 		break;
 	default:
 		hdr->key = HDR_NOTIFY;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_notify.card = state->card->nr;
 		hdr->hdr_notify.SAPI = state->SAPI;
 #ifdef DO_MULTI_TEI
@@ -520,9 +534,9 @@ set_card_status (isdn2_card card, enum C_state status)
 		*(unsigned long *)cid = card->id;
 		cid[4]='\0';
 #ifdef CONFIG_DEBUG_ISDN
-		printf ("!!! Card %4s = %s at %s %d\n", cid, sta, deb_file,deb_line);
+		printf ("%s!!! Card %4s = %s at %s %d\n",KERN_DEBUG, cid, sta, deb_file,deb_line);
 #else
-		printf ("!!! Card %4s = %s\n", cid, sta);
+		printf ("%s!!! Card %4s = %s\n",KERN_DEBUG, cid, sta);
 #endif
 	}
 	switch(card->status) {
@@ -605,11 +619,11 @@ D_L1_not_up (isdn2_card card)
 		return;
 	card->timeup = 0;
 	if(card->status != C_await_up) {
-		printf("D_L1_not_up called at wrong time! S %d\n",card->status);
+		printf("%sD_L1_not_up called at wrong time! S %d\n",KERN_DEBUG,card->status);
 		return;
 	}
 	if (isdn2_debug & 0x10)
-		printf ("isdn: Card %d: Disconnected??\n", card->nr);
+		printf ("%sisdn: Card %d: Disconnected??\n",KERN_DEBUG, card->nr);
 	if(!card->offline)
 		D_kill_all (card, PH_DISCONNECT_IND);
 	set_card_status (card, C_wont_up);
@@ -620,11 +634,12 @@ D_L1_not_up (isdn2_card card)
 		mb = allocb (sizeof (struct _isdn23_hdr), BPRI_HI);
 		if (mb == NULL) {
 			if (isdn2_debug & 0x10)
-				printf ("D_L1_not_up: no memory\n");
+				printf ("%sD_L1_not_up: no memory\n",KERN_DEBUG);
 			return;
 		}
 		hdr = ((isdn23_hdr) mb->b_wptr)++;
 		hdr->key = HDR_NOCARD;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_nocard.card = card->nr;
 		if (isdn_chan.qptr != NULL) {
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
@@ -641,18 +656,26 @@ D_L1_not_up (isdn2_card card)
  * Upper level wants to send data -- (re)start L1.
  */
 static int
+#ifdef CONFIG_DEBUG_ISDN
+deb_D_L1_up (const char *deb_file, unsigned int deb_line, isdn2_card card)
+#else
 D_L1_up (isdn2_card card)
+#endif
 {
 	if (isdn2_debug & 0x48)
-		printf ("D_L1_up %d: S was %d\n", card->nr,card->status);
+		printf ("%sD_L1_up %d: S was %d\n",KERN_DEBUG, card->nr,card->status);
 	if (card->card == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("D_L1_up: Card %d not registered\n", card->nr);
+			printf ("%sD_L1_up: Card %d not registered\n",KERN_DEBUG, card->nr);
 		return -ENXIO;
 	}
 	switch (card->status) {
 	case C_await_up:
+#ifdef CONFIG_DEBUG_ISDN
+		deb_set_card_status (deb_file,deb_line, card, C_await_up);  /* Re-set the timeout */
+#else
 		set_card_status (card, C_await_up);  /* Re-set the timeout */
+#endif
 		break;
 	case C_up:
 	case C_lock_up:
@@ -662,11 +685,12 @@ D_L1_up (isdn2_card card)
 	case C_await_down:
 	case C_down:
 	case C_wont_down:
-		if(card->card->modes & CHM_INTELLIGENT) {
-			set_card_status (card, C_up);
-			isdn2_new_state(card->card,1);
-		} else {
+		if(!(card->card->modes & CHM_INTELLIGENT)) {
+#ifdef CONFIG_DEBUG_ISDN
+			deb_set_card_status (deb_file,deb_line, card, C_await_up);
+#else
 			set_card_status (card, C_await_up);
+#endif
 			(*card->card->ch_mode) (card->card, 0, M_HDLC, 0);
 		}
 		break;
@@ -680,17 +704,21 @@ D_L1_up (isdn2_card card)
  * connections for a few seconds.
  */
 static int
+#ifdef CONFIG_DEBUG_ISDN
+deb_D_L1_down (const char *deb_file, unsigned int deb_line, isdn2_card card)
+#else
 D_L1_down (isdn2_card card)
+#endif
 {
 	if (isdn2_debug & 0x40)
-		printf ("D_L1_down %d\n", card->nr);
+		printf ("%sD_L1_down %d\n",KERN_DEBUG, card->nr);
 	if (card->card == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("D_L1_down: Card %d not registered\n", card->nr);
+			printf ("%sD_L1_down: Card %d not registered\n",KERN_DEBUG, card->nr);
 		return -ENXIO;
 	}
 	if (isdn2_debug & 0x10)
-		printf ("D_L1_Down: State was %d\n", card->status);
+		printf ("%sD_L1_Down: State was %d\n",KERN_DEBUG, card->status);
 	switch (card->status) {
 	case C_await_down:
 	case C_down:
@@ -701,7 +729,11 @@ D_L1_down (isdn2_card card)
 	case C_lock_up:
 		break;
 	case C_await_up:
+#ifdef CONFIG_DEBUG_ISDN
+		deb_set_card_status (deb_file,deb_line, card, C_down);
+#else
 		set_card_status (card, C_down);
+#endif
 		if (isdn_chan.qptr != NULL)
 			(*card->card->ch_mode) (card->card, 0, M_STANDBY, 1);
 		else
@@ -709,13 +741,26 @@ D_L1_down (isdn2_card card)
 		break;
 	case C_up:
 		if (isdn_chan.qptr != NULL) {
-			if(card->card->modes & CHM_INTELLIGENT)
+			if(card->card->modes & CHM_INTELLIGENT) {
+#ifdef CONFIG_DEBUG_ISDN
+				deb_set_card_status(deb_file,deb_line, card, C_down);
+#else
 				set_card_status(card, C_down);
-			else
+#endif
+			} else {
+#ifdef CONFIG_DEBUG_ISDN
+				deb_set_card_status (deb_file,deb_line, card, C_await_down);
+#else
 				set_card_status (card, C_await_down);
+#endif
+			}
 			(*card->card->ch_mode) (card->card, 0, M_STANDBY, 1);
 		} else {
+#ifdef CONFIG_DEBUG_ISDN
+			deb_set_card_status (deb_file,deb_line, card, C_down);
+#else
 			set_card_status (card, C_down);
+#endif
 			(*card->card->ch_mode) (card->card, 0, M_OFF, 0);
 		}
 		break;
@@ -731,7 +776,7 @@ static int
 D_backenable (isdn2_state state)
 {
 	if (isdn2_debug & 0x40)
-		printf ("D_backenable %p\n", state);
+		printf ("%sD_backenable %p\n",KERN_DEBUG, state);
 	if (isdn_chan.qptr != NULL)
 		qenable (WR (isdn_chan.qptr));
 	return 0;
@@ -744,10 +789,10 @@ static int
 D_canrecv (isdn2_state state)
 {
 	if (isdn2_debug & 0x40)
-		printf ("D_canrecv %d ", state->card->nr);
+		printf ("%sD_canrecv %d ",KERN_DEBUG, state->card->nr);
 	if (isdn_chan.qptr == 0 || isdn_chan.qptr->q_next == NULL) {
 #ifdef CONFIG_DEBUG_ISDN
-		printf("-NoStream");
+		printf("%s-NoStream",KERN_DEBUG);
 #endif
 		return 0;
 	} else
@@ -756,6 +801,9 @@ D_canrecv (isdn2_state state)
 
 /*
  * Send data upstream. Called from X75.
+ *
+ * If used for an intelligent card, state is NULL and isUI denotes the
+ * card.
  */
 static int
 D_recv (isdn2_state state, char isUI, mblk_t * mb)
@@ -768,17 +816,18 @@ D_recv (isdn2_state state, char isUI, mblk_t * mb)
 		return 0;
 #endif
 	if (isdn2_debug & 0x40)
-		printf ("D_recv %d %d %d\n", state->card->nr, msgdsize(mb), isUI);
+		printf ("%sD_recv %d %d %d\n",KERN_DEBUG, state->card->nr, msgdsize(mb), isUI);
 	mb2 = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
 
 	if (mb2 == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("D_recv: no mblk for header\n");
+			printf ("%sD_recv: no mblk for header\n",KERN_DEBUG);
 		return -ENOMEM;
 	}
 	hdr = ((isdn23_hdr) mb2->b_wptr)++;
 	if (isUI) {
 		hdr->key = HDR_UIDATA;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_uidata.card = state->card->nr;
 		hdr->hdr_uidata.SAPI = state->SAPI;
 #ifdef DO_MULTI_TEI
@@ -788,6 +837,7 @@ D_recv (isdn2_state state, char isUI, mblk_t * mb)
 		hdr->hdr_uidata.broadcast = (isUI & 2);
 	} else {
 		hdr->key = HDR_DATA;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_data.card = state->card->nr;
 		hdr->hdr_data.SAPI = state->SAPI;
 #ifdef DO_MULTI_TEI
@@ -822,13 +872,11 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 	if(msgdsize(mb) < 0)
 		return 0;
 #endif
-#if 0
 	if (isdn2_debug & 0x40)
-		printf ("D_send %d %d %d %d\n", state->card->nr, state->card->status, msgdsize(mb), cmd);
-#endif
+		printf ("%sD_send %d %d %d %d\n",KERN_DEBUG, state->card->nr, state->card->status, msgdsize(mb), cmd);
 	if ((crd = state->card->card) == NULL) {
 		if (isdn2_debug & 0x10)
-			printf (" -- no card\n");
+			printf ("%s -- no card\n",KERN_DEBUG);
 		return -ENXIO;
 	}
 #ifdef DO_MULTI_TEI
@@ -838,17 +886,17 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 #endif
 	if (state->card->status != C_up && state->card->status != C_lock_up) {
 		if (isdn2_debug & 0x10)
-			printf ("D_send: %d:%x/%x sending, state %d\n", state->card->nr,
+			printf ("%sD_send: %d:%x/%x sending, state %d\n",KERN_DEBUG, state->card->nr,
 					state->SAPI, state->card->TEI[ch], state->card->status);
 		if (isdn2_debug & 0x10)
-			printf (" -- card down\n");
+			printf ("%s -- card down 1\n",KERN_DEBUG);
 		if ((err = D_L1_up (state->card)) == 0)
 			err = -EAGAIN;
 		return err;
 	}
 	if (!(*crd->cansend) (crd, 0)) {
 		if (isdn2_debug & 0x10)
-			printf (" -- can't send\n");
+			printf ("%s -- can't send\n",KERN_DEBUG);
 		return -EAGAIN;
 	}
 
@@ -858,15 +906,16 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 			isdn23_hdr hdr;
 	
 			if (isdn2_debug & 0x10)
-				printf ("D_send: %d:%x/NO_TEI\n", state->card->nr, state->SAPI);
+				printf ("%sD_send: %d:%x/NO_TEI\n",KERN_DEBUG, state->card->nr, state->SAPI);
 	
 			if ((mp = allocb (sizeof (struct _isdn23_hdr), BPRI_MED)) == NULL) {
 				if (isdn2_debug & 0x10)
-					printf ("D_recv: no mblk for TEIreq\n");
+					printf ("%sD_recv: no mblk for TEIreq\n",KERN_DEBUG);
 				return -EAGAIN;
 			}
 			hdr = ((isdn23_hdr) mp->b_wptr)++;
 			hdr->key = HDR_TEI;
+			hdr->seqnum = hdrseq; hdrseq += 2;
 			hdr->hdr_tei.card = state->card->nr;
 			hdr->hdr_tei.TEI = state->card->TEI[ch];
 #ifdef DO_MULTI_TEI
@@ -887,11 +936,13 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 	/*
 	 * If there's room in front, don't bother with a new mblk.
 	 */
-	if (DATA_START(mb) + 2 <= mb->b_rptr && DATA_REFS(mb) == 1) {
+	if(crd->modes & CHM_INTELLIGENT)
+		err = (*crd->send)(crd,0,mb);
+	else if (DATA_START(mb) + 2 <= mb->b_rptr && DATA_REFS(mb) == 1) {
 		*--mb->b_rptr = (((cmd & 2) ? TEI_BROADCAST : state->card->TEI[ch]) << 1) | 1;
 		*--mb->b_rptr = (state->SAPI << 2) | ((cmd & 1) ? 0 : 2);
 		if(mod2 & 0x20) {
-			printf (KERN_DEBUG "*** %d", state->card->nr);
+			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
 			log_printmsg (NULL, " Send", mb, KERN_DEBUG);
 		}
 		if ((err = (*crd->send) (crd, 0, mb)) != 0)
@@ -901,14 +952,14 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 
 		if (mb2 == NULL) {
 			if (isdn2_debug & 0x10)
-				printf ("D_send: No mem to send %s to %d:%x/%x\n", cmd ? "Cmd" : "Resp", state->card->nr, state->SAPI, state->card->TEI[ch]);
+				printf ("%sD_send: No mem to send %s to %d:%x/%x\n",KERN_DEBUG, cmd ? "Cmd" : "Resp", state->card->nr, state->SAPI, state->card->TEI[ch]);
 			return -ENOMEM;
 		}
 		*mb2->b_wptr++ = (state->SAPI << 2) | ((cmd & 1) ? 0 : 2);
 		*mb2->b_wptr++ = (((cmd & 2) ? TEI_BROADCAST : state->card->TEI[ch]) << 1) | 1;
 		linkb (mb2, mb);
 		if(mod2 & 0x20) {
-			printf (KERN_DEBUG "*** %d", state->card->nr);
+			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
 			log_printmsg (NULL, " Send", mb2, KERN_DEBUG);
 		}
 		if ((err = (*crd->send) (crd, 0, mb2)) != 0)
@@ -916,7 +967,7 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 	}
 	D_checkactive(state->card);
 	if(err != 0)
-		printf("D_Send Err %d ",err);
+		printf("%sD_Send Err %d ",KERN_DEBUG,err);
 	return err;
 }
 
@@ -929,21 +980,23 @@ D_cansend (isdn2_state state)
 	struct _isdn1_card *crd;
 
 	if (isdn2_debug & 0x40)
-		printf ("D_cansend %d %d\n", state->card->nr, state->card->status);
+		printf ("%sD_cansend %d %d\n", KERN_DEBUG,state->card->nr, state->card->status);
 	if ((crd = state->card->card) == NULL) {
 		if (isdn2_debug & 0x10)
-			printf (" -- card NULL\n");
+			printf ("%s -- card NULL\n",KERN_DEBUG);
 		return 0;
 	}
+	if(!(state->card->card->modes & CHM_INTELLIGENT)) {
 		if (state->card->status != C_up && state->card->status != C_lock_up) {
 			if (isdn2_debug & 0x10)
-			printf (" -- card down\n");
+				printf ("%s -- card down 2\n",KERN_DEBUG);
 			(void) D_L1_up (state->card);
 			return 0;				  /* Yet. */
 		}
+	}
 	if (!(*crd->cansend) (crd, 0)) {
 		if (isdn2_debug & 0x10)
-			printf (" -- card busy\n");
+			printf ("%s -- card busy\n",KERN_DEBUG);
 		return 0;
 	}
 	return 1;
@@ -959,18 +1012,18 @@ D__findstate (isdn2_card card, uchar_t SAPI, uchar_t ch)
 
 	if(card->card->modes & CHM_INTELLIGENT)
 		return state;
-	if(isdn2_debug&0x900) printf("D_findstate %d:%x/%x:",card->nr,SAPI,card->TEI[ch]);
+	if(isdn2_debug&0x900) printf("%sD_findstate %d:%x/%x:",KERN_DEBUG,card->nr,SAPI,card->TEI[ch]);
 	while (state != NULL) {
-		if(isdn2_debug&0x900) printf("_%x",state->SAPI);
+		if(isdn2_debug&0x900) printf("%s_%x",KERN_DEBUG,state->SAPI);
 		if (state->SAPI == SAPI)
 			break;
 		state = state->next;
 	}
 	if (state == NULL) {
 		if ((isdn2_debug&0x910) == 0x10)
-			printf("D_findstate %d:%x/%x:",card->nr,SAPI,card->TEI[ch]);
+			printf("%sD_findstate %d:%x/%x:",KERN_DEBUG,card->nr,SAPI,card->TEI[ch]);
 		if (isdn2_debug & 0x900)
-			printf (" not found\n");
+			printf ("%s not found\n",KERN_DEBUG);
 	}
 	return state;
 }
@@ -991,7 +1044,7 @@ isdn2_register (struct _isdn1_card *card, long id)
 	uchar_t nr, found_nr;
 
 	if (isdn2_debug & 0x10)
-		printf ("isdn2_register %p %lx\n", card, id);
+		printf ("%sisdn2_register %p %lx\n",KERN_DEBUG, card, id);
 	nr = 0;
 	do {
 		nr++;
@@ -1000,7 +1053,7 @@ isdn2_register (struct _isdn1_card *card, long id)
 			if (crd->id == id) {
 				splx (ms);
 				if (isdn2_debug & 0x10)
-					printf ("ISDN register: ID %lx already registered as %d\n", id, crd->nr);
+					printf ("%sISDN register: ID %lx already registered as %d\n",KERN_DEBUG, id, crd->nr);
 				return -EEXIST;
 			}
 			if (crd->nr == nr) {
@@ -1012,7 +1065,7 @@ isdn2_register (struct _isdn1_card *card, long id)
 	crd = malloc(sizeof(*crd));
 	if (crd == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("isdn2_register: no free card store\n");
+			printf ("%sisdn2_register: no free card store\n",KERN_DEBUG);
 		splx (ms);
 		return -EBUSY;
 	}
@@ -1049,19 +1102,19 @@ isdn2_unregister (struct _isdn1_card *card)
 	isdn2_card *pcrd = &isdn_card;
 
 	if (isdn2_debug & 0x10)
-		printf ("isdn2_unregister %p, 2 is %p\n", card,card->ctl);
+		printf ("%sisdn2_unregister %p, 2 is %p\n",KERN_DEBUG, card,card->ctl);
 	crd = (isdn2_card) card->ctl;
 	if (crd == NULL) {
 		splx (ms);
 		if (isdn2_debug & 0x10)
-			printf ("isdn2_unregister: card not registered\n");
+			printf ("%sisdn2_unregister: card not registered\n",KERN_DEBUG);
 		return -ENODEV;
 	}
 	while(*pcrd != NULL && *pcrd != crd)
 		pcrd = &(*pcrd)->next;
 	if (*pcrd == NULL) {
 		splx (ms);
-		printf ("isdn2_unregister: card chain broken\n");
+		printf ("%sisdn2_unregister: card chain broken\n",KERN_DEBUG);
 		return -EIO;
 	}
 	set_card_status(crd,C_down);
@@ -1072,11 +1125,12 @@ isdn2_unregister (struct _isdn1_card *card)
 
 		if (mb == NULL) {
 			if (isdn2_debug & 0x10)
-				printf ("isdn2_unregister: no memory\n");
+				printf ("%sisdn2_unregister: no memory\n",KERN_DEBUG);
 			return -ENOMEM;
 		}
 		hdr = ((isdn23_hdr) mb->b_wptr)++;
 		hdr->key = HDR_NOCARD;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		hdr->hdr_nocard.card = crd->nr;
 		if (isdn_chan.qptr != NULL) {
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
@@ -1106,7 +1160,7 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 		return /* ENXIO */ ;
 
 	if (isdn2_debug & 0x40)
-		printf ("isdn2_new_state %d %d %d\n", ctl->nr, ctl->status, state);
+		printf ("%sisdn2_new_state %d %d %d\n",KERN_DEBUG, ctl->nr, ctl->status, state);
 
 	mb = allocb (sizeof (struct _isdn23_hdr), BPRI_HI);
 
@@ -1114,11 +1168,12 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 		if (state == 0)
 			D_kill_all (ctl, PH_DEACTIVATE_IND);
 		if (isdn2_debug & 0x10)
-			printf ("New_State: No hdr mem for %d\n", ctl->nr);
+			printf ("%sNew_State: No hdr mem for %d\n",KERN_DEBUG, ctl->nr);
 		return /* ENOMEM */ ;
 	}
 	hdr = ((isdn23_hdr) mb->b_wptr)++;
 	hdr->key = HDR_NOTIFY;
+	hdr->seqnum = hdrseq; hdrseq += 2;
 	hdr->hdr_notify.card = ctl->nr;
 	hdr->hdr_notify.SAPI = SAPI_INVALID;		/* all */
 	if (state == 2) { /* Card is bouncing */
@@ -1193,6 +1248,9 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 			/* FALL THRU */
 		case C_await_down:		  /* Oops, bus doesn't want to go down.
 								   * Continue to listen for incoming frames. */
+			if(ctl->card->modes & CHM_INTELLIGENT)
+				set_card_status (ctl, C_up);
+			else
 				set_card_status (ctl, C_wont_down);
 			/* (*card->ch_mode) (card, 0, M_HDLC, 1); */
 			hdr->hdr_notify.ind = PH_ACTIVATE_NOTE;
@@ -1227,7 +1285,7 @@ isdn2_chprot (struct _isdn1_card *card, short channel, mblk_t * proto, int flags
 	isdn2_card ctl;
 
 	if (isdn2_debug & 0x80)
-		printf ("isdn2_new_proto %p %p %d 0%o\n", card, proto, channel, flags);
+		printf ("%sisdn2_new_proto %p %p %d 0%o\n",KERN_DEBUG, card, proto, channel, flags);
 	ctl = (isdn2_card) card->ctl;
 	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL))
 		return -ENXIO;
@@ -1239,11 +1297,12 @@ isdn2_chprot (struct _isdn1_card *card, short channel, mblk_t * proto, int flags
 
 		if (mb == NULL) {
 			if (isdn2_debug & 0x10)
-				printf ("isdn2_data for %d: No rawhdr mem\n", ctl->nr);
+				printf ("%sisdn2_data for %d: No rawhdr mem\n",KERN_DEBUG, ctl->nr);
 			return -ENOMEM;
 		}
 		hdr = ((isdn23_hdr) mb->b_wptr)++;
 		hdr->key = HDR_PROTOCMD;
+		hdr->seqnum = hdrseq; hdrseq += 2;
 		if (channel == 0)		  /* D channel is always ready... */
 			hdr->hdr_protocmd.minor = 0;
 		else {
@@ -1324,13 +1383,20 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				return 0;
 #endif
 			if(mod2 & 0x10) {
-				printf (KERN_DEBUG "*** %d", ctl->nr);
+				printf ("%s*** %d", KERN_DEBUG,ctl->nr);
 				log_printmsg (NULL, " Recv", data, KERN_DEBUG);
 			}
 			(void)msgdsize(data);
+			if (card->modes & CHM_INTELLIGENT) {
+				state = ctl->state[0];
+				if(state != NULL)
+					err = D_recv(state,0,data);
+				else
+					err = -ENXIO;
+			} else {
 				if (ctl->status != C_up && ctl->status != C_wont_down) {
 					if(isdn2_debug & 0x80)
-					printf("  -- L1 up\n");
+						printf("%s  -- L1 up\n",KERN_DEBUG);
 					(void) D_L1_up (ctl);
 				}
 
@@ -1341,7 +1407,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				x1 = SAPI = *data->b_rptr++;
 				if (SAPI & 0x01) {	  /* TODO: X25 packet? */
 					if (isdn2_debug & 0x10)
-					printf ("isdn2_data %d: SAPI %x invalid\n", ctl->nr, SAPI);
+						printf ("%sisdn2_data %d: SAPI %x invalid\n",KERN_DEBUG, ctl->nr, SAPI);
 					freemsg (data);
 					return 0 /* ESRCH */ ;
 				}
@@ -1351,7 +1417,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				x2 = TEI = *data->b_rptr++;
 				if ((TEI & 0x01) == 0) {
 					if (isdn2_debug & 0x10)
-					printf ("isdn2_data %d: TEI %x invalid\n", ctl->nr, TEI);
+						printf ("%sisdn2_data %d: TEI %x invalid\n",KERN_DEBUG, ctl->nr, TEI);
 					goto rawdata;
 				}
 				cmd = (SAPI & 0x02) ? 1 : 0;
@@ -1363,7 +1429,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				}
 				if(ch > N_TEI) {
 					if (isdn2_debug & 0x100)
-					printf("isdn2_data %d: %02x: not my TEI (%02x)\n",ctl->nr,TEI,ctl->TEI[0]);
+						printf("%sisdn2_data %d: %02x: not my TEI (%02x)\n",KERN_DEBUG,ctl->nr,TEI,ctl->TEI[0]);
 					freemsg (data);
 					return 0;
 				}
@@ -1373,13 +1439,9 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 
 				state = D__findstate (ctl, SAPI,ch);
 				if (state != NULL) {
-				if(card->modes & CHM_INTELLIGENT)  {
-					err = D_recv(state,0,data);
-				} else {
 					if (TEI == TEI_BROADCAST)
 						cmd |= 2;
 					err = x75_recv (&state->state, cmd, data);
-				}
 				} else if (TEI == TEI_BROADCAST && isdn_chan.qptr != NULL) {
 					isdn23_hdr hdr;
 					mblk_t *mb;
@@ -1387,13 +1449,14 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				rawdata:
 					if ((mb = allocb (sizeof (struct _isdn23_hdr) + 2, BPRI_HI)) == NULL) {
 						if (isdn2_debug & 0x10)
-						printf ("isdn2_data for %d: No rawhdr mem\n",
+							printf ("%sisdn2_data for %d: No rawhdr mem\n",KERN_DEBUG,
 									ctl->nr);
 						freemsg (data);
 						return 0 /* ENOMEM */ ;
 					}
 					hdr = ((isdn23_hdr) mb->b_wptr)++;
 					hdr->key = HDR_RAWDATA;
+					hdr->seqnum = hdrseq; hdrseq += 2;
 					hdr->hdr_rawdata.card = ctl->nr;
 					*mb->b_wptr++ = x1;
 					*mb->b_wptr++ = x2;
@@ -1409,6 +1472,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 					err = 0;		  /* Not an error */
 					freemsg (data);
 				}
+			}
 		} else {				  /* B Channel */
 			isdn2_chan chn = ctl->chan[channel];
 
@@ -1437,7 +1501,7 @@ isdn2_backenable (struct _isdn1_card *card, short channel)
 	if (ctl == NULL)
 		return -ENXIO;
 	if (isdn2_debug & 0x80)
-		printf ("isdn2_backenable %d %d\n", ctl->nr, channel);
+		printf ("%sisdn2_backenable %d %d\n",KERN_DEBUG, ctl->nr, channel);
 	if (channel > 0 && (unsigned) channel <= ctl->card->nr_chans) {
 		if ((chan = ctl->chan[channel]) != NULL && chan->qptr != NULL)
 			qenable (WR (chan->qptr));
@@ -1463,7 +1527,7 @@ isdn2_backenable (struct _isdn1_card *card, short channel)
 int
 isdn2_init (void)
 {
-	printf ("ISDN library present.\n Max %d channels per card, min %d D channel connections\n", MAXCHAN, MAX_D);
+	printf ("%sISDN library present.\n Max %d channels per card, min %d D channel connections\n",KERN_DEBUG, MAXCHAN, MAX_D);
 	bzero (&isdn_chan, sizeof (isdn_chan));
 	bzero (isdnchan, sizeof (isdnchan));
 
@@ -1487,12 +1551,13 @@ isdn2_sendcard (isdn2_card card)
 	card->offline = 0;
 	if ((mb = allocb (sizeof (struct _isdn23_hdr), BPRI_HI)) == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("isdn2_sendcard: no memory\n");
+			printf ("%sisdn2_sendcard: no memory\n",KERN_DEBUG);
 		return /* ENOMEM */ ;
 	}
 
 	hdr = ((isdn23_hdr) mb->b_wptr)++;
 	hdr->key = HDR_CARD;
+	hdr->seqnum = hdrseq; hdrseq += 2;
 	hdr->hdr_card.card = card->nr;
 	hdr->hdr_card.id = card->id;
 	hdr->hdr_card.bchans = card->card->nr_chans;
@@ -1537,7 +1602,7 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		static unsigned char nr = 0;
 		do { dev = ++nr; } while (minor(dev) == 0);
 #else
-		printf ("isdn2_open: CLONE/MODOPEN\n");
+		printf ("%sisdn2_open: CLONE/MODOPEN\n",KERN_DEBUG);
 		ERR_RETURN(-ENXIO);
 #endif
 	}
@@ -1546,7 +1611,7 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		* The master driver can't be opened more than once.
 		*/
 	if (dev >= NPORT) {
-		printf ("isdn2_open: dev %d > NPORT %d\n",dev,NPORT);
+		printf ("%sisdn2_open: dev %d > NPORT %d\n",KERN_DEBUG,dev,NPORT);
 		ERR_RETURN(-ENXIO);
 	}
 	if (dev == 0) {
@@ -1561,7 +1626,7 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		if ((ch = (isdn2_chan)q->q_ptr) == NULL) {
 #if 0
 			if (!(flag & O_EXCL)) {
-				printf ("isdn2_open: open must be exclusive\n",dev,nport);
+				printf ("%sisdn2_open: open must be exclusive\n",KERN_DEBUG,dev,nport);
 				ERR_RETURN(-ENXIO);
 			}
 #endif
@@ -1589,11 +1654,12 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 				if (mb != NULL) {
 					hdr = ((isdn23_hdr) mb->b_wptr)++;
 					hdr->key = HDR_OPEN;
+					hdr->seqnum = hdrseq; hdrseq += 2;
 					hdr->hdr_open.minor = dev;
 					hdr->hdr_open.flags = flag;
 #ifdef __linux__
 					hdr->hdr_open.uid = (current->suid == 0) ? current->suid : current->uid;
-					if(0) printk(KERN_DEBUG "2_open:uid %d\n",hdr->hdr_open.uid);
+					if(0) printk("%s2_open:uid %d\n",KERN_DEBUG,hdr->hdr_open.uid);
 #else
 					hdr->hdr_open.uid = u.u_uid;
 #endif
@@ -1601,7 +1667,7 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 					putnext (isdn_chan.qptr, mb);
 				} else {
 					if (isdn2_debug & 0x10)
-						printf ("isdn2_open %d: Can't notify controller: no mem\n", dev);
+						printf ("%sisdn2_open %d: Can't notify controller: no mem\n",KERN_DEBUG, dev);
 					ERR_RETURN(-ENOMEM);
 				}
 			}
@@ -1633,7 +1699,7 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 				timeout (isdn2_sendcards, NULL, HZ * 2);
 	}
 	if (isdn2_debug & 0x10)
-		printf ("ISDN %d open (%p)\n", dev, q);
+		printf ("%sISDN %d open (%p)\n",KERN_DEBUG, dev, q);
 	MORE_USE;
 	return dev;
 }
@@ -1650,7 +1716,7 @@ putproto (SUBDEV minor, ushort_t inf)
 	mblk_t *mb;
 
 	if (isdn2_debug & 0x100)
-		printf ("putproto %d %d\n", minor, inf);
+		printf ("%sputproto %d %d\n",KERN_DEBUG, minor, inf);
 	if (minor >= NPORT)
 		return;
 	else if (isdnchan[minor] == NULL || (q = isdnchan[minor]->qptr) == NULL)
@@ -1673,10 +1739,10 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 	struct _isdn1_card *chx;
 
 	if (isdn2_debug & 0x100)
-		printf ("isdn2_disconnect %p %d\n", ch, error);
+		printf ("%sisdn2_disconnect %p %d\n",KERN_DEBUG, ch, error);
 	if (ch->status != M_free && (ch->channel > MAXCHAN)) {
 		splx (ms);
-		printf ("Severe problem: isdn2_disconnect: Channel %d !?!\n", ch->channel);
+		printf ("%sSevere problem: isdn2_disconnect: Channel %d !?!\n",KERN_DEBUG, ch->channel);
 		return -EFAULT;
 	}
 	switch (ch->status) {
@@ -1688,7 +1754,7 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 	case M_D_conn:
 		if (ch->card != NULL) {
 			if (ch->card->chan[ch->channel] != ch)
-				printf ("*** Chan ptr in disconnect bad! Cd %x, Ch %x, Ch->Ch %x\n", ch->dev, ch->card->nr, ch->channel);
+				printf ("%s*** Chan ptr in disconnect bad! Cd %x, Ch %x, Ch->Ch %x\n",KERN_DEBUG, ch->dev, ch->card->nr, ch->channel);
 			else
 				ch->card->chan[ch->channel] = NULL;
 		}
@@ -1706,6 +1772,7 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 				if (mb != NULL) {
 					hdr = ((isdn23_hdr) mb->b_wptr)++;
 					hdr->key = HDR_DETACH;
+					hdr->seqnum = hdrseq; hdrseq += 2;
 					hdr->hdr_detach.minor = ch->dev;
 					hdr->hdr_detach.error = error;
 					hdr->hdr_detach.perm = 0;
@@ -1713,7 +1780,7 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 					putnext (isdn_chan.qptr, mb);
 				} else {
 					if (isdn2_debug & 0x10)
-						printf ("isdn2_disconnect %d: Can't notify controller: no mem\n", ch->dev);
+						printf ("%sisdn2_disconnect %d: Can't notify controller: no mem\n",KERN_DEBUG, ch->dev);
 				}
 			}
 		}
@@ -1732,7 +1799,7 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 			for (i = 1; i < NPORT; i++)
 				if ((isdnchan[i] != NULL) && ((q = isdnchan[i]->qptr) != NULL)) {
 					if (isdn2_debug & 0x10)
-						printf ("Hang 2\n");
+						printf ("%sHang 2\n",KERN_DEBUG);
 					putctlx (q, M_HANGUP);
 				}
 			if (isdn2_notsent) {
@@ -1768,7 +1835,7 @@ isdn2_close (queue_t *q, int dummy)
 
 	ch->qptr = NULL;
 	if (isdn2_debug & 0x10)
-		printf ("ISDN %d: Closed.\n", ch->dev);
+		printf ("%sISDN %d: Closed.\n",KERN_DEBUG, ch->dev);
 	switch (ch->status) {
 	case M_D_ctl:
 	case M_B_conn:
@@ -1785,12 +1852,13 @@ isdn2_close (queue_t *q, int dummy)
 		if (mb != NULL) {
 			hdr = ((isdn23_hdr) mb->b_wptr)++;
 			hdr->key = HDR_CLOSE;
+			hdr->seqnum = hdrseq; hdrseq += 2;
 			hdr->hdr_close.minor = ch->dev;
 			hdr->hdr_close.error = 0;
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
 			putnext (isdn_chan.qptr, mb);
 		} else if (isdn2_debug & 0x10)
-			printf ("isdn2_close %d: Can't notify controller: no mem\n", ch->dev);
+			printf ("%sisdn2_close %d: Can't notify controller: no mem\n",KERN_DEBUG, ch->dev);
 		ch->status = M_blocked;
 #ifdef NEW_TIMEOUT
 		ch->timer_unblock =
@@ -1862,7 +1930,7 @@ c_qattach (struct streamtab *qinfo, queue_t * qp, int flag)
 	WR (rq)->q_flag |= QWANTR;
 
 	if ((err = (*rq->q_qinfo->qi_qopen) (rq, 0, flag, sflg)) < 0) {
-		printf (" :No Open %d %p", err, rq->q_qinfo->qi_qopen);
+		printf ("%s :No Open %d %p",KERN_DEBUG, err, rq->q_qinfo->qi_qopen);
 		qdetach (rq, 0, 0);
 		splx (s);
 		return err;
@@ -1891,7 +1959,7 @@ pushlist (queue_t * q, mblk_t * mp)
 		return 0;
 #endif
 	if (isdn2_debug & 0x100)
-		printf ("pushlist %p %p\n", q, mp);
+		printf ("%spushlist %p %p\n",KERN_DEBUG, q, mp);
 
 	xq = q->q_next;				  /* for qattach */
 
@@ -1924,13 +1992,13 @@ pushlist (queue_t * q, mblk_t * mp)
 			splx (ms);
 			if (mp->b_wptr < DATA_END(mp))
 				*mp->b_wptr = '\0';
-			printf (KERN_ERR "Q_Push: %s -- not found\n", mp->b_rptr);
+			printf ("%sQ_Push: %s -- not found\n", KERN_ERR,mp->b_rptr);
 			return -ENOENT;
 		  found:
 			if(0)printf (" %s", fm->f_name);
 			if ((err = c_qattach (fm->f_str, xq, 0)) < 0) {
 				splx (ms);
-				printf (KERN_WARNING "Q_Push: %s -- can't attach\n", fm->f_name);
+				printf ("%sQ_Push: %s -- can't attach\n", KERN_WARNING,fm->f_name);
 				return err;
 			}
 			mp->b_rptr += i + 1;
@@ -1947,7 +2015,7 @@ poplist (queue_t * q, char initial)
 	mblk_t *mb;
 
 	if (q == NULL || q->q_next == NULL) {
-		printf ("Err PopList NULL! %p\n", q);
+		printf ("%sErr PopList NULL! %p\n",KERN_DEBUG, q);
 		return;
 	}
 	while (q->q_next->q_next) {
@@ -1998,7 +2066,7 @@ poplist (queue_t * q, char initial)
 		pushlist (q, mb);
 		freeb (mb);
 	}
-else printf("POPLIST: could not alloc\n");
+else printf("%sPOPLIST: could not alloc\n",KERN_DEBUG);
 }
 
 /* Streams code to write data. */
@@ -2012,7 +2080,7 @@ isdn2_wput (queue_t *q, mblk_t *mp)
 		return;
 #endif
 	if (isdn2_debug & 0x100)
-		printf ("isdn2_wput %p.%p.%p %d of %d\n", mp,DATA_BLOCK(mp),mp->b_cont, msgdsize(mp),DATA_TYPE(mp));
+		printf ("%sisdn2_wput %p.%p.%p %d of %d\n",KERN_DEBUG, mp,DATA_BLOCK(mp),mp->b_cont, msgdsize(mp),DATA_TYPE(mp));
 	switch (DATA_TYPE(mp)) {
 	case M_IOCTL:
 		DATA_TYPE(mp) = M_IOCNAK;
@@ -2080,13 +2148,14 @@ h_reply (queue_t * q, isdn23_hdr hdr, short err)
 		return 0;
 
 	if (isdn2_debug & 0x100)
-		printf ("h_reply %p %p %d\n", q, hdr, err);
+		printf ("%sh_reply %p %p %d\n",KERN_DEBUG, q, hdr, err);
 
 	if ((mb = allocb (2 * sizeof (struct _isdn23_hdr), BPRI_HI)) == NULL)
 		 return -ENOMEM;
 
 	hd = ((isdn23_hdr) mb->b_wptr)++;
 	hd->key = HDR_INVAL;
+	hd->seqnum = hdrseq; hdrseq += 2;
 	if(err < 0)
 		err = -err;
 	hd->hdr_inval.error = err;
@@ -2095,7 +2164,7 @@ h_reply (queue_t * q, isdn23_hdr hdr, short err)
 		q = RD (q);
 	
 #ifdef CONFIG_DEBUG_ISDN
-	logh__printmsg (deb_line,NULL, "Up", mb);
+	if(isdn2_debug & 0x2000) logh__printmsg (deb_line,NULL, "Up", mb);
 #else
 	if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
 #endif
@@ -2122,17 +2191,13 @@ isdn2_wsrv (queue_t *q)
 	 * Actually, we don't collect anything; the stuff is just discarded.
 	 */
 #define XLENHDR(_len) do {					\
-	if (_len <= 0) {						\
-		if(mp != NULL)						\
-			freemsg(mp);					\
-		h_reply(q,&hdr,EINVAL);				\
-		break;								\
-	}										\
 	if(dsize(mp) < _len) {					\
 		freemsg(mp);						\
+		printf("%s -- dsize %d, len %d\n",KERN_DEBUG,dsize(mp),_len); \
 		h_reply(q,&hdr,EIO);				\
-		break;								\
+		mp = NULL; goto free_it;			\
 	}; 										\
+	if(_len > 0)							\
 		mp = pullupm(mp,1);					\
 	} while(0)								/**/
 #define LENHDR(_who) XLENHDR(hdr.hdr_##_who.len)
@@ -2146,7 +2211,7 @@ isdn2_wsrv (queue_t *q)
 	for(crd = isdn_card; crd != NULL; crd = crd->next) 					\
 		if (crd->nr == i) break;										\
 	if(crd == NULL) {													\
-		if(isdn2_debug&1)printf(" -- Card %d\n",i);						\
+		if(isdn2_debug&1)printf("%s -- Card %d\n",KERN_DEBUG,i);						\
 		h_reply(q,&hdr,ENXIO); goto free_it; }							\
 	} while(0)					  /**/
 
@@ -2155,13 +2220,13 @@ isdn2_wsrv (queue_t *q)
 	minor = hdr.hdr_##_who.minor;											\
 	if ((minor < 1) || (minor >= NPORT) ||									\
 			((chan = isdnchan[minor]) == NULL) || (chan->qptr) == NULL) {	\
-		if(isdn2_debug&1)printf(" -- Minor %d\n",minor);					\
+		if(isdn2_debug&1)printf("%s -- Minor %d\n",KERN_DEBUG,minor);					\
 		h_reply (q, &hdr, ENXIO); goto free_it; }							\
 	} while(0)					  /**/
 
 
 		if (isdn2_debug & 0x8)
-			printf ("wsrv %p.%p.%p\n", mp, DATA_BLOCK(mp), mp->b_cont);
+			printf ("%swsrv %p.%p.%p\n",KERN_DEBUG, mp, DATA_BLOCK(mp), mp->b_cont);
 		
 		if(q == WR(isdn_chan.qptr))
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Down", mp);
@@ -2192,16 +2257,17 @@ isdn2_wsrv (queue_t *q)
 				{
 					struct _isdn1_card *crd1;
 
-					if (chan->card == NULL || (crd1 = chan->card->card) == NULL || (*crd1->ch_prot)(crd1,chan->channel,mp,CHP_FROMSTACK) < 0) {
+					if (chan->card == NULL || (crd1 = chan->card->card) == NULL || (crd1->ch_prot == NULL) || (*crd1->ch_prot)(crd1,chan->channel,mp,CHP_FROMSTACK) < 0) {
 						mblk_t *mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
 
 						if (mb == NULL) {
-							printf(KERN_DEBUG "NoMemHdr isdn_2.c %d\n",__LINE__);
+							printf("%sNoMemHdr isdn_2.c %d\n",KERN_DEBUG,__LINE__);
 							putbqf (q, mp);
 							return;
 						}
 						hdr2 = ((isdn23_hdr) mb->b_wptr)++;
 						hdr2->key = HDR_PROTOCMD;
+						hdr2->seqnum = hdrseq; hdrseq += 2;
 						hdr2->hdr_protocmd.minor = chan->dev;
 						hdr2->hdr_protocmd.card = 0;
 						hdr2->hdr_protocmd.channel = 0;
@@ -2216,7 +2282,7 @@ isdn2_wsrv (queue_t *q)
 							putnext (isdn_chan.qptr, mb);
 						} else {
 							freemsg (mb);
-							printf ("Hang 4\n");
+							printf ("%sHang 4\n",KERN_DEBUG);
 							putctlx (RD (q), M_HANGUP);
 						}
 					}
@@ -2236,7 +2302,7 @@ isdn2_wsrv (queue_t *q)
 							freemsg (mp);
 							mp = NULL;
 							if (isdn2_debug & 0x10)
-								printf ("ISDN %d: Msg arrived for status %d\n", chan->dev, chan->status);
+								printf ("%sISDN %d: Msg arrived for status %d\n",KERN_DEBUG, chan->dev, chan->status);
 						}
 						break;		  /* message deleted below */
 					case M_D_ctl:
@@ -2257,12 +2323,12 @@ isdn2_wsrv (queue_t *q)
 								break;
 							}
 							if(isdn2_debug & 0x100)
-								printf("Dispatch %x\n",hdr.key);
+								printf("%sDispatch %x\n",KERN_DEBUG,hdr.key);
 
 							switch (hdr.key & ~HDR_FLAGS) {
 							default:
 								if (isdn2_debug & 0x100)
-									printf ("unknown key %d\n", hdr.key);
+									printf ("%sunknown key %d\n",KERN_DEBUG, hdr.key);
 								h_reply (q, &hdr, EINVAL);
 							free_it:
 								if (mp != NULL) {
@@ -2274,7 +2340,7 @@ isdn2_wsrv (queue_t *q)
 									mblk_t *mz = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
 
 									if (mz == NULL) {
-										printf(KERN_DEBUG "FreeReturn\n");
+										printf("%sFreeReturn\n",KERN_DEBUG);
 										freemsg (mp);
 										return;
 									}
@@ -2312,11 +2378,12 @@ isdn2_wsrv (queue_t *q)
 									LENHDR (protocmd);
 									if (hdr.hdr_protocmd.minor == 0) {
 										CARD (protocmd);
+										err = -EIO;
 										if (hdr.hdr_protocmd.channel > crd->card->nr_chans) {
-											printf (" -- bad channel\n");
-											h_reply (q, &hdr, EINVAL);
-										} else if ((err = (*crd->card->ch_prot) (crd->card, hdr.hdr_protocmd.channel, mp,0)) != 0) {
-											printf (" -- Err SetMode\n");
+											printf ("%s -- bad channel\n",KERN_DEBUG);
+											h_reply (q, &hdr, -EINVAL);
+										} else if ((crd->card == NULL) || (crd->card->ch_prot == NULL) || (err = (*crd->card->ch_prot) (crd->card, hdr.hdr_protocmd.channel, mp,0)) != 0) {
+											printf ("%s -- Err SetMode\n",KERN_DEBUG);
 											h_reply (q, &hdr, err);
 										} else
 											mp = NULL;
@@ -2329,17 +2396,23 @@ isdn2_wsrv (queue_t *q)
 										struct _isdn1_card *crd1;
 										mp->b_rptr = oldhd;
 
+										if(id == PROTO_UPDATEMODLIST) {
+											if (isdn2_debug & 0x10)
+												printf ("%sUpdatePushlist to %p, minor %d\n",KERN_DEBUG, chan->qptr, minor);
+											h_reply(q,&hdr,0);
+											goto free_it;
+										}
 										if (chan->card != NULL)
 											crd1 = chan->card->card;
 										else
 											crd1 = NULL;
-										if(crd1 == NULL || chan->card == NULL || (*crd1->ch_prot)(crd1,chan->channel,mp,0) < 0)
+										if(crd1 == NULL || crd1->ch_prot == NULL || (*crd1->ch_prot)(crd1,chan->channel,mp,0) < 0)
 											putnext (chan->qptr, mp);
 										mp = NULL;
 									} else {
 										while(m_getsx(mp,&id) == 0) ;
 										if (isdn2_debug & 0x10)
-											printf ("Pushlist to %p, minor %d\n", chan->qptr, minor);
+											printf ("%sPushlist to %p, minor %d\n",KERN_DEBUG, chan->qptr, minor);
 										poplist (chan->qptr, 0);
 										h_reply (q, &hdr, pushlist (chan->qptr, mp));
 										/* pushlist doesn't free */
@@ -2442,7 +2515,7 @@ isdn2_wsrv (queue_t *q)
 										else
 											putctlx (qq, M_HANGUP);
 									} else {
-										if(isdn2_debug&1)printf("-- not open\n");
+										if(isdn2_debug&1)printf("%s-- not open\n",KERN_DEBUG);
 										h_reply (q, &hdr, ENXIO);
 									}
 								}
@@ -2456,27 +2529,27 @@ isdn2_wsrv (queue_t *q)
 									CARD (attach);
 
 									if (isdn2_debug & 0x10)
-										printf ("Attach card %d channel %d to minor %d mode %d %s%s\n", hdr.hdr_attach.card, hdr.hdr_attach.chan, minor, hdr.hdr_attach.mode, hdr.hdr_attach.listen & 1 ? "listen" : "talk", hdr.hdr_attach.listen & 2 ? " force" : "");
+										printf ("%sAttach card %d channel %d to minor %d mode %d %s%s\n",KERN_DEBUG, hdr.hdr_attach.card, hdr.hdr_attach.chan, minor, hdr.hdr_attach.mode, hdr.hdr_attach.listen & 1 ? "listen" : "talk", hdr.hdr_attach.listen & 2 ? " force" : "");
 
 									ms = splstr ();
 									if (chan->card != NULL && chan->card != crd) {
-										printf (" -- minor not free\n");
+										printf ("%s -- minor not free\n",KERN_DEBUG);
 										h_reply (q, &hdr, EBUSY);
 										splx (ms);
 										break;
 									} else if (hdr.hdr_attach.mode == 0) {
-										printf (" -- mode zero\n");
+										printf ("%s -- mode zero\n",KERN_DEBUG);
 										h_reply (q, &hdr, EINVAL);
 										splx (ms);
 										break;
 									} else if (hdr.hdr_attach.chan > crd->card->nr_chans) {
-										printf (" -- bad channel (%d > %d)\n", hdr.hdr_attach.chan, crd->card->nr_chans);
+										printf ("%s -- bad channel (%d > %d)\n",KERN_DEBUG, hdr.hdr_attach.chan, crd->card->nr_chans);
 										h_reply (q, &hdr, EINVAL);
 										splx (ms);
 										break;
 									}
 									if (crd->status != C_up) {
-										printf(" -- card down");
+										printf("%s -- card down 3",KERN_DEBUG);
 										if(hdr.hdr_attach.listen & 2) 
 											err = (*crd->card->ch_mode) (crd->card, 0, M_HDLC, 0);
 										else
@@ -2490,7 +2563,7 @@ isdn2_wsrv (queue_t *q)
 									if (hdr.hdr_attach.chan > 0) {		/* B channel */
 										if (crd->chan[hdr.hdr_attach.chan] != NULL && crd->chan[hdr.hdr_attach.chan] != chan) {
 #if 0
-											printf (" -- Err Chan busy\n");
+											printf ("%s -- Err Chan busy\n",KERN_DEBUG);
 											h_reply (q, &hdr, EBUSY);
 											splx (ms);
 											break;
@@ -2499,7 +2572,7 @@ isdn2_wsrv (queue_t *q)
 #endif
 										}
 										if ((err = (*crd->card->ch_mode) (crd->card, hdr.hdr_attach.chan, hdr.hdr_attach.mode, hdr.hdr_attach.listen & 1)) != 0) {
-											printf (" -- Err SetMode\n");
+											printf ("%s -- Err SetMode\n",KERN_DEBUG);
 											h_reply (q, &hdr, EIO);
 											splx (ms);
 											break;
@@ -2511,7 +2584,7 @@ isdn2_wsrv (queue_t *q)
 										/* putproto (minor, PROTO_CONNECTED); */
 #if 0
 										if (isdn2_debug & 0x10)
-											printf (" -- Conn B\n");
+											printf ("%s -- Conn B\n",KERN_DEBUG);
 #endif
 									} else {	/* D channel */
 										int i;
@@ -2521,7 +2594,7 @@ isdn2_wsrv (queue_t *q)
 												break;
 										if (i >= MAXCHAN) {
 											if (isdn2_debug & 0x10)
-												printf (" -- Err no chan free\n");
+												printf ("%s -- Err no chan free\n",KERN_DEBUG);
 											h_reply (q, &hdr, EBUSY);
 											splx (ms);
 											break;
@@ -2532,7 +2605,7 @@ isdn2_wsrv (queue_t *q)
 										chan->channel = i;
 										/* putproto (minor, PROTO_CONNECTED); */
 										if (isdn2_debug & 0x10)
-											printf (" -- Conn D\n");
+											printf ("%s -- Conn D\n",KERN_DEBUG);
 									}
 									splx (ms);
 								}
@@ -2549,17 +2622,21 @@ isdn2_wsrv (queue_t *q)
 								break;
 							case HDR_LOAD:
 								{
-									CARD (uidata);
+									LENHDR (load);
+									CARD (load);
 									if(crd->card->boot == NULL) {
-										printf (" -- Load: no loader\n");
+										printf ("%s -- Load: no loader\n",KERN_DEBUG);
 										h_reply (q, &hdr, EIO);
 									}
-									mp = pullupm(mp,0);
+									if(hdr.hdr_load.seqnum == 1 && hdr.hdr_load.foffset == 0)
+										isdn2_new_state(crd->card,0);
 									if((err = (*crd->card->boot) (crd->card, hdr.hdr_load.seqnum, hdr.hdr_load.foffset, mp)) != 0) {
-										printf (" -- Err Load\n");
+										printf ("%s -- Err Load %d\n",KERN_DEBUG,err);
 										h_reply (q, &hdr, err);
-									} else
+									} else {
 										mp = NULL;
+										h_reply (q, &hdr, 0);
+									}
 									goto free_it;
 								}
 							case HDR_TEI:
@@ -2605,7 +2682,7 @@ isdn2_wsrv (queue_t *q)
 										} else {
 											for (state = crd->state[ch]; state != NULL; state = state->next) {
 												if(isdn2_debug&0x40) 
-													printf("Wakeup %d/%d/%d",state->card->nr, state->SAPI, *state->card->TEI);
+													printf("%sWakeup %d/%d/%d",KERN_DEBUG,state->card->nr, state->SAPI, *state->card->TEI);
 												if(state->card != crd)
 													printf("\n*!*Bad state for card!\n");
 												x75_changestate (&state->state, DL_ESTABLISH_IND, 0);
@@ -2651,7 +2728,7 @@ isdn2_wsrv (queue_t *q)
 #endif
 									if ((state == NULL) != (hdr.hdr_openprot.ind == 0)) {
 #ifdef CONFIG_DEBUG_ISDN
-										printf("Err state 0x%p ind 0x%x\n",state,hdr.hdr_openprot.ind);
+										printf("%sErr state 0x%p ind 0x%x\n",KERN_DEBUG,state,hdr.hdr_openprot.ind);
 #endif
 										h_reply (q, &hdr, EINVAL);
 										break;
@@ -2770,6 +2847,7 @@ isdn2_wsrv (queue_t *q)
 							}
 							hdr3 = ((isdn23_hdr) mz->b_wptr)++;
 							hdr3->key = HDR_XDATA;
+							hdr3->seqnum = hdrseq; hdrseq += 2;
 							hdr3->hdr_xdata.minor = chan->dev;
 							hdr3->hdr_xdata.len = dsize (mp);
 							linkb (mz, mp);

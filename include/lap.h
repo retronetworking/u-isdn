@@ -1,6 +1,5 @@
 /* Defs for Q.921. */
 
-#define SAPI_INVALID 0xFF
 #define TEI_FIXED 0x12 /* if using a fixed TEI value */
 #define TEI_BROADCAST 0x7F
 #define TEI_REQUESTED 0xFF /* invalid value, used in L2 only

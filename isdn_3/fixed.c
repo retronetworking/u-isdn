@@ -9,8 +9,8 @@
 #include <sys/errno.h>
 #include <sys/time.h>
 #include <sys/param.h>
+#include "sapi.h"
 
-#define SAPI_FIXED 64
 #define ST_up 01
 
 static int
@@ -102,7 +102,7 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		{
 			if (data == NULL) {
 				printf("DataInvalA ");
-				return EINVAL;
+				return -EINVAL;
 			}
 			while ((err = m_getsx (data, &typ)) == 0) {
 				switch (typ) {
@@ -124,9 +124,9 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			case 0:
 			case 2:
 				if (conn->minor == 0)
-					return ENOENT;
+					return -ENOENT;
 				if (conn->mode == 0)
-					err = ENOEXEC;
+					err = -ENOEXEC;
 				conn->state++;
 				{
 					int err = 0;
@@ -135,7 +135,7 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 					if (mb == NULL) {
 						conn->state = 0;
-						return ENOMEM;
+						return -ENOMEM;
 					}
 					m_putid (mb, IND_CONN);
 					conn_info (conn, mb);
@@ -150,7 +150,7 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				}
 				break;
 			default:
-				return EBUSY;
+				return -EBUSY;
 			}
 		}
 		break;
@@ -179,7 +179,7 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		}
 		break;
 	default:
-		err = EINVAL;
+		err = -EINVAL;
 		break;
 	}
 	if (data != NULL && err == 0)
@@ -220,5 +220,6 @@ struct _isdn3_hndl FIXED_hndl =
 {
 		NULL, SAPI_FIXED,1,
 		NULL, &fixed_newcard, NULL, &fixed_chstate, NULL, NULL,
-		NULL, &fixed_sendcmd, NULL, &fixed_killconn, NULL,
+		NULL, &fixed_sendcmd, NULL, &fixed_killconn, NULL, NULL,
 };
+

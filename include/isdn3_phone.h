@@ -1,11 +1,6 @@
 #ifndef _ISDN3_PHONE
 #define _ISDN3_PHONE
 
-/* PD */
-#define PD_Q931 8
-#define PD_N0 0x40
-#define PD_N1 0x41
-
 /*
  * Interface for different phone protocol handlers.
  */
@@ -77,11 +72,6 @@ typedef struct _isdn3_prot {
  * Register a handler
  */
 int isdn3_attach_prot (isdn3_prot prot);
-
-/*
- * Find the protocol; "info" has a list of allowable protocols
- */
-isdn3_prot isdn3_findprot (mblk_t *info, uchar_t protocol);
 
 /*
  * Extract data into a conn vector.

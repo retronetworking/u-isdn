@@ -9,6 +9,7 @@
 
 static int seqnum;
 
+/* Read a line, handle empty lines and continuations. */
 struct _cf *
 read_line (FILE * ffile, int *theLine)
 {
@@ -36,7 +37,7 @@ read_line (FILE * ffile, int *theLine)
 				break;
 			}
 		}
-		if (*line == '#') {
+		if (*line == '#' || *line == '\n') {
 			sofar = line;
 			*line = '\0';
 			remain = MAXLINE;
@@ -47,15 +48,13 @@ read_line (FILE * ffile, int *theLine)
 	*sofar = '\0';
 	out = (struct _cf *)malloc (sizeof (struct _cf) + (now = sofar - line + 1));
 
-	chkone(out);
 	bcopy (line, (char *) (out + 1), now);
-	chkone(out);
 	bzero ((char *) out, sizeof (struct _cf));
-	chkone(out);
 	return out;
 }
 
-void
+/* Append a config entry to a list of config entries. */
+static void
 app (cf * where, cf who)
 {
 	char *x = (char *) who + 1;
@@ -74,7 +73,8 @@ app (cf * where, cf who)
 #endif
 }
 
-int
+/* Skip spaces */
+static int
 skipsp (char **li)
 {
 	char *x = *li;
@@ -91,7 +91,7 @@ skipsp (char **li)
 }
 
 #ifdef unused
-void
+static void
 skipword (char **li)
 {
 	char *x = *li;
@@ -102,6 +102,7 @@ skipword (char **li)
 }
 #endif
 
+/* Read a config file */
 void
 read_file (FILE * ffile, char *errf)
 {
@@ -122,7 +123,7 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->cclass = li;
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->type = li;
-			if (skipsp (&li)) break; c->args = li;
+			if (skipsp (&li)) c->args = ""; else c->args = li;
 			chkone(c);
 			c->protocol = str_enter(c->protocol);
 			c->site     = str_enter(c->site);
@@ -198,11 +199,13 @@ read_file (FILE * ffile, char *errf)
 			app (&cf_D, c);
 			continue;
 		case CHAR2 ('D', 'L'):
-			/* DL <Karte> <Nummer> <Protokolle> */
+			/* DL <Key> <Karte> <Nummer> <Protokolle> */
+			if (skipsp (&li)) break; c->cclass = li;
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->arg = li;
-			if (skipsp (&li)) break; c->args = li;
+			if (skipsp (&li)) c->args = ""; else c->args = li;
 			chkone(c);
+			c->cclass   = str_enter(c->cclass);
 			c->card     = str_enter(c->card);
 			c->arg      = str_enter(c->arg);
 			c->args     = str_enter(c->args);
@@ -298,12 +301,14 @@ read_file (FILE * ffile, char *errf)
 			continue;
 		case CHAR2 ('C', 'L'):
 			if (skipsp (&li)) break; c->card = li;
+			if (skipsp (&li)) break; c->cclass = li;
 			if (skipsp (&li)) break;
 			if ((c->num = atoi (li)) == 0 && li[0] != '0')
 				break;;
 			if (!skipsp (&li)) c->args = li;
 			chkone(c);
 			c->site     = str_enter(c->site);
+			c->cclass   = str_enter(c->cclass);
 			c->args     = str_enter(c->args);
 			app (&cf_CL, c);
 			continue;
@@ -316,6 +321,7 @@ read_file (FILE * ffile, char *errf)
 
 char **fileargs;
 
+/* Read all the files. */
 void
 read_args (void *nix)
 {
@@ -357,6 +363,7 @@ read_args (void *nix)
 	}
 }
 
+/* Read all the files and kick off the programs. */
 void
 read_args_run(void *nix)
 {

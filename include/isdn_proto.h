@@ -46,6 +46,7 @@
 #define PROTO_AT CHAR2('a','t')	  /* Command. "*at ATD9612521". */
 #define PROTO_MODULE CHAR2('m','s')		/* Setup for a protocol */
 #define PROTO_MODLIST CHAR2('m','l')	/* list of modules to be pushed */
+#define PROTO_UPDATEMODLIST CHAR2('m','L')	/* informational: list of modules */
 #define PROTO_ERROR CHAR2('e','r')/* Error. */
 #define PROTO_NOERROR CHAR2('o','k')	/* Error. */
 /*
