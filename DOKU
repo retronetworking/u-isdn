@@ -1072,11 +1072,11 @@ typischerweise eine vorgestellte Null o.ä. sehen, die aber bei ankommenden
 Gesprächen nicht mit angezeigt wird.
 
 Die Zeichen sind _immer_ "+" für internationale Verbindungen, "=" für 
-nationale Verbindungen, "-" für Ortsverbindungen, "." oder "/" für
-Verbindungen innerhalb einer Nebenstellenanlage oder EAZs/MSNs etc. Der
-Unterschied ist, daß Nummern einer Nebenstellenanlage direkt angerufen
-werden können, während man für eine Verbindung zu einer anderen MSN am
-gleichen Basisanschluß die Teilnehmernummer mitwählen muß.
+nationale Verbindungen, "-" für Ortsverbindungen, "." für Nummern an einer
+Nebenstellenanlage und "/" für EAZs/MSNs etc. Der Unterschied zwischen "."
+und "/" ist, daß Nummern einer Nebenstellenanlage direkt angerufen werden
+können, während man für eine Verbindung zu einer anderen MSN am gleichen
+Basisanschluß die Teilnehmernummer mitwählen muß.
 
 Beispiel: Eine Konfiguration
 D ... -1234/[456]
@@ -1557,6 +1557,9 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 -R ip    die IP-Nummer "ip" wird zur Gegenseite geroutet. (route -host)
 -r ip    Das IP-Netz "ip" wird zur Gegenseite geroutet. (route -net)
 -r ip:nm Das IP-Netz "ip" wird mit der Netmask "nm" zur Gegenseite geroutet.
+-x       auf die eigene Adresse wird keine "Route" gesetzt. Dieses Flag
+         wird immer dann verwendet, wenn die ISDN-Interfaceadresse dieselbe
+         ist wie zB am lokalen Ethernet.
 -A arpaddr setzt Proxy-ARP-Adresse f\ur alle Routen zur Gegenstelle.
            Die korrekte "arpaddr" wird von "ifconfig eth0" ausgegeben.
            (Vorsicht beim Wechsel der Ethernetkarte!)

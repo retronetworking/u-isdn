@@ -2255,7 +2255,7 @@ isdn2_wput (queue_t *q, mblk_t *mp)
 	case M_IOCTL:
 		DATA_TYPE(mp) = M_IOCNAK;
 		((struct iocblk *)mp->b_rptr)->ioc_error =
-#ifdef LINUX
+#ifdef linux
 			ENOIOCTLCMD
 #else
 			EINVAL

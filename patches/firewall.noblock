@@ -1,0 +1,55 @@
+Dieser Patch (für 1.3) wendet den "block"-Firewall nur bei lokalen
+IP-Paketen an, nicht bei durchgereichten Paketen.
+
+Vorteil: Lokal können restriktive Regeln implementiert werden ("blockiere
+alle externen Pakete"), ohne alle durchgereichten Pakete explizit
+freizuschalten.
+
+--- ./net/ipv4/ip_input.c	Thu Dec 28 05:12:47 1995
++++ /tmp/ipfn	Thu Dec 28 07:45:28 1995
+@@ -284,22 +284,6 @@
+ #endif
+ 
+ 	/*
+-	 *	See if the firewall wants to dispose of the packet. 
+-	 */
+-
+-#ifdef	CONFIG_FIREWALL
+-	
+-	if ((err=call_in_firewall(PF_INET, skb, iph))<FW_ACCEPT)
+-	{
+-		if(err==FW_REJECT)
+-			icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0, dev);
+-		kfree_skb(skb, FREE_WRITE);
+-		return 0;	
+-	}
+-
+-#endif
+-	
+-	/*
+ 	 *	Remember if the frame is fragmented.
+ 	 */
+ 	 
+@@ -329,6 +313,22 @@
+ 
+ 	if ( iph->daddr == skb->dev->pa_addr || (brd = ip_chk_addr(iph->daddr)) != 0)
+ 	{
++		/*
++		 *	See if the firewall wants to dispose of the packet. 
++		 */
++
++#ifdef	CONFIG_FIREWALL
++	
++		if ((err=call_in_firewall(PF_INET, skb, iph))<FW_ACCEPT)
++		{
++			if(err==FW_REJECT)
++				icmp_send(skb, ICMP_DEST_UNREACH, ICMP_PORT_UNREACH, 0, dev);
++			kfree_skb(skb, FREE_WRITE);
++			return 0;	
++		}
++
++#endif
++	
+ 	        if (opt && opt->srr) 
+ 	        {
+ 			int srrspace, srrptr;
