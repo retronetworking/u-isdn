@@ -1,11 +1,15 @@
 # config and include are first, then libraries, tools, modules+programs
-SUBDIRS  = config include tools compat streams support isdn_3 isdn_4 \
+SUBDIRS  = config include  tools  compat streams support  isdn_3 isdn_4 \
 		   ksupport isdn_2 str_if cards x75 alaw tools van_j strslip \
 		   v110 pr_on strslip fakeh t70 rate timer reconnect ip_mon
 
 .PHONY: depend
 
 all::	.diddepend
+depend::
+	$(MAKE) -C compat depend
+	$(MAKE) -C streams depend
+
 dep: depend
 
 TOPDIR=.

@@ -222,6 +222,7 @@ typedef struct proginfo {
 	char *protocol;
 	char *cclass;
 	char *card;
+	long id;
 	ulong_t mask;
 	char *type;
 	pid_t pid;
@@ -279,6 +280,7 @@ typedef struct conninfo {
 	long ccharge;				  /* cumulative charge, informational msg */
 	int chargecount;			/* Debug! */
 	pid_t pid;
+	long id;
 	uchar_t minor;
 	uchar_t fminor;
 	CState state;

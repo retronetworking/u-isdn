@@ -776,6 +776,11 @@ bintec_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 		if(channel > 0 && channel <= bp->card.nr_chans) {
 			DEBUG(info) printf("%sBINTEC: Chan%d %s<%d>%s\n",KERN_INFO ,channel,mode?"up":"down",mode,listen?" listen":"");
 			bp->chan[channel].mode = mode;
+			if(mode == M_OFF) {
+				bp->chan[channel].appID = 0;
+				bp->chan[channel].PLCI = 0;
+				bp->chan[channel].NCCI = 0;
+			}
 			splx(ms);
 			return 0;
 		} else {

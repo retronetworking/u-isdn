@@ -390,6 +390,8 @@ isdn3_killconn (isdn3_conn conn, char force)
 					if(conn->conns[i] != NULL)
 						free(conn->conns[i]);
 				}
+				if(conn->p_data != NULL)
+					free(conn->p_data);
 				free(conn);
 			}
 		}

@@ -173,7 +173,7 @@ typedef struct _isdn23_hdr {
 
 	} sel;
 }
-#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 6))
+#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7))
 	__attribute__((packed))
 #endif
 		*isdn23_hdr;

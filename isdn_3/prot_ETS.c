@@ -437,7 +437,7 @@ printf("FacL 8 is %d %d\n",ilen,nlen);
 					ilen--;
 				}
 
-#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 6))
+#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 7))
 #define UNUSED __attribute__((unused))
 #else
 #define UNUSED

@@ -77,7 +77,6 @@ int q_timeout = 0;
 #undef freeb
 #undef dupb
 #undef copyb
-#undef unlinkb
 #undef qenable
 #ifdef CONFIG_MALLOC_NAMES
 #undef kmalloc
@@ -89,7 +88,6 @@ int q_timeout = 0;
 #define freeb(a) deb_freeb(deb_file,deb_line,a)
 #define dupb(a) deb_dupb(deb_file,deb_line,a)
 #define copyb(a) deb_copyb(deb_file,deb_line,a)
-#define unlinkb(a) deb_unlinkb(deb_file,deb_line,a)
 #define qenable(a) deb_qenable(deb_file,deb_line,a)
 
 void traceback(char str) {
@@ -132,7 +130,8 @@ __res;})
  * Data message type? 
  */
 
-static inline const int datamsg(uchar_t type)
+static inline const int
+datamsg(uchar_t type)
 {
 	return (type == M_DATA || type==M_EXDATA);
 }
@@ -150,10 +149,11 @@ static inline const int datamsg(uchar_t type)
  * reasonable values.
  */
 
+mblk_t * 
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t * deb_allocb(const char *deb_file, unsigned int deb_line, ushort size, ushort pri)
+deb_allocb(const char *deb_file, unsigned int deb_line, ushort size, ushort pri)
 #else
-mblk_t * allocb(ushort size, ushort pri)
+allocb(ushort size, ushort pri)
 #endif
 {
 	mblk_t *p_msg;
@@ -226,10 +226,11 @@ mblk_t * allocb(ushort size, ushort pri)
  * Free a message header, decrement data block refcount, free data block if zero.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_freeb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_freeb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-void freeb(mblk_t *p_msg)
+freeb(mblk_t *p_msg)
 #endif
 {
 #ifdef SK_STREAM
@@ -325,10 +326,11 @@ void freeb(mblk_t *p_msg)
  *
  * This is rather inefficient and unsafe, but testb() is not widely used anyway.
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_testb(const char *deb_file, unsigned int deb_line, ushort size, ushort pri)
+deb_testb(const char *deb_file, unsigned int deb_line, ushort size, ushort pri)
 #else
-int testb(ushort size, ushort pri)
+testb(ushort size, ushort pri)
 #endif
 {
 	mblk_t *p_msg;
@@ -349,7 +351,8 @@ int testb(ushort size, ushort pri)
  * Class of the buffer?
  * We're using kmalloc instead of fixed tables, so this gets skipped.
  */
-int getclass(ushort size)
+int
+getclass(ushort size)
 {
 	return 1;
 }
@@ -361,10 +364,11 @@ int getclass(ushort size)
  * The read side gets a QREADR flag so OTHERQ knows what to do.
  */
 
+queue_t *
 #ifdef CONFIG_DEBUG_STREAMS
-queue_t *deb_allocq(const char *deb_file, unsigned int deb_line)
+deb_allocq(const char *deb_file, unsigned int deb_line)
 #else
-queue_t *allocq(void)
+allocq(void)
 #endif
 {
 	queue_t *p_queue;
@@ -391,10 +395,11 @@ queue_t *allocq(void)
  *
  * Frees a queue pair.
  */
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_freeq(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+deb_freeq(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-void freeq(queue_t *p_queue)
+freeq(queue_t *p_queue)
 #endif
 {
 	if(p_queue == NULL) {
@@ -423,10 +428,11 @@ void freeq(queue_t *p_queue)
  * this is the place to add the appropriate dispose code.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_freemsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_freemsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-void freemsg(mblk_t *p_msg)
+freemsg(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_temp;
@@ -452,10 +458,11 @@ void freemsg(mblk_t *p_msg)
  * the existing data; also increment the refcount.
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_dupb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_dupb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-mblk_t *dupb(mblk_t *p_msg)
+dupb(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_newmsg;
@@ -492,10 +499,11 @@ mblk_t *dupb(mblk_t *p_msg)
  * Duplicate a message. Walk through it with dupb().
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_dupmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_dupmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-mblk_t *dupmsg(mblk_t *p_msg)
+dupmsg(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_head, *p_newmsg;
@@ -529,10 +537,11 @@ mblk_t *dupmsg(mblk_t *p_msg)
  * of the block is _not_ preserved.
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_copyb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_copyb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-mblk_t *copyb(mblk_t *p_msg)
+copyb(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_newmsg;
@@ -565,10 +574,11 @@ mblk_t *copyb(mblk_t *p_msg)
  * Copy a message. Walk through it with dupb().
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_copymsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_copymsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-mblk_t *copymsg(mblk_t *p_msg)
+copymsg(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_head, *p_newmsg;
@@ -600,10 +610,11 @@ mblk_t *copymsg(mblk_t *p_msg)
  * Free space is preserved.
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_copybufb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_copybufb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-mblk_t *copybufb(mblk_t *p_msg)
+copybufb(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_newmsg;
@@ -637,10 +648,11 @@ mblk_t *copybufb(mblk_t *p_msg)
  * Copy a message with block alignment. Walk through it with copybufb().
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_copybufmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_copybufmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-mblk_t *copybufmsg(mblk_t *p_msg)
+copybufmsg(mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_head, *p_newmsg;
@@ -667,25 +679,6 @@ mblk_t *copybufmsg(mblk_t *p_msg)
 
 
 /**
- * linkb
- *
- * Link two messages.
- * This procedure is misnamed and should be called linkmsg().
- *
- * Inlined and moved to the header file.
- */
-
-/**
- * unlinkb
- *
- * Unlink a message block from the head of a message.
- *
- * This code is rather useless because there's no advantage to grabbing the
- * b_cont field and then either freeb()ing the head or clearing b_cont...
- * unless it's inlined, that is.
- */
-
-/**
  * rmvb
  *
  * Remove a message block from a message.
@@ -696,10 +689,11 @@ mblk_t *copybufmsg(mblk_t *p_msg)
  * block is in the message, you deserve to lose.
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_rmvb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, mblk_t *p_block)
+deb_rmvb(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, mblk_t *p_block)
 #else
-mblk_t *rmvb(mblk_t *p_msg, mblk_t *p_block)
+rmvb(mblk_t *p_msg, mblk_t *p_block)
 #endif
 {
 	mblk_t *p_ret = p_msg;
@@ -743,10 +737,11 @@ mblk_t *rmvb(mblk_t *p_msg, mblk_t *p_block)
  * This code is rather stupid. See pullupm() for how to do it better
  * (but not compatible).
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_pullupmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, short length)
+deb_pullupmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, short length)
 #else
-int pullupmsg(mblk_t *p_msg, short length)
+pullupmsg(mblk_t *p_msg, short length)
 #endif
 {
 	mblk_t *p_temp, *p_newmsg;
@@ -828,10 +823,11 @@ int pullupmsg(mblk_t *p_msg, short length)
  * Actually, this is the same stupidity pullupmsg() engaged in,
  * but I didn't redo adjmsg() because I don't need it...
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_adjmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, short length)
+deb_adjmsg(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, short length)
 #else
-int adjmsg(mblk_t *p_msg, short length)
+adjmsg(mblk_t *p_msg, short length)
 #endif
 {
 	mblk_t *p_temp = NULL; /* shut up GCC */
@@ -888,10 +884,11 @@ int adjmsg(mblk_t *p_msg, short length)
  *
  */
 
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_xmsgsize(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_xmsgsize(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-int xmsgsize(mblk_t *p_msg)
+xmsgsize(mblk_t *p_msg)
 #endif
 {
 	unsigned char type;
@@ -941,10 +938,11 @@ int xmsgsize(mblk_t *p_msg)
  *
  * Count size of data blocks.
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_msgdsize(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+deb_msgdsize(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
 #else
-int msgdsize(mblk_t *p_msg)
+msgdsize(mblk_t *p_msg)
 #endif
 {
 	int bytes = 0;
@@ -1013,9 +1011,11 @@ int msgdsize(mblk_t *p_msg)
 
 #ifdef CONFIG_DEBUG_STREAMS
 #define rmv_post(a,b) deb_rmv_post(deb_file,deb_line,a,b)
-static inline void deb_rmv_post(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
+static void
+deb_rmv_post(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
 #else
-static inline void rmv_post(queue_t *p_queue, mblk_t *p_msg)
+static inline void
+rmv_post(queue_t *p_queue, mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_tmp = p_msg;
@@ -1084,9 +1084,11 @@ static inline void rmv_post(queue_t *p_queue, mblk_t *p_msg)
 
 #ifdef CONFIG_DEBUG_STREAMS
 #define put_post(a,b) deb_put_post(deb_file,deb_line,a,b)
-static inline void deb_put_post(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
+static void
+deb_put_post(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
 #else
-static inline void put_post(queue_t *p_queue, mblk_t *p_msg)
+static inline void
+put_post(queue_t *p_queue, mblk_t *p_msg)
 #endif
 {
 	mblk_t *p_tmp = p_msg;
@@ -1150,9 +1152,11 @@ static inline void put_post(queue_t *p_queue, mblk_t *p_msg)
  * - Enable back queue if QWANTW is set, i.e. if a back queue is full.
  */
 #ifdef CONFIG_DEBUG_STREAMS
-inline void deb_get_post(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+void
+deb_get_post(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-inline void get_post(queue_t *p_queue)
+inline void
+get_post(queue_t *p_queue)
 #endif
 {
 	if (p_queue->q_count<=p_queue->q_lowat && p_queue->q_flag&QWANTW) {
@@ -1180,10 +1184,11 @@ inline void get_post(queue_t *p_queue)
  * - Adjust flow control.
  */
 
+mblk_t *
 #ifdef CONFIG_DEBUG_STREAMS
-mblk_t *deb_getq(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+deb_getq(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-mblk_t *getq(queue_t *p_queue)
+getq(queue_t *p_queue)
 #endif
 {
 	mblk_t *p_msg;
@@ -1256,10 +1261,11 @@ if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
  * The message must be on the queue.  
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_rmvq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
+deb_rmvq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
 #else
-void rmvq(queue_t *p_queue, mblk_t *p_msg)
+rmvq(queue_t *p_queue, mblk_t *p_msg)
 #endif
 { 
 	unsigned long s;
@@ -1328,10 +1334,11 @@ void rmvq(queue_t *p_queue, mblk_t *p_msg)
  * Restore flow control.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_flushq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, int flag)
+deb_flushq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, int flag)
 #else
-void flushq(queue_t *p_queue, int flag)
+flushq(queue_t *p_queue, int flag)
 #endif
 {
 	mblk_t *p_msg, *p_next;
@@ -1391,10 +1398,11 @@ void flushq(queue_t *p_queue, int flag)
  * Reports if the queue is full and kicks the next available writer if it is.
  */
 
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_canput(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+deb_canput(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-int canput(queue_t *p_queue)
+canput(queue_t *p_queue)
 #endif
 {
 	if (p_queue == NULL) {
@@ -1425,10 +1433,11 @@ if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
  *
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_putq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
+deb_putq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
 #else
-void putq(queue_t *p_queue, mblk_t *p_msg)
+putq(queue_t *p_queue, mblk_t *p_msg)
 #endif
 {
 	unsigned long s;
@@ -1510,10 +1519,11 @@ if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
  * Put a message back onto its queue.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_putbq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
+deb_putbq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
 #else
-void putbq(queue_t *p_queue, mblk_t *p_msg)
+putbq(queue_t *p_queue, mblk_t *p_msg)
 #endif
 {
 	unsigned long s;
@@ -1592,10 +1602,11 @@ void putbq(queue_t *p_queue, mblk_t *p_msg)
  * If NULL, insert at the end.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_insq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
+deb_insq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 #else
-void insq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
+insq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 #endif
 {
 	unsigned long s;
@@ -1659,10 +1670,11 @@ void insq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
  * if NULL, insert at the beginning.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_appq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
+deb_appq(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 #else
-void appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
+appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 #endif
 {
 	unsigned long s;
@@ -1735,10 +1747,11 @@ void appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
  *
  * Create a zero-byte control message and put it onto a queue.
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_putctl(const char *deb_file, unsigned int deb_line, queue_t *p_queue, uchar_t type)
+deb_putctl(const char *deb_file, unsigned int deb_line, queue_t *p_queue, uchar_t type)
 #else
-int putctl(queue_t *p_queue, uchar_t type)
+putctl(queue_t *p_queue, uchar_t type)
 #endif
 {
 	mblk_t *p_msg;
@@ -1757,10 +1770,11 @@ int putctl(queue_t *p_queue, uchar_t type)
  *
  * Create a one-byte control message and put it onto a queue.
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_putctl1(const char *deb_file, unsigned int deb_line, queue_t *p_queue, uchar_t type, streamchar param)
+deb_putctl1(const char *deb_file, unsigned int deb_line, queue_t *p_queue, uchar_t type, streamchar param)
 #else
-int putctl1(queue_t *p_queue, uchar_t type, streamchar param)
+putctl1(queue_t *p_queue, uchar_t type, streamchar param)
 #endif
 {
 	mblk_t *p_msg;
@@ -1781,10 +1795,11 @@ int putctl1(queue_t *p_queue, uchar_t type, streamchar param)
  * Return the queue which feeds this one.
  */
 
+queue_t
 #ifdef CONFIG_DEBUG_STREAMS
-queue_t *deb_backq(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+*deb_backq(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-queue_t *backq(queue_t *p_queue)
+*backq(queue_t *p_queue)
 #endif
 {
 	if(p_queue == NULL) {
@@ -1808,10 +1823,11 @@ queue_t *backq(queue_t *p_queue)
  * Send something in the "other" direction.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_qreply(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
+deb_qreply(const char *deb_file, unsigned int deb_line, queue_t *p_queue, mblk_t *p_msg)
 #else
-void qreply(queue_t *p_queue, mblk_t *p_msg)
+qreply(queue_t *p_queue, mblk_t *p_msg)
 #endif
 {
 	if(p_msg == NULL) {
@@ -1860,10 +1876,11 @@ void qreply(queue_t *p_queue, mblk_t *p_msg)
  * 
  * return number of messages on queue
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_qsize(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+deb_qsize(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-int qsize(queue_t *p_queue)
+qsize(queue_t *p_queue)
 #endif
 {
 	int msgs = 0;
@@ -1887,10 +1904,11 @@ int qsize(queue_t *p_queue)
  *
  * Set queue variables
  */
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_setq (const char *deb_file, unsigned int deb_line, queue_t * p_queue, struct qinit *read_init, struct qinit *write_init)
+deb_setq (const char *deb_file, unsigned int deb_line, queue_t * p_queue, struct qinit *read_init, struct qinit *write_init)
 #else
-void setq (queue_t * p_queue, struct qinit *read_init, struct qinit *write_init)
+setq (queue_t * p_queue, struct qinit *read_init, struct qinit *write_init)
 #endif
 {
 	if(p_queue == NULL) {
@@ -1927,10 +1945,11 @@ void setq (queue_t * p_queue, struct qinit *read_init, struct qinit *write_init)
  * Afterwards, unschedule the service procedures if necessary.
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_qdetach (const char *deb_file, unsigned int deb_line, queue_t * p_queue, int do_close, int flag)
+deb_qdetach (const char *deb_file, unsigned int deb_line, queue_t * p_queue, int do_close, int flag)
 #else
-void qdetach (queue_t * p_queue, int do_close, int flag)
+qdetach (queue_t * p_queue, int do_close, int flag)
 #endif
 {
 	unsigned long s;
@@ -2007,10 +2026,11 @@ void qdetach (queue_t * p_queue, int do_close, int flag)
  * driver/module.
  */
 
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_qattach (const char *deb_file, unsigned int deb_line, struct streamtab *qinfo, queue_t * p_queue, dev_t dev, int flag)
+deb_qattach (const char *deb_file, unsigned int deb_line, struct streamtab *qinfo, queue_t * p_queue, dev_t dev, int flag)
 #else
-int qattach (struct streamtab *qinfo, queue_t * p_queue, dev_t dev, int flag)
+qattach (struct streamtab *qinfo, queue_t * p_queue, dev_t dev, int flag)
 #endif
 {
 	queue_t *p_newqueue;
@@ -2069,10 +2089,11 @@ printf("%sDriver %s opened\n",KERN_DEBUG ,p_newqueue->q_qinfo->qi_minfo->mi_idna
  * Schedule a queue.
  */
 
+void 
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_qenable(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
+deb_qenable(const char *deb_file, unsigned int deb_line, queue_t *p_queue)
 #else
-void qenable(queue_t *p_queue)
+qenable(queue_t *p_queue)
 #endif
 {
 	unsigned long s;
@@ -2178,10 +2199,11 @@ qretry(queue_t *p_queue)
  *
  */
 
+void
 #ifdef CONFIG_DEBUG_STREAMS
-void deb_runqueues(const char *deb_file, unsigned int deb_line)
+deb_runqueues(const char *deb_file, unsigned int deb_line)
 #else
-void runqueues(void)
+runqueues(void)
 #endif
 {
 	if(sched_first != NULL) {
@@ -2194,10 +2216,12 @@ void runqueues(void)
 		static void do_runqueues(void*);
 		static int isrunning = 0;
 
-		if(isrunning) {
+		if(isrunning++) {
+			--isrunning;
 			return;
 		}
 		do_runqueues(NULL);
+		--isrunning;
 #endif
 	}
 }
@@ -2210,7 +2234,8 @@ void runqueues(void)
  * Must not be reentered. (Guaranteed by Linux and by the above code.)
  */
 
-static void do_runqueues(void *dummy)
+static void
+do_runqueues(void *dummy)
 {
 	queue_t *p_queue;
 	unsigned long s;
@@ -2272,7 +2297,8 @@ static void do_runqueues(void *dummy)
 
 const char *str__file; unsigned long str__line;
 
-int deb_splstr(const char * deb_file, unsigned int deb_line)
+int
+deb_splstr(const char * deb_file, unsigned int deb_line)
 {
 	if(bh_mask & (1<<STREAMS_BH)) {
 		long x;
@@ -2297,7 +2323,8 @@ int deb_splstr(const char * deb_file, unsigned int deb_line)
 
 char streams_inited = 0;
 
-static void streams_init(void)
+static void
+streams_init(void)
 {
 #ifdef __KERNEL__
 	static void q_run(void *);
@@ -2315,7 +2342,8 @@ static void streams_init(void)
 }
 
 #ifdef __KERNEL__
-static void q_run(void *dummy)
+static void
+q_run(void *dummy)
 {
 	if(bh_mask & (1<<STREAMS_BH)) {
 		do_runqueues(dummy);
@@ -2327,16 +2355,67 @@ static void q_run(void *dummy)
 }
 #endif
 
+#ifdef CONFIG_DEBUG_STREAMS
+
+void
+putnext(queue_t *p_queue, mblk_t *p_msg)
+{
+	(*p_queue->q_next->q_qinfo->qi_putp)(p_queue->q_next, p_msg);
+}
+
+/**
+ * linkb
+ *
+ * Link two messages.
+ * This procedure is misnamed and should be called linkmsg().
+ */
+
+void
+linkb(mblk_t *p_msg1, mblk_t *p_msg2)
+{
+    if(p_msg1 == NULL || p_msg2 == NULL)
+        return;
+
+    while(p_msg1->b_cont != NULL)
+        p_msg1 = p_msg1->b_cont;
+
+    p_msg1->b_cont = p_msg2;
+}
+
+/**
+ * unlinkb
+ *
+ * Unlink a message block from the head of a message.
+ *
+ * Some people think this code is actually useful...
+ */
+
+mblk_t *
+unlinkb(mblk_t *p_msg)
+{
+    mblk_t *p_nextmsg;
+
+    if(p_msg == NULL)
+        return NULL;
+
+    p_nextmsg = p_msg->b_cont;
+    p_msg->b_cont = NULL;
+    return p_nextmsg;
+}
+
+#endif /* CONFIG_DEBUG_STREAMS */
+
 
 /**
  * findmod
  *
  * Find a Streams module by name.
  */
+int
 #ifdef CONFIG_DEBUG_STREAMS
-int deb_findmod(const char *deb_file, unsigned int deb_line, const char *name)
+deb_findmod(const char *deb_file, unsigned int deb_line, const char *name)
 #else
-int findmod(const char *name)
+findmod(const char *name)
 #endif
 {
 	int i, j;
@@ -2358,7 +2437,9 @@ int findmod(const char *name)
  */
 #ifdef __KERNEL__
 struct streamtab *fstr_sw[MAX_STRDEV] = {NULL,};
-int register_strdev(unsigned int major, struct streamtab *strtab, int nminor)
+
+int
+register_strdev(unsigned int major, struct streamtab *strtab, int nminor)
 {
 	int err;
 	int register_term_strdev(unsigned int major, const char *name, int nminor);
@@ -2414,7 +2495,8 @@ int unregister_strdev (unsigned int major, struct streamtab *strtab, int nminor)
 struct fmodsw fmod_sw[MAX_STRMOD] = {{{0}}};
 int fmodcnt = MAX_STRMOD;
 
-int register_strmod(struct streamtab *strtab)
+int
+register_strmod(struct streamtab *strtab)
 {
 	int fm;
 	struct fmodsw *f;
@@ -2438,7 +2520,8 @@ int register_strmod(struct streamtab *strtab)
 	return -EBUSY;
 }
 
-int unregister_strmod(struct streamtab *strtab)
+int
+unregister_strmod(struct streamtab *strtab)
 {
 	int fm;
 	struct fmodsw *f;

@@ -2461,10 +2461,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 static void
 killconn (isdn3_conn conn, char force)
 {
-	if (conn->p_data != NULL) {
-		free (conn->p_data);
-		conn->p_data = NULL;
-	}
 	if (force) {
 		untimer (N1_T308, conn);
 		untimer (N1_T313, conn);
