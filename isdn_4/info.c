@@ -359,7 +359,7 @@ do_card(void)
 		if (!strcmp(card->name, crd))
 			return -EEXIST;
 	}
-	card = malloc(sizeof(*card));
+	card = xmalloc(sizeof(*card));
 	if(card == NULL)
 		return -ENOMEM;
 	bzero(card,sizeof(*card));
@@ -371,7 +371,7 @@ do_card(void)
 	card->next = isdn4_card; isdn4_card = card;
 
 	if(cardcap & CHM_INTELLIGENT) {
-		ld = malloc(sizeof(struct loader));
+		ld = xmalloc(sizeof(struct loader));
 		if(ld == NULL)
 			return -errno;
 		bzero(ld,sizeof(*ld));
@@ -420,7 +420,7 @@ do_card(void)
 		(void) strwritev (xs_mon, io,len, 1);
 	}
 
-	conn = malloc(sizeof(*conn));
+	conn = xmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
@@ -461,7 +461,7 @@ do_nocard(void)
 					break;
 				}
 			}
-			conn = malloc(sizeof(*conn));
+			conn = xmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
@@ -490,7 +490,7 @@ do_offcard(void)
 	if ((ret = m_getstr(&xx, crd, 4)) != 0)
 		return ret;
 
-	conn = malloc(sizeof(*conn));
+	conn = xmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
@@ -512,7 +512,7 @@ do_recard(void)
 
 	if ((ret = m_getstr(&xx, crd, 4)) != 0)
 		return ret;
-	conn = malloc(sizeof(*conn));
+	conn = xmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
@@ -846,7 +846,7 @@ do_incoming(void)
 				conn->want_fast_reconn = 1;
 			}
 
-			conn = malloc(sizeof(*conn));
+			conn = xmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
@@ -863,6 +863,7 @@ do_incoming(void)
 			if(log_34 & 2)printf("Dis2 ");
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
+			m_putsx (mz, ARG_FORCE);
 			m_putsx (mz, ID_N0_cause);
 			m_putsx2(mz, ID_N1_CallRejected);
 			if(conn->cg != NULL && conn->cg->card != NULL && conn->cg->card[0] != '\0') {
@@ -890,10 +891,9 @@ do_incoming(void)
 #if 1
 			/* cg->flags &=~ F_INCOMING; */
 			/* cg->flags |= F_OUTGOING; */
-			if(startconn(cg,fminor,connref,NULL, NULL) != conn)
-				resp = "ClashRestart Failed";
+			startconn(cg,fminor,connref,&resp, NULL);
 #endif
-			conn = malloc(sizeof(*conn));
+			conn = xmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
@@ -912,7 +912,7 @@ do_incoming(void)
 	
 	/* At this point we don't have a connection. The call is valid, so
 	   record the thing and start the program for it. */
-	conn = (struct conninfo *)malloc (sizeof (struct conninfo));
+	conn = (struct conninfo *)xmalloc (sizeof (struct conninfo));
 
 	if (conn == NULL) {
 		resp = "NO MEMORY.5";
@@ -994,7 +994,7 @@ do_incoming(void)
 			DUMPW (ans, xlen);
 			(void) strwrite (xs_mon, ans, xlen, 1);
 		}
-		conn = malloc(sizeof(*conn));
+		conn = xmalloc(sizeof(*conn));
 		if(conn != NULL) {
 			bzero(conn,sizeof(*conn));
 			conn->seqnum = ++connseq;
@@ -1226,7 +1226,6 @@ do_disc(void)
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
-		m_putsx (&xx, ARG_NOCONN);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
 		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
@@ -1512,8 +1511,10 @@ do_hasdisconnect(void)
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
+#if 0
 		if((conn != NULL) && (conn->flags & F_PERMANENT))
 			m_putsx (&xx, ARG_NOCONN);
+#endif
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
 		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
@@ -1750,7 +1751,7 @@ do_atcmd(void)
 					struct conninfo *fconn;
 					char buf[30];
 
-					conn = malloc(sizeof(*conn));
+					conn = xmalloc(sizeof(*conn));
 					if(conn == NULL) {
 						free(msgbuf);
 						resp = "NoMem";
@@ -1805,7 +1806,7 @@ do_atcmd(void)
 			case 'W': /* Monitor D channels */
 				{
 					char buf[30];
-					conn = malloc(sizeof(*conn));
+					conn = xmalloc(sizeof(*conn));
 					if(conn == NULL) {
 						resp = "NoMemConn";
 						return 1;
@@ -1850,7 +1851,7 @@ do_atcmd(void)
 #if LEVEL < 4
 					extern int l3print(char *);
 #endif
-					msgbuf = malloc(10240);
+					msgbuf = xmalloc(10240);
 					if(msgbuf == NULL) {
 						resp = "NO MEMORY.6";
 						return 1;
@@ -2066,7 +2067,7 @@ do_atcmd(void)
 					m3 = NULL;
 				}
 				if(conn == NULL) {
-					conn = malloc(sizeof(*conn));
+					conn = xmalloc(sizeof(*conn));
 					if(conn != NULL) {
 						bzero(conn,sizeof(*conn));
 						conn->seqnum = ++connseq;
@@ -2222,7 +2223,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 				if(strchr(cfr->type,'E'))
 					cfr->got_err = 1;
 
-				xconn = malloc(sizeof(*xconn));
+				xconn = xmalloc(sizeof(*xconn));
 				if(xconn != NULL) {
 					bzero(xconn,sizeof(*xconn));
 					xconn->seqnum = ++connseq;

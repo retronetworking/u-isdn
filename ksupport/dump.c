@@ -227,7 +227,8 @@ dump_one_hdr (isdn23_hdr hdr)
 									  (hdr->hdr_attach.listen & 2) ? " force" : "");
 		break;
 	case HDR_DETACH:
-		printf ("Detach port %d, errno %d, force %d", hdr->hdr_detach.minor, 
+		printf ("Detach chan %d/%d from port %d, errno %d, force %d",
+				hdr->hdr_detach.card, hdr->hdr_detach.chan, hdr->hdr_detach.minor, 
 				hdr->hdr_detach.error,hdr->hdr_detach.perm);
 		break;
 	case HDR_CARD:

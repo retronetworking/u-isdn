@@ -1,7 +1,7 @@
 #!/bin/sh
-PATH=/usr/local/isdn/bin-$(uname -r):/usr/local/isdn/bin:.:/sbin:/usr/sbin:$PATH
 
 set -e
+PATH=/usr/local/isdn/bin-$(uname -r):/usr/local/isdn/bin:/usr/sbin:/sbin:/usr/lcoal/bin:/usr/bin:/bin
 
 if lsmod | grep isdn_2 >/dev/null 2>&1 ; then : ; else
 	cd /lib/modules/$(uname -r)
@@ -12,9 +12,13 @@ if lsmod | grep isdn_2 >/dev/null 2>&1 ; then : ; else
 	done < ../modules.isdn > symbols.isdn
 	/bin/echo "\rISDN Modules...done.                                                       "
 fi
-cd /usr/local/isdn
 
-cd bin-$(uname -r) || cd bin
+cd /var/tmp
+## /usr might be write protected and the debugging person
+#  might want to have coredumps. So I provide them.
+
+ulimit -c 40000
+# ulimit -d 20000
 
 # monitor -b >>/var/log/acct/ip &
 

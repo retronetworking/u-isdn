@@ -46,7 +46,7 @@ read_line (FILE * ffile, int *theLine)
 	if (sofar == line || remain <= 3 || now == 0)
 		return NULL;
 	*sofar = '\0';
-	out = (struct _cf *)malloc (sizeof (struct _cf) + (now = sofar - line + 1));
+	out = (struct _cf *)xmalloc (sizeof (struct _cf) + (now = sofar - line + 1));
 
 	bcopy (line, (char *) (out + 1), now);
 	bzero ((char *) out, sizeof (struct _cf));

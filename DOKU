@@ -377,8 +377,9 @@ AT/K
     Kann nur vom Superuser ausgeführt werden.
 AT/Kn
     Beendet die Verbindung <n>, beendet das betreffende Programm.
-AT/L
-    Listet den momentanen Status aller Verbindungen.
+AT/L Karte
+    Listet den momentanen Status aller Verbindungen für die angegebene
+	Karte (kann weggelassen werden: alle Karten).
 <[minor:]id> <Art> <Partner> <Key> <pid> <Modus/Karte> <UnitNow> <UnitAll> <Status>
     <minor>     Nummer der Verbindung, für AT/K o.ä.
     <n>         interne Folgenummer der Statusmeldung; Meldungen, die einen
@@ -401,14 +402,20 @@ AT/L
     nicht mehr bekannt ist, der Zustand aber noch eine Zeitlang angezeigt wird.
 
     Bis zum nächsten AT-Befehl bleibt der Kanal im Monitormodus und meldet
-    alle Zustandsänderungen automatisch.
+    alle Zustandsänderungen automatisch. Außerdem kommt jede Minute eine
+	"Keepalive"-Zeile mit der aktuellen Uhrzeit sowie der Anzahl der
+	Minuten, die der Masterprozeß diesmal durchgelaufen ist. ;-)
 AT/I
     Listet den internen Zustand. In der ersten Zeile stehen die erkannten
     ISDN-Karten, die zweite Zeile enthält den internen Zustand des ISDN-
     Systems. Zum Debuggen.
-AT/W karte
+AT/W Karte
     Beobachtet den Traffic auf den D-Kanälen der Karte (kann ein Pattern
     sein: AT/W* auf allen Karten). Dazu muß :de in der DL-Zeile stehen.
+	Bei aktiven Karten sind das die Protokolldaten, zB CAPI-Nachrichten.
+	Die Daten werden _nicht_ interpretiert.
+
+	Zusätzlich werden dieselben Daten wie bei AT/L angezeigt.
 AT/M foo
     Sendet den Systembefehl "foo" nach unten. Gefährlich.
     Kann zum Online-Rekonfigurieren von Modulen verwendet werden. Beispiel:

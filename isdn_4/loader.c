@@ -45,7 +45,7 @@ card_load_close(struct loader *ld, char success)
 				break;
 		}
 		if(conn == NULL) {
-			conn = malloc(sizeof(*conn));
+			conn = xmalloc(sizeof(*conn));
 			newconn = 1;
 		}
 		if(conn != NULL) {
@@ -101,7 +101,7 @@ card_load_fail(struct loader *ld, int err)
 				break;
 		}
 		if(conn == NULL) {
-			conn = malloc(sizeof(*conn));
+			conn = xmalloc(sizeof(*conn));
 			newconn = 1;
 		}
 		if(conn != NULL) {
@@ -154,7 +154,7 @@ card_load(struct loader *ld)
 	} else
 		do_again = 1;
 	if(!do_again || (ld->file != NULL)) {
-		char *buf = NULL; /* shut up GCC */
+		char *buf = NULL;
 		int len, xlen, foffset;
 		mblk_t xx;
 		struct datab db;
@@ -162,7 +162,7 @@ card_load(struct loader *ld)
 		streamchar ans[50];
 
 		if(ld->file != NULL) {
-			buf = malloc(lf->num);
+			buf = xmalloc(lf->num);
 			if(buf == NULL) {
 				syslog(LOG_ERR, "Card loader for %s !\n",ld->card);
 				goto ex_load;
@@ -219,7 +219,8 @@ card_load(struct loader *ld)
 			}
 		}
 		(void) strwritev (xs_mon, io,len, 1);
-		free(buf);
+		if(buf != NULL)
+			free(buf);
 		if(do_again) {
 			ld->timer = 1;
 			timeout(card_load,ld,(ld->file || !lf) ? HZ : (HZ*lf->num2+HZ/3));

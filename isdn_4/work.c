@@ -126,7 +126,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 		(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
 		freeb (mj);
 
-		sx = (char *)malloc (strlen (prot->args) + 5 + strlen (PROTO_NAME));
+		sx = (char *)xmalloc (strlen (prot->args) + 5 + strlen (PROTO_NAME));
 		if (sx == NULL)
 			return -ENOMEM;
 		sprintf (sx, " %s %s", prot->args, PROTO_NAME);
@@ -277,7 +277,7 @@ pushcardprot (conngrab cg, int minor, int connref)
 				break;
 			}
 			if (cmod == NULL) {
-				struct conninfo *xconn = malloc(sizeof(*xconn));
+				struct conninfo *xconn = xmalloc(sizeof(*xconn));
 				if(xconn != NULL) {
 					bzero(xconn,sizeof(*xconn));
 					xconn->seqnum = ++connseq;
@@ -295,7 +295,7 @@ pushcardprot (conngrab cg, int minor, int connref)
 		break;
 	}
 	if (prot == NULL) {
-		struct conninfo *xconn = malloc(sizeof(*xconn));
+		struct conninfo *xconn = xmalloc(sizeof(*xconn));
 		if(xconn != NULL) {
 			bzero(xconn,sizeof(*xconn));
 			xconn->seqnum = ++connseq;
@@ -672,7 +672,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			cg = *foo;
 
 			if(conn == NULL) {
-				conn = malloc(sizeof(*conn));
+				conn = xmalloc(sizeof(*conn));
 				if(conn == NULL) {
 					return "NO MEMORY.1";
 				}
@@ -719,7 +719,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				}
 			}
 		}
-		prog = (struct proginfo *) malloc (sizeof (struct proginfo));
+		prog = (struct proginfo *) xmalloc (sizeof (struct proginfo));
 
 		if (prog == NULL)
 			return "NO MEMORY.2";
@@ -1165,7 +1165,7 @@ kill_rp(struct conninfo *conn, char whatnot)
 		if(maskmatch(pro->mask,conn->cg->mask) == 0) continue;
 		if(classmatch(pro->cclass,conn->cg->cclass) == NULL) continue;
 
-		xconn = malloc(sizeof(*xconn));
+		xconn = xmalloc(sizeof(*xconn));
 		if(xconn != NULL) {
 			bzero(xconn,sizeof(*xconn));
 			xconn->seqnum = ++connseq;
@@ -1216,7 +1216,7 @@ run_rp(struct conninfo *conn, char what)
 			if(maskmatch(pr->mask,sub) == 0) continue;
 			if(classmatch(pr->cclass,cla) == NULL) continue;
 
-			xconn = malloc(sizeof(*xconn));
+			xconn = xmalloc(sizeof(*xconn));
 			if(xconn != NULL) {
 				bzero(xconn,sizeof(*xconn));
 				xconn->seqnum = ++connseq;
@@ -1301,7 +1301,7 @@ printf("run %s:%s; ",what->site,what->protocol);
 					kill_rp(conn,'t');
 					run_rp(conn,'i');
 				} else if(err != NULL) {
-					conn = malloc(sizeof(*conn));
+					conn = xmalloc(sizeof(*conn));
 					if(conn != NULL) {
 						bzero(conn,sizeof(*conn));
 						conn->seqnum = ++connseq;
