@@ -141,12 +141,12 @@ Die Patches basieren auf dem in der Versionsnummer bezeichneten Kernel.
 Frühere bzw. spätere Kernels auf eigene Gefahr bzw. Bastelei. 
 
 Was die einzelnen Patches machen und ob sie benötigt werden,
-steht in den einzelnen Dateien am Anfang.
+steht in den einzelnen Dateien am Anfang. Lesen, bevor der Kernel verändert
+wird!
 
-Der Kernel muß mit CONFIG_MODVERSION gebaut werden. Alternativ (aber das ist
-unsicherer) kann im ISDN-Paket aus config/config.data -DCONFIG_MODVERSION
-entfernt werden. Das modutils-1.2.8-Paket wird in jedem Fall benötigt, um
-Parameter an die einzelnen Module zu übergeben.
+Der Kernel sollte mit CONFIG_MODVERSIONS gebaut werden.
+Das modutils-1.2.8-Paket wird in jedem Fall benötigt, um Parameter an die
+einzelnen Module zu übergeben.
 
 
 Grundstruktur
@@ -160,7 +160,7 @@ tty-Verwaltung unter Linux gibt es keinen clone-Treiber (die ist nicht
 darauf ausgelegt).
 
 Der ISDN-Treiber "isdn_2" ist die Low-Level-Schnittstelle zwischen den
-ISDN-Karten und de Steuerprogramm (bin/master). Dieses öffnet /dev/isdnmon,
+ISDN-Karten und dem Steuerprogramm (bin/master). Dieses öffnet /dev/isdnmon,
 liest eine Konfigdatei (siehe unten) etc. Der Treiber meldet dem
 Steuerprogramm, welche Karten sich bei ihm angemeldet haben.
 Es gibt _keine_ Devices für einzelne Karten.
@@ -202,20 +202,25 @@ gut getestet. Was sehr gut tut, ist TCP/IP; siehe dazu die Beispielkonfi-
 guration. Ein Anrufbeantworter existiert ebenfalls (leider noch ohne
 DMTF-Erkennung).
 
-Statt eines Sitenamens tut auch ATD und die Nummer; /login ist der Default
-für das Protokoll.
+Statt ATD/name funktioniert auch ATDnummer; /login ist der Default für das
+Protokoll.
 
 
 Installation
 ============
 
-Linux:
-
+### Wer noch nie einen eigenen Kernel gebaut hat, lese zunächst
+### das entsprechende HOWTO-Dokument.
+#
 cd /usr/src
-mkdir isdn ; cd isdn
-tar xfvz /wo/auch/immer/isdn-xxxx.tar.gz
+tar xfvz /wo/auch/immer/isdn-xx.tar.gz
+cd isdn-xx
 cd patches
-for i in * ; do patch -p0 -d /usr/src/aktueller-kernel < $i ; done
+for i in biglog more_free setnoswap ; do
+    patch -p0 -d /usr/src/linux < $i
+done
+# Andere Patche in diesem Verzeichnis ansehen, evtl. ebenfalls installieren.
+#
 # Kernel installieren und booten.
 # (alten Kernel unbedingt zu Backupzwecken erhalten!)
 # Danach:
@@ -225,13 +230,14 @@ make.isdn
 # Als Superuser:
 make.isdn
 Editiere /lib/modules/modules.isdn:
-    isdn/teles.o name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
+    -o Tel0 isdn/teles.o name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
   anstatt
     isdn/teles.o
   eintragen. Näheres siehe "Treiberparameter" weiter unten.
-cd /usr/local/isdn/bin
+cd /usr/local/isdn/bin-Kernelversion  # also zB .../bin-1.3.29
 vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
 /etc/rc.d/rc.isdn # geht automatisch in den Hintergrund
+# Wenn das alles funktioniert, rc.isdn via rc.local starten.
 
 Sämtliche Gerätedateien werden automatisch angelegt.
 
@@ -476,6 +482,41 @@ Strings in spitzen Klammern sind Platzhalter. Ein Doppelpunkt mit zwei
 folgenden Buchstaben ist ein Parameter, dem eine vom Parameter abhängige
 Anzahl Werte folgen kann.
 
+
+Vorgehensweise des Masterprogramms beim Aufbau einer Verbindung:
+--------------
+Das Zielsystem wird ausgewählt (D- und P-Zeile: ankommende Verbindung;
+    R-Zeile, bei Programmstart).
+Das in der R-Zeile angegebene Programm wird gestartet. 
+Die in der ML-Zeile angegebenen Module werden zwischen den ISDN-Treiber und
+    das Programm geschoben.
+Die Module werden mit Parametern (in MP-Zeilen angegeben) versorgt.
+Eine freie Karte (Liste der installierten Karten, DL-Zeile, CL-Zeile) wird
+    gesucht.
+Eine Nummer des Zielsystems wird gewählt (D- und P-Zeile: abgehende
+    Verbindung).
+Ein freier B-Kanal (welcher, sagt uns die Vermittlung) wird der Verbindung
+    zugeordnet. 
+Die Module (und optional das Programm, via Signal) werden informiert, daß
+    die Verbindung steht.
+<Datenaustausch>
+
+Zueinander passende Zeilen haben jeweils gleiche oder via Shell-Pattern-
+matching zusammenpassende <Art>-, <Partner>- und <Karte>-Felder, in
+mindestens einem Zeichen übereinstimmende <Key>-Felder, und zur
+aufzubauenden Verbindung passende Zeichen im <Mod>-Feld etc.; siehe die
+unten folgenden Detailbeschreibungen.
+
+Nummern und ISDN-Karten werden im Rotationsverfahren durchprobiert; dadurch
+werden mehrere lokale und entfernte Nummern gleichberechtigt verwendet.
+Alle anderen Zeilen werden von oben nach unten durchsucht; die erste
+passende Zeile wird verwendet. (Beim Scannen der P-Zeilen werden Daten aus
+passenden Folgezeilen ebenfalls berücksichtigt -- siehe unten.)
+
+
+Konfigurationsdatei: Details
+-------------------
+
 Alle Zeilentypen:
 
 <Key> ist jeweils ein beliebiger String. Alle für eine Verbindung verwendeten
@@ -517,6 +558,9 @@ Parameter:
     abgebrochen.) (Nicht allzu gut getestet.)
 :yi Bei einem ankommeden Ruf wird automatisch ein abgehender gestartet und
     der ankommende wird abgewiesen. (Ungetestet.)
+:bi Bei einem ankommenden Ruf, der nicht angenommen werden kann (belegt?),
+    wird automatisch hoffentlich auf einer anderen Leitung zurückgerufen.
+    :fr ebenfalls zu setzen ist meist sinnvoll.
 :il Die CL-Zeile wird ignoriert.
 :fX Ankommende Anrufe, die (zB wegen besetzt) abgewiesen werden, werden
     "schnell" abgelehnt. (Andere Geräte am Bus können nicht abheben.)
@@ -536,9 +580,8 @@ Spezifisch für Euro-ISDN:
 :vB Bearer Capability. Hexstring, evtl. mit Maske.
 :vL Lower Layer Compatibility. Hexstring, evtl. mit Maske.
 :vU Upper Layer Compatibility. Hexstring, evtl. mit Maske.
-    Was diese Dinger bedeuten, steht in der Norm Q.931, zu holen bei 
-    info.itu.ch via Gopher oder FTP. Die wichtigsten Bedeutungen stehen am
-    Ende dieser Anleitung.
+    Was diese Dinger bedeuten, steht in der Norm Q.931.
+    Die wichtigsten Codes für :vB stehen am Ende dieser Anleitung.
 
 Spezifisch für die Bearbeitung von Telefonnummern:
 :nr Entfernte Telefonnummer. Siehe unten unter Telefonnummernverarbeitung.
@@ -547,10 +590,14 @@ Spezifisch für die Bearbeitung von Telefonnummern:
 :im Die folgenden Nummernteile sind zum Einwählen bestimmt, d.h. Muster.
 :bm Die Nummernteile werden sowohl ankommend als auch abgehend verwendet
     (Default).
+:vr Ankommend: bei fehlender externer Nummer wird die Zeile übersprungen.
+:vl Dito, fehlende lokale Nummer.
+:Vr Ankommend: bei mitgelieferter externer Nummer wird die Zeile übersprungen.
+:Vl Dito, mitgelieferte lokale Nummer.
 
     Hierbei gilt: Angegeben werden nur die Nummernteile, die nicht in den
     D- bzw. DL-Zeilen stehen. Das System destilliert aus den verschiedenen
-    Angaben lokale und 
+    Angaben lokale und entfernte Nummern.
 
 Mod:
 R Die Zeile wird primär für einen Verbindungsaufbau verwendet.
@@ -746,12 +793,12 @@ für ankommende Verbindungen; 1TR6-Nebenstellenanlagen wollen beim Wählen
 typischerweise eine vorgestellte Null o.ä. sehen, die aber bei ankommenden
 Gesprächen nicht mit angezeigt wird.
 
-Die Zeichen sind immer "+" für internationale Verbindungen, "=" für 
+Die Zeichen sind _immer_ "+" für internationale Verbindungen, "=" für 
 nationale Verbindungen, "-" für Ortsverbindungen, "." oder "/" für
 Verbindungen innerhalb einer Nebenstellenanlage oder EAZs/MSNs etc. Der
 Unterschied ist, daß Nummern einer Nebenstellenanlage direkt angerufen
-werden können, während ich für eine Verbindung zu einer anderen MSN die
-Teilnehmernummer mitwählen muß.
+werden können, während man für eine Verbindung zu einer anderen MSN am
+gleichen Basisanschluß die Teilnehmernummer mitwählen muß.
 
 Beispiel: Eine Konfiguration
 D ... -1234/[456]
@@ -779,11 +826,13 @@ Eine R-Zeile wird ignoriert, sobald das betreffende Programm einen Fehler
 gemeldet hat (Exitstatus != 0) oder bei der Verbindungssteuerung ein Fehler
 aufgetreten ist. 
 
-Im Environment dieses Programms werden folgende Variablen abgelegt:
+Im Environment dieses Programms werden folgende Variablen abgelegt, wenn
+die Parameter bekannt sind:
 SITE      <Partner>
 PROTOCOL  <Art>
 CLASS     <Key>
 PHONE     Telefonnummer der Gegenstelle, so wie sie ankam bzw. gewählt wurde
+LPHONE    Lokale Nummer bzw. deren Endteil
 DIRECTION "IN" oder "OUT"
 DEVICE    im Normalfall: /dev/ttyiXX
 
@@ -881,7 +930,46 @@ werden.
 
 RP-Zeile ("Run Program")
 --------
-Noch nicht implementiert.
+
+Form:
+RP <Art> <Partner> <Key> <Karte> <Benutzer> <Mod> <Programm> <Argumentliste...>
+
+Beispiel:
+RP login * * * root IDUST$u echo "Login von $PHONE auf $DEVICE" >>/var/log/isdn.use
+
+Hiermit wird ein Programm (plus Parameter) angegeben, das bei Eintreten
+eines bestimmten Zustands einer Verbindung gestartet wird. Parameter siehe
+R-Zeile; zusätzliche Flags sind
+u  Start nach erfolgtem Aufbau der Verbindung
+d  Start bei Abbau einer Verbindung
+f  Start nach erfolglosem Verbindungsversuch (abgehend)
+x  Start bei temporärer Deaktivierung eines Interface (zu viele Versuche),
+   anstehende Datenpakete werden weggeworfen
+y  Start bei Reaktivierung des Interface
+i  Start bei Aufruf des Verbindungshandlers (zB "des slipto"-Programms)
+r  Start bei abgelehntem Anruf
+t  Start nach Tod des Verbindungshandlers
+c  Stdin/out des Programms wird auf ein freies ISDN-Device gelegt.
+   (Sonst: /dev/null.)
+s  schicke keine Signale
+
+Ein mit "u" gestartetes Programm bekommt SIGHUP gesendet, wenn es bei
+Verbindungsende noch läuft; dito ein mit "d" gestartetes Programm zu
+Beginn des mächsten Verbindungsaufbaus. Einem Programm, das kontinuierlich
+läuft, wird bei jedem Statuswechsel SIGUSR1 gesendet. SIGQUIT wird an alle
+Programme gesendet, die laufen, wenn die zugeordnete Verbindung beendet
+wird.
+
+Vorsicht: Mehrere Programme unter demselben Flag laufen zu lassen
+funktioniert nur dann sicher, wenn sich alle (möglicherweise bis auf eines)
+ziemlich schnell wieder beenden, sonst gibt es Probleme (mehrfach oder
+nicht gestartete Programme).
+
+Im Environment finden sich zusätzlich:
+
+COST      für die laufende Verbindung angefallene Kosten
+CCOST     insgesamt angefallene Kosten
+CAUSE     Aktueller Fehlerzustand (bei 
 
 
 Module und deren Konfiguration
@@ -897,8 +985,8 @@ Wandelt einen A-Law-Datenstrom in einen 8-Bit-Datenstrom. Dabei werden nur
 die Bytes umkodiert, die Daten aber nicht auf 12 Bit aufgeblasen. Gibt nach
 oben Bytes _mit_ Vorzeichen weiter.
 Zusätzlich können für beide Richtungen Schwellwerte definiert werden, 
-unterhalb derer keine Uebertragung zugelassen wird, um in Gesprächspausen
-die Rechnerlast zu senken.
+unterhalb derer keine Uebertragung zugelassen wird, um Gesprächspausen
+herauszufiltern.
 
 :ro 0-127    Ansprechschwelle beim Empfang. Null schaltet permanent auf
              "Durchgang".
@@ -936,7 +1024,12 @@ Streams->IP-Wandler (str_if)
 Implementiert ein TCP/IP-Modul. Daten werden nicht in Richtung Anwender-
 programm, sondern in das TCP/IP-Networking des Kernels umgeleitet.
 
-:mt 120-4096  512     MTU des Treibers.
+:mt 120-4096  512  MTU des Treibers. (Die MRU hängt vom ISDN-
+                   Kartentreiber ab.)
+Paketformat:
+:.N                TCP/IP (Default).
+:.E                Ethernet-Paketheader.
+:.P                PPP-Paketheader.
 
 ioctl(x,SIOCGETU,int) ioctl-Aufruf zur Uebertragung der Unit-Nummer ("strX",
 0 <= X <= 15) an ein Anwenderprogramm. Das Programm kann damit die IP-
@@ -949,7 +1042,22 @@ Cisco-HDLC-Modul "fakeh"
 ----------------
 Verwendet das Cisco-eigene "HDLC"-Protokoll. Auf der Gegenseite muß
 (noch... hat jemand Doku zu den Tieren?) "no keepalives" konfiguriert
-werden. 
+werden. Die Option für das Paketformat muß genauso wie bei str_if
+eingestellt sein!
+
+:.N             TCP/IP (Default).
+:.E             Ethernet-Paketheader.
+
+
+IP-Monitor "ipmon"
+----------
+Loggt IP-Pakete mit. Das Programm "monitor" liest dieses Protokoll aus dem
+Kernel. Die Option für das Paketformat muß genauso wie bei str_if
+eingestellt sein!
+
+:.N                TCP/IP (Default).
+:.E                Ethernet-Paketheader.
+:.P                PPP-Paketheader.
 
 
 Zeitbegrenzer "timer"
@@ -1002,10 +1110,16 @@ Van-Jacobsen-Kompression "vanj"
 ------------------------
 Komprimiert TCP-IP-Header.
 Sollte nur auf einer gesicherten Verbindung verwendet werden.
+Option für das Paketformat muß genauso wie bei str_if eingestellt sein!
+
+:sz tx rx  16 16  Zahl der gleichzeitig gecachten Verbindungen.
+                  Zwischen 16 und 128; jeweils Sende- und Empfangsrichtung.
+                  (noch nicht implementiert)
 :ac               Aktiv komprimieren. (Default bei abgehenden Verbindungen.)
 :pa               Komprimieren nur, nachdem ein komprimiertes Paket ankam.
                   (Default bei ankommenden Verbindungen.)
-
+:.N               TCP/IP (Default).
+:.P               PPP-Paketheader.
 
 X.75 "x75"
 ----
@@ -1058,11 +1172,10 @@ bin/        fertige Programme (Symlinks)
 cards/      Treiber für Karten.
  dumb/        .. für dumme Karten (mit Siemens-Chipsatz).
 config/     Konfigurationsteil.
-fakeh/      Cisco-HDLC-Modul.
+fakeh/      "Cisco-HDLC"-Modul.
 final/      Installationsteil; final/Makefile wird als letztes aufgerufen
 include/    Includedateien (was sonst...)
 ip_mon/     TCP/IP-Monitorprogramm nebst Streamstreiber/Modul.
-                   Noch nicht verwendbar.
 isdn_2/     Schicht-2-Treiber für ISDN (D-Kanalsteuerung, B-Kanal-Routing).
 isdn_3/     Schicht-3-Treiber (1TR6 etc.).
 isdn_4/     Steuerprogramm (besagter wilder Hack).
@@ -1111,8 +1224,13 @@ Protokolliert die vom ip_mon-Modul gemeldeten IP-Daten.
 -b      numerische Angabe der entfernten IP-Adressen.
 -c      numerische Angabe der IP-Protokolle.
 -l      Debugging; setzt strlog-Modul ein.
+-n      Die network/services-Dateien werden nicht permanent offengehalten.
+-h      Die hosts-Dateien werden nicht permanent offengehalten.
+        Das gilt auch für die Verbindung zum Nameserver.
 
-Monitor kann auch zum Blockieren von IP-Paketen verwendet werden; ungetestet.
+Monitor kann auch zum Blockieren von IP-Paketen verwendet werden. Das ist
+allerdings ungetestet; besser ist es, Firewall-Support in den Kernel
+einzubauen. 
 
 
 slipto
@@ -1128,11 +1246,14 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 -R ip    die IP-Nummer "ip" wird zur Gegenseite geroutet. (route -host)
 -r ip    Das IP-Netz "ip" wird zur Gegenseite geroutet. (route -net)
 -r ip:nm Das IP-Netz "ip" wird mit der Netmask "nm" zur Gegenseite geroutet.
+-A arpaddr setzt Proxy-ARP-Adresse f\ur alle Routen zur Gegenstelle.
+           Die korrekte "arpaddr" wird von "ifconfig eth0" ausgegeben.
+           (Vorsicht beim Wechsel der Ethernetkarte!)
 
 Die folgenden Optionen werden _nicht_ im ISDN-Betrieb verwendet, sondern im
-Standalonebetrieb mit anderen Streams-Treibern. Im ISDN-Betrieb müssen
-stattdessen die entsprechenden Module auf der ML-Konfigurationszeile
-eingetragen werden.
+Standalonebetrieb mit anderen Streams-Treibern. Im ISDN-Betrieb werden
+diese Optionen nicht verwendet; stattdessen werden die entsprechenden
+Module auf der ML-Konfigurationszeile eingetragen.
 
 -L       protokolliert den Dialog zum Modem.
 -l       Debugging: setzt qinfo-Modul ein.
