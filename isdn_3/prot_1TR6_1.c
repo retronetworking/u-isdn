@@ -1098,7 +1098,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up -- done when dropping out below */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_DISC:
@@ -1228,7 +1228,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
@@ -1277,7 +1277,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1409,7 +1409,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1463,7 +1463,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_DISC:
 			setstate (conn, 12);
@@ -1520,7 +1520,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1565,7 +1565,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1604,7 +1604,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
@@ -1636,7 +1636,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_SUSP_ACK:
 			/* xxx */
@@ -1670,7 +1670,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_FAC_ACK:
 			/* send FAC_ACK up */
@@ -1709,11 +1709,11 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			break;
 		case MT_N1_REL:
 			/* send REL up */
-			goto common_19_REL_ACK;
+			setstate (conn, 99);
+			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
-		  common_19_REL_ACK:
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_FAC_ACK:
 			/* send FAC_ACK up */
@@ -1736,7 +1736,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_REG_ACK:
 			/* send REG_ACK up */
@@ -1771,7 +1771,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			setstate (conn, 99);
+			setstate (conn, 0);
 			break;
 		case MT_N1_CANC_ACK:
 			/* send CANC_ACK up */
@@ -2185,58 +2185,63 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			mblk_t *asn = NULL;
 
 			if (data != NULL) {
-				{
-					int qd_len = 0;
-					uchar_t *qd_d;
+				int qd_len = 0;
+				uchar_t *qd_d;
 
-					if ((asn = allocb (32, BPRI_MED)) == NULL) {
-						conn->lockit--;
-						return -ENOMEM;
-					}
+				if ((asn = allocb (32, BPRI_MED)) == NULL) {
+					conn->lockit--;
+					return -ENOMEM;
+				}
 
-					if (((struct t_info *)conn->p_data)->flags & SVC_PENDING) {
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
-							freeb(asn);
-							conn->lockit--;
-							return -EIO;
-						}
-						*(uchar_t *) qd_d++ = 0;
-						*(uchar_t *) qd_d++ = N1_FAC_SVC;
-						*(ushort_t *) qd_d = 0;
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
-							freeb(asn);
-							conn->lockit--;
-							return -EIO;
-						}
-						*(uchar_t *) qd_d++ = 0;
-						*(uchar_t *) qd_d++ = N1_FAC_Activate;
-						*(ushort_t *) qd_d = 0;
-					}
-
-					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_N6_serviceInd, 2, 0)) == NULL) {
-						freeb (asn);
+				if (((struct t_info *)conn->p_data)->flags & SVC_PENDING) {
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
+						freeb(asn);
 						conn->lockit--;
 						return -EIO;
 					}
-					*((uchar_t *) qd_d) = service >> 8;
-					*(((uchar_t *) qd_d)+1) = service & 0xFF;
-					if (((struct t_info *)conn->p_data)->eaz != 0) {
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_origAddr, 2, 0)) == NULL) {
-							conn->lockit--;
-							return -EIO;
-						}
-						*qd_d++ = 0x81;
-						*qd_d++ = ((struct t_info *)conn->p_data)->eaz;
+					*(uchar_t *) qd_d++ = 0;
+					*(uchar_t *) qd_d++ = N1_FAC_SVC;
+					*(ushort_t *) qd_d = 0;
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {
+						freeb(asn);
+						conn->lockit--;
+						return -EIO;
 					}
-					asn->b_wptr = asn->b_rptr + qd_len;
+					*(uchar_t *) qd_d++ = 0;
+					*(uchar_t *) qd_d++ = N1_FAC_Activate;
+					*(ushort_t *) qd_d = 0;
 				}
+
+				if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_N6_serviceInd, 2, 0)) == NULL) {
+					freeb (asn);
+					conn->lockit--;
+					return -EIO;
+				}
+				*((uchar_t *) qd_d) = service >> 8;
+				*(((uchar_t *) qd_d)+1) = service & 0xFF;
+				if (((struct t_info *)conn->p_data)->eaz != 0) {
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_origAddr, 2, 0)) == NULL) {
+						conn->lockit--;
+						return -EIO;
+					}
+					*qd_d++ = 0x81;
+					*qd_d++ = ((struct t_info *)conn->p_data)->eaz;
+				}
+				asn->b_wptr = asn->b_rptr + qd_len;
+			}
+			switch (conn->state) {
+			case 6:
+			case 7:
+			default:
+				printf("BadState2 ");
+				err = -EINVAL;
+				break;
 			}
 			conn->minorstate |= MS_WANTCONN;
 
 			isdn3_setup_conn (conn, EST_SETUP);
 
 			if (((conn->delay > 0) && (conn->minorstate & MS_DELAYING))
-			     || !(conn->minorstate & MS_PROTO)
 				 || !(conn->minorstate & MS_INITPROTO)
 				 /* || !(conn->minorstate & MS_BCHAN) */ ) {
 				data->b_rptr = oldpos;
@@ -2246,19 +2251,10 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				conn->lockit--;
 				return 0;
 			}
-			switch (conn->state) {
-			case 6:
-			case 7:
-				setstate (conn, 8);
-				if ((err = phone_sendback (conn, MT_N1_CONN, asn)) == 0)
-					asn = NULL;
-				isdn3_setup_conn (conn, EST_LISTEN);
-				break;
-			default:
-				printf("BadState2 ");
-				err = -EINVAL;
-				break;
-			}
+			setstate (conn, 8);
+			if ((err = phone_sendback (conn, MT_N1_CONN, asn)) == 0)
+				asn = NULL;
+			isdn3_setup_conn (conn, EST_LISTEN);
 			if (asn != NULL)
 				freemsg (asn);
 		}
@@ -2281,7 +2277,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			isdn3_setup_conn (conn, EST_NO_CHANGE);
 
 			if (((conn->delay > 0) && (conn->minorstate & MS_DELAYING))
-			     || !(conn->minorstate & MS_PROTO)
 			     || !(conn->minorstate & MS_INITPROTO)
 				 || !(conn->minorstate & MS_BCHAN)
 				 || (((struct t_info *)conn->p_data)->flags & FAC_PENDING)) {

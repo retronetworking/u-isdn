@@ -27,7 +27,7 @@ extern void log_printmsg (void *log, const char *text, mblk_t * mp, const char*)
  */
 static struct module_info reconn_minfo =
 {
-		0, "reconn", 0, INFPSZ, 4096,2048,
+		0, "reconn", 0, INFPSZ, 200,100
 };
 
 static qf_open reconn_open;

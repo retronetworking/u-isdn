@@ -1,0 +1,30 @@
+Firewall-Code. Interfaceadresse ist das _Ziel_ einer Pointopoint-Route,
+nicht die Quelle.
+
+--- ./net/ipv4/ip_fw.c.org	Fri Nov 17 18:59:46 1995
++++ ./net/ipv4/ip_fw.c	Wed Nov 22 13:20:31 1995
+@@ -279,8 +279,21 @@
+ 			 */
+ 			if(f->fw_via.s_addr && rif)
+ 			{
+-				if(rif->pa_addr!=f->fw_via.s_addr)
+-					continue;	/* Mismatch */
++				/*
++				 * For point-to-point links, the address is
++				 * the address of the other end of the link;
++				 * for others, the interface address
++				 */
++				if(rif->flags&IFF_POINTOPOINT)
++				{
++					if (rif->pa_dstaddr!=f->fw_via.s_addr)
++						continue;	/* Mismatch */
++				}
++				else
++				{
++					if (rif->pa_addr!=f->fw_via.s_addr)
++						continue;	/* Mismatch */
++				}
+ 			}
+ 			/*
+ 			 *	Drop through - this is a match
+

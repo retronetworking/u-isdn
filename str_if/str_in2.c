@@ -89,7 +89,7 @@ static qf_srv str_if_rsrv, str_if_wsrv;
 
 static struct module_info minfo =
 {
-		0xbad, "str_if", 0, INFPSZ, 4096,1024
+		0xbad, "str_if", 0, INFPSZ, 200,100
 };
 
 static struct qinit r_init =

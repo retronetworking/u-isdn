@@ -72,7 +72,6 @@ pr_on_send (struct _pr_on *pr_on)
 		mblk_t *mb = allocb (3, BPRI_MED);
 
 		if (mb != NULL) {
-			*mb->b_wptr++ = PROTO_SYS;
 			m_putid (mb, PROTO_CONNECTED);
 			DATA_TYPE(mb) = MSG_PROTO;
 

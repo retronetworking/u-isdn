@@ -2,40 +2,6 @@
 #define WIDE
 #endif
 
-/* BSC
-
-HSCX
-
-CCR1 0D
-MODE 1C
-CCR2 32
-XCCR 07 
-RCCR 07
-TIMR E9
-MASK 00
-XBCH 00
-RAH1 00
-RAH2 00
-CMDR 41
-TSAX 2F 03
-TSAR 2F 03
-
-ISAC
-
-ADF1 80
-MASK 32
-MODE 3A
-TIMR E9
-XAD1 00
-XAD2 tei
-SAB1 SAB2
-XPCR 00
-XTCR 70
-ADF1 00
-MOCR 00
-SQXR 20
-CMDR 41
-*/
 #ifdef linux
 #define SLOW_IO_BY_JUMPING
 #if 0 /* def _ncp_ */
@@ -85,7 +51,11 @@ CMDR 41
 #define HSCX_R_FIFO_SIZE 32
 #define HSCX_W_FIFO_SIZE 32
 
+#ifdef _teles3_
+#define FIFO(x) Fifo
+#else
 #define FIFO(x) fifo[0] /* forget the address -- WARNING: side effects of x get lost */
+#endif
 
 #include "shell.h"
 
@@ -100,6 +70,7 @@ typedef struct _isac {
 /* 10 */	volatile Byte SPCR,CIR0,MOR0,CIR1;
 /* 14 */	volatile Byte MOR1,C1R,C2R,B1CR;
 /* 18 */	volatile Byte B2CR,ADF2,MOSR,SQRR;
+/* 1C */	volatile Byte __f5,__f6,Fifo,__f7;
 		} __r;
 		struct {
 			volatile Byte fifo[ISAC_W_FIFO_SIZE];
@@ -110,6 +81,7 @@ typedef struct _isac {
 /* 10 */	volatile Byte SPCR,CIX0,MOX0,CIX1;
 /* 14 */	volatile Byte MOX1,C1R,C2R,STCR;
 /* 18 */	volatile Byte ADF1,ADF2,MOCR,SQXR;
+/* 1C */	volatile Byte __f5,__f6,Fifo,__f7;
 		} __w;
 	} __rw;
 } *__isac;
@@ -126,7 +98,7 @@ typedef struct _hscx {
 /* 10 */	volatile Byte __f3,__f4,__f5,__f6;
 /* 14 */	volatile Byte VSTR,__f7,PRE ,__f8;
 /* 18 */	volatile Byte GISR,IPC ,ISR0,ISR1;
-/* 1C */	volatile Byte PVR ,PIS ,PCR ,__f9;
+/* 1C */	volatile Byte PVR ,PIS ,Fifo,__f9; /* 0x1E is PCR, but ... */
 		} __r;
 		struct {
 			volatile Byte fifo[HSCX_W_FIFO_SIZE];
@@ -137,7 +109,7 @@ typedef struct _hscx {
 /* 10 */	volatile Byte TSAX,TSAR,XCCR,RCCR;
 /* 14 */	volatile Byte BGR ,RLCR,PRE ,__f8;
 /* 18 */	volatile Byte IVA ,IPC ,IMR0,IMR1;
-/* 1C */	volatile Byte PVR ,PIM ,PCR ,__f9;
+/* 1C */	volatile Byte PVR ,PIM ,Fifo,__f9; /* 0x1E is PCR, but ... */
 		} __w;
 	} __rw;
 } *__hscx;
@@ -150,6 +122,10 @@ typedef struct _hscx {
 /* 04 */	volatile Byte EXIR,RBCL,_f1,RSTA;
 /* 08 */	volatile Byte RAL1,RHCR,__f2,__f3;
 /* 0C */	volatile Byte CCR2,RBCH,VSTR,CCR1;
+/* 10 */	volatile Byte __f4,__f5,__f6,__f7;
+/* 14 */	volatile Byte __f8,__f9,__fa,__fb;
+/* 18 */	volatile Byte __fc,__fd,__fe,__ff;
+/* 1C */	volatile Byte __fA,__fB,Fifo,__fC;
 		} __r;
 		struct {
 			volatile Byte fifo[HSCX_W_FIFO_SIZE];
@@ -158,6 +134,9 @@ typedef struct _hscx {
 /* 08 */	volatile Byte RAL1,RAL2,XBCL,BGR;
 /* 0C */	volatile Byte CCR2,XBCH,RLCR,CCR1;
 /* 10 */	volatile Byte TSAX,TSAR,XCCR,RCCR;
+/* 14 */	volatile Byte __f8,__f9,__fa,__fb;
+/* 18 */	volatile Byte __fc,__fd,__fe,__ff;
+/* 1C */	volatile Byte __fA,__fB,Fifo,__fC;
 		} __w;
 	} __rw;
 } *__hscx;
@@ -170,7 +149,7 @@ typedef struct _hscx {
 #define ByteOutHSCX(_dumb,_hcr,_what,_data) OutHSCX((_dumb),(_hcr),offsetof(struct _hscx,w._what),(_data))
 
 #ifdef linux
-#define SetSPL(x) spl5()
+#define SetSPL(x) spl(1)
 #else
 #define SetSPL(x) spl((x))
 #endif
@@ -194,6 +173,10 @@ typedef struct _hscx {
 
 #ifdef _teles_
 #include "teles_io.c"
+#endif
+
+#ifdef _teles3_
+#include "teles3_io.c"
 #endif
 
 
@@ -239,7 +222,7 @@ static void toggle_on(struct _dumb * dumb)
 }
 
 static void
-dumb_fail_up(struct _dumb * dumb)
+fail_up(struct _dumb * dumb)
 {
 	if(dumb->do_uptimer) {
 		dumb->do_uptimer = 0;
@@ -249,7 +232,7 @@ dumb_fail_up(struct _dumb * dumb)
 }
 
 static int
-dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
+mode (struct _isdn1_card * card, short channel, char mode, char listen)
 {
 	struct _dumb * dumb = (struct _dumb *) card;
 	unsigned long ms = SetSPL(dumb->ipl);
@@ -259,24 +242,27 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 	case 0:
 		DEBUG(info) printf("%sISDN ISAC %s<%d>%s\n",KERN_INFO ,mode?(mode==1?"standby":"up"):"down",mode,listen?" listen":"");
 		if(dumb->do_uptimer) {
-			dumb->do_uptimer = 0;
 #ifdef NEW_TIMEOUT
 			untimeout(dumb->uptimer);
 #else
-			untimeout(dumb_fail_up,dumb);
+			untimeout(fail_up,dumb);
 #endif
 		}
+		if((dumb->chan[0].mode <= M_STANDBY) && (mode > M_STANDBY)) 
+			dumb->do_uptimer = 1;
+		else if(mode <= M_STANDBY)
+			dumb->do_uptimer = 0;
 		ISAC_mode(dumb,(mode == M_ON) ? M_HDLC : mode, listen);
 		if(mode == M_OFF) {
 			int j;
 			for(j=1;j <= dumb->numHSCX;j++)
 				HSCX_mode(dumb,j,M_OFF,0);
-		} else if (mode == M_ON) {
-			dumb->do_uptimer = 1;
+			dumb->do_uptimer = 0;
+		} else if (dumb->do_uptimer) {
 #ifdef NEW_TIMEOUT
 			dumb->uptimer =
 #endif
-				timeout((void *)dumb_fail_up,dumb,10*HZ);
+				timeout((void *)fail_up,dumb,10*HZ);
 		}
 		break;
 	default:
@@ -310,7 +296,7 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 }
 
 static int
-dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
+prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
 	streamchar *origmp = mp->b_rptr;
@@ -331,7 +317,6 @@ dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 			while(s2 < mp->b_wptr && !isspace(*s2))
 				s2++;
 			sx = *s2; *s2 = '\0';
-			DEBUG(info) printf("Find <%s> ",s1);
 			if(!strcmp(s1,"trans"))
 				dumb->chan[channel].mode = M_TRANSPARENT;
 			else if(!strcmp(s1,"trans_alaw"))
@@ -394,7 +379,7 @@ dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
  * Check if buffer space is available
  */
 static int
-dumb_candata (struct _isdn1_card * card, short channel)
+candata (struct _isdn1_card * card, short channel)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
 	int ret = (dumb->chan[channel].q_out.nblocks < 4);
@@ -407,7 +392,7 @@ dumb_candata (struct _isdn1_card * card, short channel)
  * Enqueue the data.
  */
 static int
-dumb_data (struct _isdn1_card * card, short channel, mblk_t * data)
+data (struct _isdn1_card * card, short channel, mblk_t * data)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
 	if(channel == 0) { DEBUG(isac) printf("%sQ D %d...",KERN_DEBUG,msgdsize(data)); }
@@ -421,7 +406,7 @@ dumb_data (struct _isdn1_card * card, short channel, mblk_t * data)
  * Flush the send queue.
  */
 static int
-dumb_flush (struct _isdn1_card * card, short channel)
+flush (struct _isdn1_card * card, short channel)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
 	S_flush(&dumb->chan[channel].q_out);
@@ -733,9 +718,9 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 	hdlc_buf bufp = &dumb->chan[hscx];
 
 #ifdef WIDE
-	DEBUG(hscx) { printf("%s%c.%d %02x:%02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',hscx, isr0,isr1); }
+	DEBUG(hscx) { printf("%s%c.%d %02x:%02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':'I',hscx, isr0,isr1); }
 #else
-	DEBUG(hscx) { printf("%s%c.%d %02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',hscx, Reason); }
+	DEBUG(hscx) { printf("%s%c.%d %02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':'I',hscx, Reason); }
 	if (hasEX)
 #endif
 	{
@@ -879,7 +864,7 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 				if((recvb = bufp->m_in_run) != NULL) {
 					mblk_t *msg = bufp->m_in;
 					bufp->m_in = bufp->m_in_run = NULL;
-					/* recvb->b_wptr --; */
+					/* TODO: defer processing of incoming frames */
 					if(!isdn2_canrecv(&dumb->card,hscx))
 						freemsg(msg);
 					else if(isdn2_recv(&dumb->card,hscx,msg) != 0)
@@ -917,6 +902,7 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 						recvb->b_wptr = recvp;
 						CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 						ByteOutHSCX(dumb,hscx,CMDR, 0x80); /* RMC */
+						/* TODO: defer processing of incoming frames */
 						if(!isdn2_canrecv(&dumb->card,hscx))
 							freemsg(msg);
 						else if(isdn2_recv(&dumb->card,hscx,msg) != 0)
@@ -1039,7 +1025,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 	Byte Reason;
 
   while((Reason = ByteInISAC(dumb,ISTA))) {
-	DEBUG(isac) { printf("%s%c %02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',Reason); }
+	DEBUG(isac) { printf("%s%c %02x\n",KERN_DEBUG ,(dumb->polled<0)?'X':'I',Reason); }
 	if (Reason & 0x04) { /* CISQ */
 		Byte CIR = ByteInISAC(dumb,CIR0);
 		
@@ -1058,7 +1044,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 #ifdef NEW_TIMEOUT
 						untimeout(dumb->uptimer);
 #else
-						untimeout(dumb_fail_up,dumb);
+						untimeout(fail_up,dumb);
 #endif
 					}
 					dumb->circ = 0;
@@ -1074,7 +1060,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 #ifdef NEW_TIMEOUT
 						untimeout(dumb->uptimer);
 #else
-						untimeout(dumb_fail_up,dumb);
+						untimeout(fail_up,dumb);
 #endif
 					}
 					isdn2_new_state(&dumb->card,0);
@@ -1086,7 +1072,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 #ifdef NEW_TIMEOUT
 							untimeout(dumb->uptimer);
 #else
-							untimeout(dumb_fail_up,dumb);
+							untimeout(fail_up,dumb);
 #endif
 						}
 						isdn2_new_state(&dumb->card,2);
@@ -1189,7 +1175,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 					{
 				if(blen == 0) 
 					blen = ISAC_R_FIFO_SIZE;
-				DEBUG(isac) printf("%s.R=%d\n",KERN_DEBUG ,xblen);
+				DEBUG(isac) printf("%s.R=%d",KERN_DEBUG ,xblen);
 				if ((recvb = dumb->chan[0].m_in_run) != NULL) {
 					DEBUG(isac)printf("a%d ",dsize(dumb->chan[0].m_in));
 					if ((recvp = (uchar_t *)recvb->b_wptr) + blen > (uchar_t *)DATA_END(recvb))
@@ -1211,12 +1197,13 @@ static void IRQ_ISAC(struct _dumb * dumb)
 					short i;
 					mblk_t *msg = dumb->chan[0].m_in;
 					dumb->chan[0].m_in = dumb->chan[0].m_in_run = NULL;
-					DEBUG(isac) printf(">%p",recvp);
+					DEBUG(isac) printf(">%p\n",recvp);
 					for(i=0;i < blen; i++)
 						*recvp++ = ByteInISAC(dumb,FIFO(i));
 					recvb->b_wptr = recvp;
 					CEC(ByteInISAC(dumb,STAR) & 0x04);
 					ByteOutISAC(dumb,CMDR, 0x80); /* RMC */
+					/* TODO: defer processing of incoming frames */
 					if(!isdn2_canrecv(&dumb->card,0))
 						freemsg(msg);
 					else if(isdn2_recv(&dumb->card,0,msg) != 0)
@@ -1224,7 +1211,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 				} else {
 					CEC(ByteInISAC(dumb,STAR) & 0x04);
 					ByteOutISAC(dumb,CMDR, 0xC0); /* RMC|RHR */
-					DEBUG(isac) { printf("NoBit ISAC\n"); }
+					DEBUG(isac) { printf(".NoBit ISAC\n"); }
 				}
 			}
 		} else {
@@ -1331,16 +1318,18 @@ dumbintr(int irq, struct pt_regs *regs)
 	struct _dumb *dumb;
 	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
 		if(dumb->info.irq == irq) {
-			dumb->polled --;
-			IRQ_HSCX(dumb);
-			IRQ_ISAC(dumb);
-			PostIRQ(dumb);
-			dumb->polled ++;
+			if(!dumb->polled++) {
+				IRQ_HSCX(dumb);
+				IRQ_ISAC(dumb);
+				PostIRQ(dumb);
+				dumb->polled--;
+			} else if(dumb->polled < 0)
+				dumb->polled--;
 			toggle_off(dumb);
 		}
 	}
 	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		if(dumb->info.irq == irq) {
+		if(dumb->info.irq == irq && dumb->polled == 0) {
 			toggle_on(dumb);
 		}
 	}
@@ -1358,24 +1347,26 @@ void NAME(REALNAME,poll)(void *nix)
 	for(i=dumb_num-1;i>=0;--i)
 #endif
         {
-		unsigned long ms;
 		int j;
 #ifndef linux
 		dumb = &dumbdata[i];
 #endif
-		ms = SetSPL(dumb->ipl);
-		IRQ_HSCX(dumb);
-		IRQ_ISAC(dumb);
+		if(!dumb->polled++) {
+			do {
+				IRQ_HSCX(dumb);
+				IRQ_ISAC(dumb);
+			} while(--dumb->polled);
 
-		if (dumb->chan[0].q_out.nblocks != 0)
-			ISAC_kick(dumb);
-		for(j=1;j <= dumb->numHSCX; j++) {
-			if (dumb->chan[j].q_out.nblocks != 0)
-				HSCX_kick(dumb,j);
-		}
-		toggle_off(dumb);
-		toggle_on(dumb);
-		splx(ms);
+			if (dumb->chan[0].q_out.nblocks != 0)
+				ISAC_kick(dumb);
+			for(j=1;j <= dumb->numHSCX; j++) {
+				if (dumb->chan[j].q_out.nblocks != 0)
+					HSCX_kick(dumb,j);
+			}
+			toggle_off(dumb);
+			toggle_on(dumb);
+		} else
+			dumb->polled--;
 #if 0 /* def linux */
 		if(dumb->info.irq != 0)
 			unblock_irq(dumb->info.irq);
@@ -1417,13 +1408,13 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 	dumb->infoptr = inf;
 	dumb->card.ctl = dumb;
 	dumb->card.modes = 0;
-	dumb->card.ch_mode = dumb_mode;
-	dumb->card.ch_prot = dumb_prot;
-	dumb->card.send = dumb_data;
-	dumb->card.flush = dumb_flush;
-	dumb->card.cansend = dumb_candata;
+	dumb->card.ch_mode = mode;
+	dumb->card.ch_prot = prot;
+	dumb->card.send = data;
+	dumb->card.flush = flush;
+	dumb->card.cansend = candata;
 	dumb->card.poll = NULL;
-	dumb->polled = -1;
+	dumb->polled = -99;
 
 	printf("%sISDN: " STRING(REALNAME) " at mem 0x%lx io 0x%x irq %d: ",KERN_DEBUG, dumb->info.memaddr,dumb->info.ioaddr,dumb->info.irq);
 
@@ -1444,7 +1435,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return err;
 	}
 #ifdef linux
-	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,dumbintr,SA_INTERRUPT,STRING(REALNALE))) {
+	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,dumbintr,SA_INTERRUPT,STRING(REALNAME))) {
 		printf("IRQ not available.\n");
 		kfree(dumb);
 		return -EEXIST;
@@ -1457,12 +1448,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return err;
 	}
 
-	dumb->polled = 1;
-#ifdef linux
-	if(dumb->info.irq == 0) {
-		printf("polling; ");
-	}
-#endif
+	dumb->polled = 0;
 	printf("installed at ");
 	if(dumb->info.memaddr != 0) 
 		printf("mem 0x%lx ",dumb->info.memaddr);

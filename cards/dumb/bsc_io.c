@@ -97,7 +97,7 @@ static void ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 	case M_OFF:
 		printk("%sCIX0 0x3F\n",KERN_DEBUG );
 		ByteOutISAC(dumb,CIX0,0x3F);
-		if(dumb->polled>0) isdn2_new_state(&dumb->card,0);
+		if(dumb->polled==0) isdn2_new_state(&dumb->card,0);
 		dumb->chan[0].mode = mode;
 		break;
 	case M_STANDBY:
@@ -119,7 +119,7 @@ else printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 			ByteOutISAC(dumb,CIX0,0x27);
 		} else {
 printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
-			if(dumb->polled>0) isdn2_new_state(&dumb->card,1);
+			if(dumb->polled==0) isdn2_new_state(&dumb->card,1);
 		}
 #if 0
 		ByteOutISAC(dumb,TIMR,0x11);
@@ -134,7 +134,8 @@ printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 	splx(ms);
 }
 
-static void HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte listen)
+static int
+HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte listen)
 {
 	unsigned long ms = SetSPL(dumb->info.ipl);
     if(dumb->chan[hscx].m_in != NULL) {

@@ -88,12 +88,12 @@ static isdn2_chan isdnchan[NPORT] = { NULL,};
  */
 static struct module_info isdn2_minfo =
 {
-	0, "isdn", 0, INFPSZ, 2000, 800
+	0, "isdn", 0, INFPSZ, 200,100
 };
 
 static struct module_info isdn2_mtinfo =
 {
-	0, "tisdn", 0, INFPSZ, 2000, 800
+	0, "tisdn", 0, INFPSZ, 200,100
 };
 
 static qf_open isdn2_open;
@@ -520,6 +520,36 @@ isdn2_chstate (struct _isdn1_card *card, uchar_t ind, short add)
 	sendstate(ctl,0,0,ind,add);
 }
 
+static const char *
+statename(enum C_state status) 
+{
+	switch (status) {
+	case C_lock_up:
+		return "C_lock_up";
+		break;
+	case C_up:
+		return "C_up";
+		break;
+	case C_down:
+		return "C_down";
+		break;
+	case C_wont_up:
+		return "C_wont_up";
+		break;
+	case C_wont_down:
+		return "C_wont_down";
+		break;
+	case C_await_up:
+		return "C_await_up";
+		break;
+	case C_await_down:
+		return "C_await_down";
+		break;
+	default:
+		return "C_unknown";
+		break;
+	}
+}
 
 #ifdef CONFIG_DEBUG_ISDN
 #define set_card_status(a,b) deb_set_card_status(__FILE__,__LINE__,a,b)
@@ -536,45 +566,20 @@ set_card_status (isdn2_card card, enum C_state status)
 {
 	char cid[5];
 
-	if (status == card->status) 
-		return;
-	if(isdn2_debug & 0x10) {
-		char *sta;
+	*(unsigned long *)cid = card->id;
+	cid[4]='\0';
 
-		switch (status) {
-		case C_lock_up:
-			sta = "lock_up";
-			break;
-		case C_up:
-			sta = "up";
-			break;
-		case C_down:
-			sta = "down";
-			break;
-		case C_wont_up:
-			sta = "wont_up";
-			break;
-		case C_wont_down:
-			sta = "wont_down";
-			break;
-		case C_await_up:
-			sta = "await_up";
-			break;
-		case C_await_down:
-			sta = "await_down";
-			break;
-		default:
-			sta = "unknown";
-			break;
-		}
-		*(unsigned long *)cid = card->id;
-		cid[4]='\0';
+	if(isdn2_debug & 0x10) {
+		const char *sold = statename(card->status);
+		const char *snew = statename(status);
 #ifdef CONFIG_DEBUG_ISDN
-		printf ("%s!!! Card %4s = %s at %s %d\n",KERN_DEBUG, cid, sta, deb_file,deb_line);
+		printf ("%s!!! %4s: %s -> %s at %s %d\n",KERN_DEBUG, cid, sold,snew, deb_file,deb_line);
 #else
-		printf ("%s!!! Card %4s = %s\n",KERN_DEBUG, cid, sta);
+		printf ("%s!!! %4s: %s -> %s\n",KERN_DEBUG, cid, sold,snew);
 #endif
 	}
+	if (status == card->status) 
+		return;
 	switch(card->status) {
 	case C_await_up:
 #if 0
@@ -2410,18 +2415,15 @@ isdn2_wsrv (queue_t *q)
 				/* status == M_D_conn */
 				isdn23_hdr hdr2;
 #if 0
-				if (*mp->b_rptr == PROTO_SYS) 
-				{
-					switch (*(ushort_t *) (mp->b_rptr + 1)) {
-					case PROTO_DISCONNECT:
-						{
-							mblk_t *mz = copymsg (mp);
+				switch (*(ushort_t *) mp->b_rptr) {
+				case PROTO_DISCONNECT:
+					{
+						mblk_t *mz = copymsg (mp);
 
-							if (mz != NULL)
-								qreply (q, mz);
-						}
-						break;
+						if (mz != NULL)
+							qreply (q, mz);
 					}
+					break;
 				}
 #endif
 				{
@@ -3035,7 +3037,7 @@ isdn2_wsrv (queue_t *q)
 						{
 							struct _isdn1_card *crd1;
 
-							if(isdn2_debug&0x200) printf(".BConn");
+							if(0)if(isdn2_debug&0x200) printf(".BConn");
 
 							if (chan->card != NULL && (crd1 = chan->card->card) != NULL) {
 								if ((*crd1->cansend) (crd1, chan->channel)) {

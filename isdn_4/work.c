@@ -348,27 +348,33 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	}
 	if(conn->cg != cg) {
 		if(conn->state == c_going_down) {
+			if((cg->flags & (F_PREFOUT|F_FORCEOUT)) && (cg->flags & F_INCOMING)) 
+				*ret = "-Callout delayed?";
+			else
+				*ret = "+Hmmm, something's not quite right";
 			dropgrab(cg);
-			*ret = "+COLLISION 1b";
 			return conn;
 		}
 		if((cg->flags & F_FORCEOUT) && (cg->flags & F_INCOMING)) {
-			*ret = "=CALLBACK";
+			*ret = "=Calling back";
 			dropgrab(cg);
 			return conn;
 		}
 		if(conn->state > c_going_down) {
 			if(cg->flags & F_INCOMING) {
+				if((conn->state == c_going_up) && (conn->flags & F_OUTGOING))
+					*ret = "+Getting called back";
 				if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
-					*ret = "-COLL 1Cc";
+					*ret = "-Incoming -- toss";
 				if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
-					*ret = "-COLL 1Cd";
+					*ret = "-Incoming -- toss F";
 			} else {
 				printf("Collision in startconn out, should not happen!\n");
+				*ret = "+In+Out Clash 0";
 				if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
-					*ret = "+COLL 1Ce";
+					*ret = "+In+Out Clash 1";
 				if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
-					*ret = "+COLL 1Cf";
+					*ret = "+In+Out Clash 2";
 			}
 			if(*ret != NULL) {
 				dropgrab(cg);
@@ -1030,7 +1036,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			if((cg != NULL) && ((cg->flags & F_LEASED) || !(cg->flags & (F_INCOMING|F_OUTGOING)))) {
 				int err = pushprot (conn->cg, conn->minor, conn->connref, PUSH_AFTER);
 				if(err != 0) {
-printf("NoProtoEnable NotPushprot\n");
+					if(log_34 & 2)
+						printf("NoProtoEnable NotPushprot\n");
 					m_putid (&yy, CMD_CLOSE);
 					m_putsx (&yy, ARG_MINOR);
 					m_puti (&yy, conn->minor);
@@ -1187,13 +1194,16 @@ run_now(void *nix)
 
 	for(what = cf_R; what != NULL; what = what->next) {
 		if(spos++ < progidx) {
-printf("Skip #%d; ",spos);
+			if(log_34 & 2)
+				printf("Skip #%d; ",spos);
 			continue;
 		}
 		progidx++;
-printf("Do #%d...",spos);
+		if(log_34 & 2)
+			printf("Do #%d...",spos);
 		if(what->got_err) {
-printf("StoredErr; ");
+			if(log_34 & 2)
+				printf("StoredErr; ");
 			continue;
 		}
 		if(strchr(what->type,'B') != NULL || strchr(what->type,'p') != NULL) {
@@ -1213,7 +1223,9 @@ printf("StoredErr; ");
 			if(conn == NULL) {
 				conngrab cg = newgrab(NULL);
 				char *err;
-printf("run %s:%s; ",what->site,what->protocol);
+			
+				if(log_34 & 2)
+					printf("run %s:%s; ",what->site,what->protocol);
 				cg->site = what->site; cg->protocol = what->protocol;
 				cg->card = what->card; cg->cclass = what->cclass;
 				if (strchr(what->type,'p') != NULL)
@@ -1248,15 +1260,18 @@ printf("run %s:%s; ",what->site,what->protocol);
 						spos--;
 						printf("Try again: %s",err);
 					}
-printf("\n");
+					if(log_34 & 2)
+						printf("\n");
 					progidx = spos;
 					timeout(run_now,NULL,HZ);
 					return;
 				} else {
-printf("FAIL %s\n",err);
+					if(log_34 & 2)
+						printf("FAIL %s\n",err);
 				}
 			} else {
-printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
+				if(log_34 & 2)
+					printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0) {
 					if(conn->state >= c_going_up)
 						pushprot(conn->cg,conn->minor,conn->connref,PUSH_UPDATE);

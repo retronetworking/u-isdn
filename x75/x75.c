@@ -33,7 +33,7 @@ extern void log_printmsg (void *log, const char *, mblk_t *, const char*);
  */
 static struct module_info x75_minfo =
 {
-		0, "x75", 0, INFPSZ, 3000, 800
+		0, "x75", 0, INFPSZ, 800,100
 };
 
 static qf_open x75_open;

@@ -3,12 +3,49 @@
 set -e
 PATH=/usr/local/isdn/bin-$(uname -r):/usr/local/isdn/bin:/usr/sbin:/sbin:/usr/lcoal/bin:/usr/bin:/bin
 
+if [ "$1" = "off" ] ; then
+	trap '' 1 2 15
+	killall rc.isdn || true
+	echo -n "Killing the ISDN server ... "
+	if killall master ; then
+		sleep 10
+		killall -9 master || true
+	fi
+	
+	echo -n "find modules ..."
+	while read a b c d ; do
+		case "$a" in
+		\#*) ;;
+		*)
+			if [ "x$a" = "x-o" ] ; then
+				mod=$b
+        		elif [ "x$b" = "x-o" ] ; then
+				mod=$c
+			else
+				mod=$(basename $a .o)
+			fi
+			mods="$mod $mods"
+		;;
+		esac
+	done < /lib/modules/modules.isdn
+	echo ""
+	echo rmmod $mods
+	exec rmmod $mods
+	exit 0
+fi
+
 if lsmod | grep isdn_2 >/dev/null 2>&1 ; then : ; else
 	cd /lib/modules/$(uname -r)
+	if test -f symbols.isdn ; then mv symbols.isdn symbols.isdn.old ; fi
 	while read a ; do
-		/bin/echo -n "\rISDN Modules:                                                               "  >&2
-		/bin/echo -n "\rISDN Modules: $a: " >&2
-		eval "insmod -m $a"  ## wegen name=$(cardname Foo0) in $a
+		case "$a" in
+		\#*) ;;
+		*)
+			/bin/echo -n "\rISDN Modules:                                                               "  >&2
+			/bin/echo -n "\rISDN Modules: $a: " >&2
+			eval "insmod -m $a"  ## wegen name=$(cardname Foo0) in $a
+			;;
+		esac
 	done < ../modules.isdn > symbols.isdn
 	/bin/echo "\rISDN Modules...done.                                                       "
 fi
@@ -24,6 +61,6 @@ ulimit -c 40000
 
 set +e
 while : ; do
-	master -wdi /etc/isdn.conf 2>>/tmp/isdn.log >>/var/log/isdn
-	sleep 15
+	master -wd /etc/isdn.conf 2>>/tmp/isdn.log >>/var/log/isdn
+	sleep 5
 done &

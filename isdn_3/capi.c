@@ -1254,9 +1254,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				report_terminate(conn,c2->info,0);
-			} else {
-				printf("CAPI: ??? problem with DISCONNECT\n");
-				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
+			} else if(conn->state != 0 && conn->state != 99) {
+				setstate(conn,99);
+				report_terminate(conn,c2->info,0);
 			}
 			{
 				int err3 = 0;

@@ -111,7 +111,7 @@ __res;})
     long module_start, module_end;
     extern char start_kernel, etext;
 
-    printk("%sStackback of %d in %s! Call Trace: ",KERN_EMERG,str, current->comm);
+    printf("%sStackback of %d in %s! Call Trace: ",KERN_EMERG,str, current->comm);
     module_start = ((high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
     module_end = module_start + MODULE_RANGE;
     while (((long) stack & 4095) != 0) {
@@ -122,11 +122,11 @@ __res;})
 	if (((addr >= (unsigned long) &start_kernel) &&
 	        (addr <= (unsigned long) &etext)) ||
 	        ((addr >= module_start) && (addr <= module_end))) {
-	    printk("%lx ", addr);
+	    printf("%lx ", addr);
 	    i++;
 	}
     }
-    printk("\n");
+    printf("\n");
 #endif
 }
 
@@ -289,7 +289,7 @@ freeb(mblk_t *p_msg)
 		p_data->deb_magic = DEB_DMAGIC+0x2468BDED;
 #endif
 		if((streamchar *)(p_data+1) == p_data->db_base) {
-			kfree_s(p_data,sizeof(struct datab)+(p_data->db_lim-p_data->db_base));
+			kfree_s(p_data,sizeof(struct datab)+(p_data->db_lim-p_data->db_base+1));
 		} else {
 			kfree_s(p_data,sizeof(struct datab));
 		}
@@ -2234,19 +2234,8 @@ qenable(queue_t *p_queue)
 #endif
 
 	if (p_queue->q_flag & QENAB) {
-#ifdef CONFIG_DEBUG_STREAMS
-		queue_t *p_next;
-		for(p_next = (queue_t *)sched_first; p_next != NULL; p_next = p_next->q_link) {
-			if(p_next == sched_last) {
-				splx(s);
-				return;
-			}
-		}
-		printf("%sQErr Queue not in list, from %s:%d\n",KERN_EMERG ,deb_file,deb_line);
-#else
 		splx(s);
 		return;
-#endif
 	}
 
 	/*
@@ -2360,8 +2349,20 @@ do_runqueues(void *dummy)
 	unsigned long s;
 	int cnt = 100;
 	static int looping = 0;
+#ifdef CONFIG_DEBUG_STREAMS
+	static int reenter = 0;
+#endif
 
 	s = splstr();
+#ifdef CONFIG_DEBUG_STREAMS
+	if(reenter) {
+		static int rewarn = 0;
+		if(!rewarn) printf("%sRunQ reentered!\n",KERN_ERR);
+		rewarn = (rewarn+1) & 255;
+		return;
+	}
+	reenter++;
+#endif
 	while ((p_queue = (queue_t *)sched_first) != NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
 		if((p_queue->q_link == NULL) != (p_queue == sched_last)) {
@@ -2379,7 +2380,7 @@ do_runqueues(void *dummy)
 #ifdef CONFIG_DEBUG_STREAMS
 		if(!(p_queue->q_flag & QENAB)) {
 			printf("%sQueue on list but QENAB not set for %s\n",KERN_ERR ,p_queue->q_qinfo->qi_minfo->mi_idname);
-#if defined(__KERNEL__) && defined(linux)
+#if 0 && defined(__KERNEL__) && defined(linux)
 			sysdump(NULL,NULL,0);
 #endif
 		}
@@ -2403,6 +2404,9 @@ do_runqueues(void *dummy)
 #if 0 /* def CONFIG_DEBUG_STREAMS */
 	if(cnt < 100)
 		printf("\n");
+#endif
+#ifdef CONFIG_DEBUG_STREAMS
+	--reenter;
 #endif
 	splx(s);
 }

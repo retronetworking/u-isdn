@@ -54,7 +54,7 @@ Init(struct _dumb * dumb) {
 		cfval |= ((dumb->info.memaddr >> 9) & 0xF0);
 		if(ByteIn(ioaddr+0) != 0x51) { return -EINVAL; }
 		if(ByteIn(ioaddr+1) != 0x93) { return -EINVAL; }
-		if(ByteIn(ioaddr+2) != 0x1E) { return -EINVAL; }
+		if((ByteIn(ioaddr+2) & 0xFE) != 0x1E) { return -EINVAL; }
 
 		timout = jiffies+(HZ/10)+1;
 		ByteOut(ioaddr+4,cfval);
@@ -97,7 +97,7 @@ static Byte xmode = 0xFF;
 		DEBUG(info) printk("%sISDN CIX0 0x3Fn\n",KERN_DEBUG );
 		if(xmode != mode)
 			ByteOutISAC(dumb,CIX0,0x3F &3);
-		if(dumb->polled>0) isdn2_new_state(&dumb->card,0);
+		if(dumb->polled==0) isdn2_new_state(&dumb->card,0);
 		dumb->chan[0].mode = mode;
 		break;
 	case M_STANDBY:
@@ -117,7 +117,7 @@ static Byte xmode = 0xFF;
 			DEBUG(info) printk("%sISDN CIX0 0x27\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x27);
 		} else {
-			if(dumb->polled>0) isdn2_new_state(&dumb->card,1);
+			if(dumb->polled==0) isdn2_new_state(&dumb->card,1);
 			DEBUG(info) printk("%sISDN noCIX0 0x27\n",KERN_DEBUG );
 		}
 #if 0

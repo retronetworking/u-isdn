@@ -29,7 +29,7 @@ static inline void qenable(queue_t *q) { deb_qenable("SLIP",0,q); }
 
 static struct module_info slip_minfo =
 {
-		0, "slip", 0, INFPSZ, 4400,1100
+		0, "slip", 0, INFPSZ, 200,100
 };
 
 static qf_open slip_open;

@@ -41,7 +41,7 @@ extern struct timeval Time;
  */
 static struct module_info timer_minfo =
 {
-		0, "timer", 0, INFPSZ, 4096,2048,
+		0, "timer", 0, INFPSZ, 200,100
 };
 
 static qf_open timer_open;

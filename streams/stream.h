@@ -10,7 +10,7 @@
 #include <linux/major.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
-#if 0 /* LINUX_VERSION_CODE >= 66348 */ /* 1.3.44 -- EXPERIMENTAL */
+#if 0 && (LINUX_VERSION_CODE >= 66348) /* 1.3.44 -- EXPERIMENTAL */
 #include <linux/skbuff.h>
 #define SK_STREAM
 #endif
@@ -379,7 +379,7 @@ struct stroptions {
 /*
  * Turn off interrupt and Streams processing
  */
-#define splstr() spl((1<<STREAMS_BH)|(1<<IRQ_BH))
+#define splstr() spl(1)
 
 /*
  * noenable - prevent queue from running.

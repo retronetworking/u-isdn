@@ -435,7 +435,7 @@ main (int argc, char *argv[])
 	char *progname = *argv;
 	int pid = getpid ();
 	int dodial = 0, domon = 0, dovanj = 0, dofakeh = 0, dolog = 0, dologmodem = 0,
-	docount = 0, doqinfo = 0, noslip = 0, doenable = 0;
+	docount = 0, doqinfo = 0, noslip = 0, doenable = 0, dodebug = 0;
 	int speed = 0;
 
 #ifdef AUX
@@ -455,8 +455,11 @@ main (int argc, char *argv[])
 	signal (SIGCHLD, SIG_IGN);
 	signal (SIGTTOU, SIG_IGN);
 
-	while ((s = getopt (argc, argv, "dr:R:lEMm:vfLop:s:S:A:")) != EOF)
+	while ((s = getopt (argc, argv, "Ddr:R:lEMm:vfLop:s:S:A:")) != EOF)
 		switch (s) {
+		case 'D':
+			dodebug = 1;
+			break;
 		case 'S':
 			noslip = 1;
 			break;
@@ -517,6 +520,9 @@ main (int argc, char *argv[])
 
 	ichaddr = *argv++;
 	duaddr = *argv++;
+
+	if(!dodebug) 
+		freopen(stderr,"w","/dev/null");
 
 	if ((s = socket (AF_INET, SOCK_DGRAM, IPPROTO_IP)) < 0)
 		xquit ("socket");

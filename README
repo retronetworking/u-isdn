@@ -4,6 +4,19 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-12-04
+
+Release 25. Die Umstellungsprobleme sind nun (hoffentlich) endlich
+beseitigt.
+
+Die Puffergrößen in den Datenströmen wurden drastisch reduziert. Wenn
+Datenverluste auftreten (zB beim Weiterleiten von IP-Paketen oder beim
+Empfang von Audiodaten, wenn das lesende Programm zu langsam ist), sollte
+ein "buffer"-Modul zwischengeschaltet und geeignet konfiguriert werden,
+sinnvollerweise hinter dem reconn-Modul (IP) bzw. direkt hinter transalaw
+(Audio).
+
+
 *** 1995-11-28
 
 Release 22. Vernünftigeres Beartbeiten des Verbindungsauf/abbaus eingebaut.

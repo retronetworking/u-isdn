@@ -24,7 +24,7 @@
 
 static struct module_info van_j_minfo =
 {
-		0, "van_j", 0, INFPSZ, 4096,1024
+		0, "van_j", 0, INFPSZ, 200,100
 };
 
 static qf_open van_j_open;

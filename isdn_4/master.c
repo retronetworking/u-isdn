@@ -146,6 +146,11 @@ main (int argc, char *argv[])
 		dup2(fd,2);
 		close(fd);
 	}
+	/* Two lockdev() calls. The first may clear a stale lock. */
+	if((lockdev(0,0) < 0) && (sleep(2),lockdev(0,0) < 0)) {
+		syslog(LOG_ERR,"Unable to lock the master device: %m");
+		_exit(1);
+	}
 
 #ifdef linux
 	{	/* (Re)Create all our device files */
@@ -285,5 +290,6 @@ main (int argc, char *argv[])
 
 	/* Shut down. Ungracefully. Graceful shutdown of active cards TODO. */
 	strclose (xs_mon, 0);
+	unlockdev(0);
 	return 0; /* -> exit(0) */
 }

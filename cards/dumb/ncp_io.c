@@ -1,30 +1,37 @@
-inline static void PostIRQ(struct _dumb * dumb)
+inline static void
+PostIRQ(struct _dumb * dumb)
 {
 }
 
-inline static Byte InISAC(struct _dumb * dumb, char offset) {
+inline static Byte
+InISAC(struct _dumb * dumb, char offset) {
 	ByteOut(dumb->info.ioaddr+1,offset);
 	return ByteIn(dumb->info.ioaddr+2);
 }
-inline static void OutISAC(struct _dumb * dumb, char offset, Byte data) {
+inline static void
+OutISAC(struct _dumb * dumb, char offset, Byte data) {
 	ByteOut(dumb->info.ioaddr+1,offset);
 	ByteOut(dumb->info.ioaddr+2,data);
 }
 
-inline static Byte InHSCX(struct _dumb * dumb, unsigned char hscx, char offset) {
+inline static Byte
+InHSCX(struct _dumb * dumb, unsigned char hscx, char offset) {
 	ByteOut(dumb->info.ioaddr+1,offset+((hscx&1)?0x80:0xC0));
 	return ByteIn(dumb->info.ioaddr+2);
 }
-inline static void OutHSCX(struct _dumb * dumb, unsigned char hscx, char offset, Byte what) {
+inline static void
+OutHSCX(struct _dumb * dumb, unsigned char hscx, char offset, Byte what) {
 	ByteOut(dumb->info.ioaddr+1,offset+((hscx&1)?0x80:0xC0));
 	ByteOut(dumb->info.ioaddr+2,what);
 }
-inline static Byte Slot(struct _dumb * dumb, unsigned char hscx) {
+inline static Byte
+Slot(struct _dumb * dumb, unsigned char hscx) {
 	printf(" Slot %d: ",hscx);
 	return (hscx&1) ? 0x2F : 0x03;
 }
 
-static int Init(struct _dumb * dumb) {
+static int
+Init(struct _dumb * dumb) {
 	int timout;
 	long flags;
 	char iflag;
@@ -64,7 +71,8 @@ static int Init(struct _dumb * dumb) {
 	return 0;
 }
 
-static void InitISAC(struct _dumb * dumb)
+static void
+InitISAC(struct _dumb * dumb)
 {
 	dumb->chan[0].mode = M_OFF;
 	dumb->chan[0].listen = 0;
@@ -80,7 +88,8 @@ static void InitISAC(struct _dumb * dumb)
 	ByteOutISAC(dumb, MASK, 0x00);
 }
 
-static void InitHSCX_(struct _dumb * dumb, unsigned char hscx)
+static void
+InitHSCX_(struct _dumb * dumb, unsigned char hscx)
 {
 	ByteOutHSCX(dumb,hscx,TSAX, Slot(dumb,hscx));
 	ByteOutHSCX(dumb,hscx,TSAR, Slot(dumb,hscx));
@@ -101,7 +110,8 @@ static void InitHSCX_(struct _dumb * dumb, unsigned char hscx)
 	ByteOutHSCX(dumb,hscx,MASK, 0x00);
 }
 
-static int ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
+static int
+ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 {
 	unsigned long ms = SetSPL(dumb->info.ipl);
 	
@@ -119,7 +129,7 @@ static int ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
 	case M_OFF:
 		printk("%sCIX0 0x3F\n",KERN_DEBUG );
 		ByteOutISAC(dumb,CIX0,0x3F);
-		if(dumb->polled>0) isdn2_new_state(&dumb->card,0);
+		if(dumb->polled==0) isdn2_new_state(&dumb->card,0);
 		dumb->chan[0].mode = mode;
 		break;
 	case M_STANDBY:
@@ -141,7 +151,7 @@ else printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 			ByteOutISAC(dumb,CIX0,0x27);
 		} else {
 printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
-			if(dumb->polled>0) isdn2_new_state(&dumb->card,1);
+			if(dumb->polled==0) isdn2_new_state(&dumb->card,1);
 		}
 #if 0
 		ByteOutISAC(dumb,TIMR,0x11);
@@ -159,7 +169,8 @@ printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
 	return 0;
 }
 
-static int HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte listen)
+static int
+HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte listen)
 {
 	unsigned long ms = SetSPL(dumb->info.ipl);
     if(dumb->chan[hscx].m_in != NULL) {
