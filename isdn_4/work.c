@@ -72,7 +72,7 @@ deadkid (void)
 
 /* Push protocols onto stream */
 int
-pushprot (conngrab cg, int minor, char update)
+pushprot (conngrab cg, int minor, int connref, char update)
 {
 	cf prot;
 	char *mods = NULL;
@@ -108,6 +108,14 @@ pushprot (conngrab cg, int minor, char update)
 			m_putid (mj, PROTO_UPDATEMODLIST);
 		else
 			m_putid (mj, PROTO_MODLIST);
+		if(cg != NULL && cg->card != NULL && strcmp(cg->card,"*") != 0) {
+			m_putsx(mj,ARG_CARD);
+			m_putsz(mj,cg->card);
+		}
+		if(connref) {
+			m_putsx (mj, ARG_CONNREF);
+			m_puti(mj,connref);
+		}
 		m_putsx (mj, ARG_MODE); /* set card mode */
 		m_putsz (mj, prot->arg);
 		m_putdelim (mj);
@@ -236,7 +244,7 @@ pushprot (conngrab cg, int minor, char update)
 
 /* Set ISDN card mode */
 int
-pushcardprot (conngrab cg, int minor)
+pushcardprot (conngrab cg, int minor, int connref)
 {
 	cf prot;
 	cf cmod = NULL;
@@ -276,7 +284,7 @@ pushcardprot (conngrab cg, int minor)
 		return -ENOENT;
 	
 	if (minor != 0) {
-		mblk_t *mj = allocb (32, BPRI_LO);
+		mblk_t *mj = allocb (64, BPRI_LO);
 		int len;
 
 		if (mj == NULL)
@@ -284,6 +292,14 @@ pushcardprot (conngrab cg, int minor)
 		m_putid (mj, CMD_CARDSETUP);
 		m_putsx (mj, ARG_MINOR);
 		m_puti (mj, minor);
+		if(cg != NULL && cg->card != NULL && strcmp(cg->card,"*") != 0) {
+			m_putsx(mj,ARG_CARD);
+			m_putsz(mj,cg->card);
+		}
+		if(connref != 0) {
+			m_putsx (mj, ARG_CONNREF);
+			m_puti (mj, connref);
+		}
 		m_putdelim (mj);
 		m_putc (mj, PROTO_MODE);
 		m_puti (mj, num);
@@ -299,7 +315,7 @@ pushcardprot (conngrab cg, int minor)
 
 /* Startup a connection... */
 struct conninfo *
-startconn(conngrab cg, int fminor, int connref, char **ret)
+startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 {
 	struct iovec io[3];
 	int iovlen = 0;
@@ -308,6 +324,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 	struct datab db;
 	struct conninfo *conn;
 	char *str;
+	conngrab rcg = NULL;
 
 	yy.b_rptr = data;
 	yy.b_wptr = data;
@@ -317,6 +334,8 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 
 	if(ret == NULL)
 		ret = &str;
+	if(retcg == NULL)
+		retcg = &rcg;
 	if(cg->mask == 0) {
 		*ret = "Internal error: bad mask";
 		return NULL;
@@ -408,7 +427,8 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 
 printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 	if(((*ret) = findit (&cg,0)) != NULL) {
-		dropgrab(cg);
+		*retcg = cg;
+		dropgrab(rcg);
 		chkall();
 		return NULL;
 	}
@@ -461,13 +481,20 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 		m_puti (&yy, connref ? connref : conn->connref);
 	}
 
-	if (cg->lnrsuf != NULL) {
-		char *s = cg->lnrsuf;
-		m_putsx (&yy, ARG_LNUMBER);
-		m_putsz (&yy, s);
+	if (cg->lnr != NULL) {
+		char *s = strip_nr(cg->lnr,1);
+		printf("Strip3 %s -> %s\n",cg->lnr,s);
+		if(s == NULL && cg->lnrsuf != NULL) {
+			s = append_nr(cg->lnr,cg->lnrsuf);
+			printf("Append3 %s,%s -> %s\n",cg->lnr,cg->lnrsuf,s);
+		}
+		if(s != NULL) {
+			m_putsx (&yy, ARG_LNUMBER);
+			m_putsz (&yy, s);
+		}
 	}
 	if (cg->nr != NULL) {
-		char *s = strip_nr(cg->nr);
+		char *s = strip_nr(cg->nr,0);
 		printf("Strip3 %s -> %s\n",cg->nr,s);
 		if(s == NULL && cg->nrsuf != NULL) {
 			s = append_nr(cg->nr,cg->nrsuf);
@@ -621,6 +648,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				conn->seqnum = ++connseq;
 				conn->state = c_down;
 				conn->cause = 999999;
+				conn->got_hd = 1;
 				conn->next = isdn4_conn; isdn4_conn = conn;
 			}
 			cg->refs++;
@@ -814,7 +842,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 					strncpy (ut.ut_id, sdevname (dev), sizeof (ut.ut_id));
 					strncpy (ut.ut_line, mdevname (dev), sizeof (ut.ut_line));
 #ifndef M_UNIX
-					strncpy (ut.ut_host, cfr->protocol, sizeof (ut.ut_host));
+					strncpy (ut.ut_host, cfr->site, sizeof (ut.ut_host));
 #endif
 					ut.ut_pid = getpid ();
 					ut.ut_type = LOGIN_PROCESS;
@@ -1035,14 +1063,14 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 					else
 						cg->delay = 0;
 				}
-				if(startconn(conn->cg,0,0, &msg) != conn) {
+				if(startconn(conn->cg,0,0, &msg, NULL) != conn) {
 					syslog(LOG_CRIT,"Bug in runprog->startconn (%s) for %s:%s",msg ? msg : "(unknown reason)", cg->site,cg->protocol);
 					dropgrab(conn->cg);
 					conn->cg = NULL;
 					chkone(conn);
 				}
 			} else {
-				int err = pushprot (conn->cg, conn->minor, 0);
+				int err = pushprot (conn->cg, conn->minor, conn->connref, 0);
 				if(err != 0) {
 printf("NoProtoEnable NotPushprot\n");
 					m_putid (&yy, CMD_CLOSE);
@@ -1248,7 +1276,7 @@ printf("FAIL %s\n",err);
 			} else {
 printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0)
-					pushprot(conn->cg,conn->minor,1);
+					pushprot(conn->cg,conn->minor,conn->connref,1);
 			}
 		}
 	}

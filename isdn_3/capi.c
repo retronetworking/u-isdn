@@ -71,15 +71,18 @@
 #define STATE_DEAD 255
 
 #define RUN_CAPI_TCONN 01
-#define RUN_CAPI_TWAITEAZ 02
+#define RUN_CAPI_TWAITLOCAL 02
 #define RUN_CAPI_TFOO 04
+#define RUN_CAPI_TWAITFIRSTLOCAL 010
 
 #define VAL_CAPI_TCONN ( 40 *HZ)    /* timer for delaying an ALERT response */
-#define VAL_CAPI_TWAITEAZ ( HZ/2)    /* timer for waiting for the EAZ */
+#define VAL_CAPI_TWAITLOCAL ( 5 *HZ)    /* wait for additional digits */
+#define VAL_CAPI_TWAITFIRSTLOCAL ( HZ/2)    /* wait for the first digit */
 #define VAL_CAPI_TFOO ( 10 * HZ)    /* timer for waiting for teardown */
 
 static void CAPI_TCONN (isdn3_conn conn);
-static void CAPI_TWAITEAZ (isdn3_conn conn);
+static void CAPI_TWAITLOCAL (isdn3_conn conn);
+static void CAPI_TWAITFIRSTLOCAL (isdn3_conn conn);
 static void CAPI_TFOO (isdn3_conn conn);
 
 /* Connection states:
@@ -118,6 +121,7 @@ struct capi_info {
 #define INF_SPV 01
 	unsigned char lnr[MAXNR];
 	unsigned char nr[MAXNR];
+	unsigned short waitlocal;
 };
 
 struct trace_timer {
@@ -139,8 +143,14 @@ static void checkterm (isdn3_conn conn);
 static void
 capi_timerup (isdn3_conn conn)
 {
+    struct capi_info *info = conn->p_data;
+
     rtimer (CAPI_TCONN, conn);
-    rtimer (CAPI_TWAITEAZ, conn);
+    rtimer (CAPI_TWAITFIRSTLOCAL, conn);
+	if(info == NULL)
+    	rtimer (CAPI_TWAITLOCAL, conn);
+	else
+		rntimer(CAPI_TWAITLOCAL, conn, info->waitlocal);
     rtimer (CAPI_TFOO, conn);
 }
 
@@ -148,6 +158,8 @@ capi_timerup (isdn3_conn conn)
 static void
 Xsetstate(unsigned int deb_line, isdn3_conn conn, uchar_t state)
 {
+    struct capi_info *info = conn->p_data;
+
 printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn->state, state);
 
 	if(conn->state == state)
@@ -156,7 +168,8 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 		untimer(CAPI_TCONN, conn);
 	switch(conn->state) {
 	case 6:
-		untimer(CAPI_TWAITEAZ, conn);
+		untimer(CAPI_TWAITLOCAL, conn);
+		untimer(CAPI_TWAITFIRSTLOCAL, conn);
 		break;
 	case 99:
 		untimer(CAPI_TFOO, conn);
@@ -169,7 +182,12 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 
 	switch(state) {
 	case 6:
-		timer(CAPI_TWAITEAZ,conn);
+		if(info != NULL) {
+			ntimer(CAPI_TWAITLOCAL,conn,info->waitlocal);
+			if(info->lnr == '\0')
+				timer(CAPI_TWAITFIRSTLOCAL,conn);
+		} else
+			timer(CAPI_TWAITLOCAL,conn);
 		break;
 	case 99:
 		timer(CAPI_TFOO,conn);
@@ -196,12 +214,83 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 	}
 }
 
-static ushort_t newmsgid(isdn3_talk talk)
+static ushort_t
+newmsgid(isdn3_talk talk)
 {
 	talk->message_id = ((talk->message_id + 1) & 0x3FFF) | 0x4000;
 
 	return talk->message_id;
 }
+
+static int
+putnr(uchar_t *nrto, uchar_t *nrfrom)
+{
+	uchar_t *nrorig = nrto;
+	switch(*nrfrom) {
+	case '0': case '1': case '2': case '3': case '4':
+	case '5': case '6': case '7': case '8': case '9':
+		*nrto++ = 0x80; break;
+	case '+': /* international */
+		*nrto++ = 0x91; nrfrom++; break;
+	case '=': /* national */
+		*nrto++ = 0xA1; nrfrom++; break;
+	case '-': /* subscriber */
+		*nrto++ = 0xC1; nrfrom++; break;
+	case '.': /* abbreviated */
+	case '/': /* abbreviated */
+		*nrto++ = 0xE1; nrfrom++; break;
+	default:
+		*nrto++ = 0x80; nrfrom++;
+		break;
+	}
+	while(*nrfrom)
+		*nrto++ = *nrfrom++;
+
+	return (nrto - nrorig);
+}
+
+
+static int
+getnr(uchar_t *nrto, uchar_t *nrfrom)
+{
+	uchar_t *nrorig = nrfrom;
+	int len = *nrfrom++;
+	if(*nrto == '\0') {
+		switch(*nrfrom & 0x70) {
+		case 0x00: /* unknown */
+			if(nrfrom[0] == 0x00 && nrfrom[1] == 0x83)
+				*nrto++ = '='; /* at least one PBX is stupid */
+			else if(nrfrom[0] == 0x81)
+				*nrto++='.'; /* the very same PBX */
+			break;
+		case 0x10: /* international */
+			*nrto++='+';
+			break;
+		case 0x20: /* national */
+			*nrto++='=';
+			break;
+		case 0x30: /* network specific */
+			break;
+		case 0x40: /* subscriber */
+			*nrto++='-';
+			break;
+		case 0x60: /* abbreviated */
+			*nrto++='.';
+			break;
+		case 0x70: /* extension */
+			*nrto++='.';
+			break;
+		}
+	} else {
+		while(*nrto) nrto++; /* number becomes longer */
+	}
+	while (len-- > 0 && (*nrfrom++ & 0x80) == 0) ;
+	while (len-- > 0)
+		*nrto++ = *nrfrom++;
+	*nrto = '\0';
+	return nrfrom - nrorig;
+}
+
 
 static int
 capi_send(isdn3_talk talk, ushort_t appl, ushort_t msgtype, mblk_t *data, ushort_t msgid)
@@ -265,13 +354,23 @@ talk_timer(struct trace_timer *tt)
 }
 
 static void
-CAPI_TWAITEAZ(isdn3_conn conn)
+CAPI_TWAITLOCAL(isdn3_conn conn)
 {
-	printf("CAPI_TWAITEAZ %05lx\n",conn->call_ref);
-	conn->timerflags &= ~RUN_CAPI_TWAITEAZ;
+	printf("CAPI_TWAITLOCAL %05lx\n",conn->call_ref);
+	conn->timerflags &= ~RUN_CAPI_TWAITLOCAL;
 	if(conn->state != 6)
 		return;
 	setstate(conn,7);
+	report_incoming(conn);
+}
+
+static void
+CAPI_TWAITFIRSTLOCAL(isdn3_conn conn)
+{
+	printf("CAPI_TWAITFIRSTLOCAL %05lx\n",conn->call_ref);
+	conn->timerflags &= ~RUN_CAPI_TWAITFIRSTLOCAL;
+	if(conn->state != 6)
+		return;
 	report_incoming(conn);
 }
 
@@ -292,6 +391,22 @@ CAPI_TCONN(isdn3_conn conn)
 	if(conn->state < 1 || conn->state >= 15)
 		return;
 	send_disconnect(conn,0,0);
+}
+
+static int
+checknrlen(isdn3_conn conn)
+{
+    struct capi_info *info = conn->p_data;
+
+	if(info == NULL)
+		return -ENXIO;
+	if(!(conn->talk->state & (1<<(info->subcard+ST_pbx))))
+		return -EINVAL;
+	if(conn->state != 6)
+		return -EINVAL;
+
+	setstate(conn,6); /* this kicks the timers */
+	return report_incoming(conn);
 }
 
 static int
@@ -358,51 +473,50 @@ send_open(isdn3_talk talk)
 #endif
 	char profile[32] = DEFPROFILE;
 	{	/* Find correct driver name */
-		int err; char skip = 0;
-		mblk_t *info = talk->card->info;
-		if(info != NULL) {
-			streamchar *sta = info->b_rptr;
+		int err; char skip = 0, subskip = 0;
+		mblk_t *inf = talk->card->info;
+		if(inf != NULL) {
+			streamchar *sta = inf->b_rptr;
 			ushort_t idx;
 
-			while(m_getid(info,&idx) == 0) {
+			while(m_getid(inf,&idx) == 0) {
 				long sap;
 				switch(idx) {
 				case ARG_PROTOCOL:
-					if (m_geti(info,&sap) == 0) {
-							skip = (sap != SAPI_CAPI);
-					}
+					if (m_geti(inf,&sap) == 0) 
+						skip = (sap != SAPI_CAPI);
 					break;
 				case ARG_SUBPROT:
-					if (m_geti(info,&sap) == 0 && !skip) {
+					if (m_geti(inf,&sap) == 0 && !skip) {
 						switch(sap) {
 						case SAPI_CAPI_BINTEC:
 							skip=0;
 							break;
 						default:
 							/* Wrong card. TODO: Do something! */
-							info->b_rptr = sta;
+							inf->b_rptr = sta;
 							return -ENXIO;
 						}
 					}
 					break;
 				case ARG_SUBCARD:
-					if (m_geti(info,&sap) == 0 && !skip) 
-						skip = (sap != talk->regnum+1);
+					if (m_geti(inf,&sap) == 0 && !skip) 
+						subskip = (sap != talk->regnum+1);
 					break;
 				case ARG_STACK:
-					if(skip)
+					if(skip || subskip)
 						break;
-					if((err = m_getstr(info,profile,sizeof(profile)-1)) < 0)
+					if((err = m_getstr(inf,profile,sizeof(profile)-1)) < 0)
 						strcpy(profile,DEFPROFILE);
 					break;
 				case ARG_PBX:
-					if(skip)
+					if(skip || subskip)
 						break;
 					talk->state |= 1<<(talk->regnum+ST_pbx);
 					break;
 				}
 			}
-			info->b_rptr = sta;
+			inf->b_rptr = sta;
 		}
 	}
 
@@ -538,14 +652,21 @@ static int
 report_incoming (isdn3_conn conn)
 {
     int err = 0;
+    struct capi_info *info = conn->p_data;
+	mblk_t *mb;
 
-    mblk_t *mb = allocb (256, BPRI_MED);
+	if(info == NULL)
+		return -ENXIO;
 
+    mb = allocb (256, BPRI_MED);
     if (mb == NULL) {
         setstate (conn, 0);
         return -ENOMEM;
     }
     m_putid (mb, IND_INCOMING);
+	if((conn->state == 6) && !(conn->talk->state & (1<<(info->subcard+ST_pbx))))
+		m_putsx(mb,ARG_INCOMPLETE);
+	
     conn_info (conn, mb);
 
     if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
@@ -574,7 +695,7 @@ report_nocard (isdn3_talk talk, ushort_t info)
 {
     mblk_t *mb = allocb (64, BPRI_MED);
 
-	talk->state = STATE_DEAD;
+	talk->tstate = STATE_DEAD;
 
     m_putid (mb, IND_NOCARD);
 	m_putlx (mb, talk->card->id);
@@ -649,8 +770,10 @@ send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 					conn->msgid0)) < 0) {
 				setstate(conn,0);
 				freemsg(m3);
-			} else 
+			} else {
 				setstate(conn,99);
+        		report_terminate (conn,0,cause);
+			}
 		}
 		break;
 	case 15:
@@ -709,11 +832,10 @@ send_dialout(isdn3_conn conn)
 	struct CAPI_connect_req *c2;
 	struct capi_info *info = conn->p_data;
 	mblk_t *m2;
-	int llen = strlen(info->lnr);
 	
 	if(info == NULL)
 		return -ENXIO;
-	m2 = allocb(sizeof(*c2)+strlen(info->nr)+1+(llen ? llen+1 : 0)+((info->flags & INF_SPV) != 0),BPRI_MED);
+	m2 = allocb(sizeof(*c2)+strlen(info->nr)+strlen(info->lnr)+3,BPRI_MED);
 
 	if(m2 == NULL) 
 		return -ENOMEM;
@@ -721,7 +843,7 @@ send_dialout(isdn3_conn conn)
 	bzero(c2,sizeof(*c2));
 	c2->infomask = 0xC00000FF;
 	{	/* Find correct info mask */
-		int err; char skip = 0;
+		int err; char skip = 0, subskip = 0;
 		mblk_t *inf = conn->talk->card->info;
 		if(inf != NULL) {
 			streamchar *sta = inf->b_rptr;
@@ -731,9 +853,8 @@ send_dialout(isdn3_conn conn)
 				long sap;
 				switch(idx) {
 				case ARG_PROTOCOL:
-					if (m_geti(inf,&sap) == 0) {
-							skip = (sap != SAPI_CAPI);
-					}
+					if (m_geti(inf,&sap) == 0) 
+						skip = (sap != SAPI_CAPI);
 					break;
 				case ARG_SUBPROT:
 					if (m_geti(inf,&sap) == 0 && !skip) {
@@ -750,13 +871,13 @@ send_dialout(isdn3_conn conn)
 					break;
 				case ARG_SUBCARD:
 					if (m_geti(inf,&sap) == 0 && !skip) 
-						skip = (sap != info->subcard);
+						subskip = (sap != info->subcard+1);
 					break;
 				case ARG_LISTEN:
+					if(skip || subskip)
+						break;
 					{
 						long x;
-						if(skip)
-							break;
 						if((err = m_getx(inf,&x)) >= 0) {
 							if((err = m_getx(inf,&x)) >= 0) {
 								if((err = m_getx(inf,&x)) >= 0) {
@@ -774,26 +895,24 @@ send_dialout(isdn3_conn conn)
 	c2->channel = (info->bchan ? info->bchan : CAPI_ANYBCHANNEL);
 	c2->DST_service = info->service >> 8;
 	c2->DST_addinfo = info->service;
-	c2->telnolen = strlen(info->nr)+1;
-	*m2->b_wptr++ = 0x81;
-	strncpy(m2->b_wptr,info->nr,c2->telnolen);
-	m2->b_wptr += strlen(info->nr);
+	m2->b_wptr += (c2->telnolen = putnr(m2->b_wptr,info->nr));
+
 	if(info->flags & INF_SPV) {
 		c2->telnolen++;
 		*m2->b_wptr++ = 'S';
 	}
-	if((llen > 0) && (conn->talk->state & (1<<(info->subcard+ST_pbx)))) {
+	if((*info->lnr != '\0') && (conn->talk->state & (1<<(info->subcard+ST_pbx)))) {
+		uchar_t *lp = m2->b_wptr++;
+		m2->b_wptr += (*lp = putnr(m2->b_wptr,info->lnr));
 		c2->SRC_eaz = 0;
-		if(info->lnr[0] >= '0' && info->lnr[0] <= '9') {
-			memcpy(m2->b_wptr+1,info->lnr,llen);
-		} else {
-			llen--;
-			memcpy(m2->b_wptr+1,info->lnr+1,llen);
-		}
-		*m2->b_wptr = llen;
-		m2->b_wptr += llen+1;
-	} else if(llen > 0)
-		c2->SRC_eaz = info->lnr[llen-1];
+		c2->infomask |= 0x40;
+	} else {
+		c2->infomask &=~ 0x40;
+		if(*info->lnr != '\0')
+			c2->SRC_eaz = info->lnr[strlen(info->lnr)-1];
+		else
+			c2->SRC_eaz = '0';
+	}
 	conn->call_ref = conn->talk->tappl[info->subcard]<<16;
 	printf(">CONNECT_REQ ");
 	if((err = capi_send(conn->talk,conn->talk->tappl[info->subcard],CAPI_CONNECT_REQ,m2,conn->conni[WF_CONNECT_CONF]=newmsgid(conn->talk))) < 0) 
@@ -931,7 +1050,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 	int err = 0;
 	isdn3_conn conn = 0;
 
-	if(talk->state == STATE_DEAD) 
+	if(talk->tstate == STATE_DEAD) 
 		return -ENXIO;
 	
 	printf("CAPI: recv %d, in state %ld: ",isUI,talk->tstate);
@@ -1050,6 +1169,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				report_terminate(conn,c2->info,0);
 			}
+			setstate(conn,99);
 			{
 				int err3 = 0;
 				struct CAPI_disconnect_resp *c3;
@@ -1064,8 +1184,6 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					if((err3 = capi_send(talk,capi->appl,CAPI_DISCONNECT_RESP,m3,capi->messid)) < 0)
 						freemsg(m3);
 				}
-				if(err == 0)
-					err = send_disconnect(conn,0,0);
 				if(err == 0)
 					err = err3;
 			}
@@ -1391,6 +1509,52 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								}
 							}
 						}
+						info->waitlocal = VAL_CAPI_TWAITLOCAL/HZ;
+						{	/* get real wait value */
+							int err; char skip = 0, subskip = 0;
+							mblk_t *inf = talk->card->info;
+							if(inf != NULL) {
+								streamchar *sta = inf->b_rptr;
+								ushort_t idx;
+
+								while(m_getid(inf,&idx) == 0) {
+									long sap;
+									switch(idx) {
+									case ARG_PROTOCOL:
+										if (m_geti(inf,&sap) == 0) 
+											skip = (sap != SAPI_CAPI);
+										break;
+									case ARG_SUBPROT:
+										if (m_geti(inf,&sap) == 0 && !skip) {
+											switch(sap) {
+											case SAPI_CAPI_BINTEC:
+												skip=0;
+												break;
+											default:
+												/* Wrong card. TODO: Do something! */
+												inf->b_rptr = sta;
+												return -ENXIO;
+											}
+										}
+										break;
+									case ARG_SUBCARD:
+										if (m_geti(inf,&sap) == 0 && !skip) 
+											subskip = (sap != info->subcard+1);
+										break;
+									case ARG_LWAIT:
+										if(skip || subskip)
+											break;
+										{
+											long x;
+											if((err = m_geti(inf,&x)) >= 0)
+												info->waitlocal = x;
+										}
+										break;
+									}
+								}
+								inf->b_rptr = sta;
+							}
+						}
 						if(c2->DST_eaz) {
 							info->lnr[0] = '/';
 							info->lnr[1] = c2->DST_eaz;
@@ -1399,21 +1563,12 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 							info->lnr[0] = '\0';
 						info->service = (c2->DST_service << 8) | c2->DST_addinfo;
 						if(c2->telnolen > 1) {
-							int nrlen = c2->telnolen;
-							switch(*data->b_rptr) {
-							case 0x91: /* international number */
-							case 0xA1: /* national number */
-								data->b_rptr++; nrlen--;
-								if(data->b_rptr[nrlen-1] == 'S') /* SPV */
-									nrlen--;
-								if(nrlen >= MAXNR)
-									nrlen = MAXNR-1;
-								bcopy(data->b_rptr,info->nr,nrlen);
-								break;
-							default:
-								err = -EINVAL;
-								break;
-							}
+							int nrlen;
+							--data->b_rptr;
+							data->b_rptr += getnr(info->nr,data->b_rptr);
+							nrlen = strlen(info->nr);
+							if(nrlen > 0 && (info->nr[nrlen-1] == 'S' || info->nr[nrlen-1] == 's'))
+								info->nr[nrlen-1] = '\0';
 						}
 
 						conn->call_ref = (capi->appl << 16) | c2->plci;
@@ -1421,7 +1576,15 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 						conn->minorstate |= MS_INCOMING;
 
 						if(err >= 0) {
-							setstate(conn,6);
+							if(c2->DST_eaz) {
+								setstate(conn,7);
+								report_incoming(conn);
+							} else if(conn->talk->state & (1<<(info->subcard+ST_pbx))) {
+								setstate(conn,6); /* no report yet */
+							} else {
+								setstate(conn,6);
+								report_incoming(conn);
+							}
 							break;
 						}
 					}
@@ -1500,27 +1663,11 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					break;
 				case AI_DAD:
 					printf("DAD ");
-					switch(*data->b_rptr) {
-					case 0x81:
-						{
-							int nrlen = c2->infolen;
-							int haslen = strlen(info->lnr);
-							if(haslen == 0) {
-								haslen = 1;
-								info->lnr[0] = '/';
-							}
-							data->b_rptr++; nrlen--;
-							if(nrlen >= MAXNR-haslen)
-								nrlen = MAXNR-haslen-1;
-							bcopy(data->b_rptr,info->lnr+haslen,nrlen);
-							info->lnr[nrlen+1]='\0';
-							setstate(conn,6);
-						}
-						break;
-					default:
-						err = -EINVAL;
-						break;
-					}
+					--data->b_rptr;
+					data->b_rptr += getnr(info->lnr,data->b_rptr);
+					if(conn->state == 6)
+						checknrlen(conn);
+					goto empt;
 					break;
 				case AI_UUINFO:
 					printf("UUINFO ");
@@ -1603,44 +1750,43 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 		{
 			int dodebug = 0;
 			{
-				mblk_t *info = talk->card->info;
-				if(info != NULL) {
-					streamchar *sta = info->b_rptr;
+				mblk_t *inf = talk->card->info;
+				if(inf != NULL) {
+					streamchar *sta = inf->b_rptr;
 					ushort_t idx;
-					char skip = 0;
+					char skip = 0, subskip = 0;
 
-					while(m_getid(info,&idx) == 0) {
+					while(m_getid(inf,&idx) == 0) {
 						long sap;
 						switch(idx) {
 						case ARG_PROTOCOL:
-							if (m_geti(info,&sap) == 0) {
-									skip = (sap != SAPI_CAPI);
-							}
+							if (m_geti(inf,&sap) == 0) 
+								skip = (sap != SAPI_CAPI);
 							break;
 						case ARG_SUBPROT:
-							if (m_geti(info,&sap) == 0 && !skip) {
+							if (m_geti(inf,&sap) == 0 && !skip) {
 								switch(sap) {
 								case SAPI_CAPI_BINTEC:
 									skip=0;
 									break;
 								default:
 									/* Wrong card. Do something! */
-									info->b_rptr = sta;
+									inf->b_rptr = sta;
 									return -ENXIO;
 								}
 							}
 							break;
 						case ARG_SUBCARD:
-							if (m_geti(info,&sap) == 0 && !skip) 
-								skip = (sap != talk->regnum+1);
+							if (m_geti(inf,&sap) == 0 && !skip) 
+								subskip = (sap != talk->regnum+1);
 							break;
 						case ARG_DEBUG:
-							if(skip)
+							if(skip || subskip)
 								break;
 							dodebug = 1;
 							break;
 						case ARG_EAZ:
-							if(skip)
+							if(skip || subskip)
 								break;
 							if(talk->state & 1<<(talk->regnum+ST_pbx))
 								break;
@@ -1650,9 +1796,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								mblk_t *mp;
 								int len;
 
-								if((err = m_getc(info,&eaz)) < 0)
+								if((err = m_getc(inf,&eaz)) < 0)
 									break;
-								if((len = m_getstrlen(info)) < 0)
+								if((len = m_getstrlen(inf)) < 0)
 									break;
 								mp = allocb(sizeof(*ce)+len, BPRI_MED);
 								if(mp == NULL)
@@ -1661,7 +1807,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								bzero(ce,sizeof(*ce));
 								ce->eaz = eaz;
 								ce->telnolen = len;
-								if((err = m_getstr(info,mp->b_wptr,len)) < 0) {
+								if((err = m_getstr(inf,mp->b_wptr,len)) < 0) {
 									freemsg(mp);
 									break;
 								}
@@ -1675,7 +1821,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 							break; /* ARG_EAZ */
 						}
 					}
-					info->b_rptr = sta;
+					inf->b_rptr = sta;
 				}
 			}
 			if((talk->tstate == STATE_REGISTER) && dodebug) {
@@ -1709,47 +1855,46 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				c2->eaz_mask = 0x03FF;
 				c2->service_mask = 0xE7BF;
 				{	/* Find correct masks */
-					int err; char skip = 0;
-					mblk_t *info = talk->card->info;
-					if(info != NULL) {
-						streamchar *sta = info->b_rptr;
+					int err; char skip = 0, subskip = 0;
+					mblk_t *inf = talk->card->info;
+					if(inf != NULL) {
+						streamchar *sta = inf->b_rptr;
 						ushort_t idx;
 
-						while(m_getid(info,&idx) == 0) {
+						while(m_getid(inf,&idx) == 0) {
 							long sap;
 							switch(idx) {
 							case ARG_PROTOCOL:
-								if (m_geti(info,&sap) == 0) {
-										skip = (sap != SAPI_CAPI);
-								}
+								if (m_geti(inf,&sap) == 0) 
+									skip = (sap != SAPI_CAPI);
 								break;
 							case ARG_SUBPROT:
-								if (m_geti(info,&sap) == 0 && !skip) {
+								if (m_geti(inf,&sap) == 0 && !skip) {
 									switch(sap) {
 									case SAPI_CAPI_BINTEC:
 										skip=0;
 										break;
 									default:
 										/* Wrong card. TODO: Do something! */
-										info->b_rptr = sta;
+										inf->b_rptr = sta;
 										return -ENXIO;
 									}
 								}
 								break;
 							case ARG_SUBCARD:
-								if (m_geti(info,&sap) == 0 && !skip) 
-									skip = (sap != talk->regnum+1);
+								if (m_geti(inf,&sap) == 0 && !skip) 
+									subskip = (sap != talk->regnum+1);
 								break;
 							case ARG_LISTEN:
+								if(skip || subskip)
+									break;
 								{
 									long x;
-									if(skip)
-										break;
-									if((err = m_getx(info,&x)) >= 0) {
+									if((err = m_getx(inf,&x)) >= 0) {
 										c2->eaz_mask = x;
-										if((err = m_getx(info,&x)) >= 0) {
+										if((err = m_getx(inf,&x)) >= 0) {
 											c2->service_mask = x;
-											if((err = m_getx(info,&x)) >= 0) {
+											if((err = m_getx(inf,&x)) >= 0) {
 												c2->info_mask = x;
 											}
 										}
@@ -1758,10 +1903,15 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								break;
 							}
 						}
-						info->b_rptr = sta;
+						inf->b_rptr = sta;
 					}
 				}
-				printf(">LISTEN_RESP ");
+				if(talk->state & 1<<(talk->regnum+ST_pbx))
+					c2->info_mask |= 0x40;
+				else
+					c2->info_mask &=~ 0x40;
+
+				printf(">LISTEN_REQ ");
 				if((err =
 					capi_send(talk,talk->tappl[talk->regnum],CAPI_LISTEN_REQ,mp,capi->messid)) < 0) {
 					freemsg(mp);
@@ -2044,7 +2194,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	int force = 0;
 	uchar_t cause = 0;
 
-	if(conn->talk->state == STATE_DEAD)
+	if(conn->talk->tstate == STATE_DEAD)
 		return -ENXIO;
 
 	printf("CAPI: sendcmd %05lx %04x: ",conn->call_ref,id);
@@ -2122,14 +2272,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
                 break;
             case ARG_LNUMBER:
                 m_getskip (data);
-                if ((err = m_getstr (data, (char *) info->lnr, MAXNR)) != 0) {
+                if ((err = m_getstr (data, (uchar_t *) info->lnr, MAXNR)) != 0) {
                     printf("GetStr LNumber: ");
 					goto RetErr;
                 }
                 break;
             case ARG_NUMBER:
                 m_getskip (data);
-                if ((err = m_getstr (data, (char *) info->nr, MAXNR)) != 0) {
+                if ((err = m_getstr (data, (uchar_t *) info->nr, MAXNR)) != 0) {
                     printf("GetStr Number: ");
 					goto RetErr;
                 }
@@ -2146,12 +2296,14 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
     switch (id) {
 	case CMD_ANSWER:
 		{
+			if(conn->talk->tstate != STATE_RUNNING)
+				return -ENXIO;
             if (data == NULL) {
                 printf("DataNull: ");
                 conn->lockit--;
                 return -EINVAL;
             }
-			if(conn->state != 7) {
+			if(conn->state != 6 && conn->state != 7) {
 				printf("CAPI error: ANSWER in bad state!\n");
 				conn->lockit--;
 				return -EINVAL;
@@ -2169,6 +2321,8 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		break;
     case CMD_DIAL:
         {
+			if(conn->talk->tstate != STATE_RUNNING)
+				return -ENXIO;
             conn->minorstate |= MS_OUTGOING | MS_WANTCONN;
 
             isdn3_setup_conn (conn, EST_NO_CHANGE);
@@ -2210,8 +2364,8 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		break;
 	}
 
-	checkterm(conn);
 	conn->lockit--;
+	checkterm(conn);
 	return err;
 }
 
@@ -2219,16 +2373,6 @@ static void
 report (isdn3_conn conn, mblk_t * data)
 {
     struct capi_info *info;
-	printf("CAPI: report %05lx: ",conn->call_ref);
-	{
-		mblk_t *mb = data;
-		if(mb == NULL) printf("NULL"); else
-		while(mb != NULL) {
-			dumpascii(mb->b_rptr,mb->b_wptr-mb->b_rptr);
-			mb = mb->b_cont;
-		}
-	}
-	printf("\n");
     info = conn->p_data;
     if (info == NULL)
         return;
@@ -2244,7 +2388,7 @@ report (isdn3_conn conn, mblk_t * data)
 		m_putsx (data, ARG_SERVICE);
 		m_putx (data, info->service);
 	}
-	if(info->subcard != (unsigned char) ~0) {
+	if(info->subcard != (uchar_t) ~0) {
 		m_putsx (data, ARG_SUBCARD);
 		m_puti (data,info->subcard+1);
 	}
@@ -2274,7 +2418,8 @@ killconn (isdn3_conn conn, char force)
 	conn->lockit++;
     if (force) {
         untimer (CAPI_TCONN, conn);
-        untimer (CAPI_TWAITEAZ, conn);
+        untimer (CAPI_TWAITLOCAL, conn);
+        untimer (CAPI_TWAITFIRSTLOCAL, conn);
         untimer (CAPI_TFOO, conn);
 	}
 	if(conn->state == 0) {
@@ -2309,7 +2454,6 @@ newcard (isdn3_card card)
 
 	if(card->is_up)
 		chstate (talk, DL_ESTABLISH_CONF,0);
-	
 }
 
 static ulong_t

@@ -50,6 +50,7 @@ long hdrval;
 char no_error;
 struct loader *loader;
 long errnum;
+char incomplete;
 
 
 /* Take the incoming arguments and put them into their variables. */
@@ -59,6 +60,9 @@ parse_arg(void)
 	switch (id) {
 	case ARG_CAUSE:
 		(void)m_getid(&xx,&cause);
+		break;
+	case ARG_INCOMPLETE:
+		incomplete = 1;
 		break;
 	case ARG_CHARGE:
 		(void)m_geti(&xx,&charge);
@@ -292,6 +296,7 @@ init_vars (void)
 	lnr[0] = '\0';
 	uid = -1;
 	connref = 0;
+	incomplete = 0;
 	dialin = -1;
 	charge = 0;
 	cause = 0;
@@ -534,7 +539,7 @@ do_cardproto(void)
 
 			return 2;
 		}
-		if (pushcardprot (cg, minor) == 0) {
+		if (pushcardprot (cg, minor, connref) == 0) {
 			dropgrab(cg);
 			/* Success */
 			return 0;
@@ -611,7 +616,7 @@ do_proto(void)
 			m_putid (&xx, CMD_CLOSE);
 			m_putsx (&xx, ARG_MINOR);
 			m_puti (&xx, minor);
-			if(conn->minor == minor) {
+			if(conn != NULL && conn->minor == minor) {
 				conn->minor = 0;
 				if(conn->pid == 0)
 					dropconn(conn);
@@ -624,7 +629,7 @@ do_proto(void)
 			(void) strwrite (xs_mon, ans, xlen, 1);
 			return 2;
 		}
-		if (pushprot (cg, minor, ind == IND_PROTO_AGAIN) == 0) {
+		if (pushprot (cg, minor, conn ? conn->connref : 0, ind == IND_PROTO_AGAIN) == 0) {
 			/* Success */
 			dropgrab(cg);
 			return 0;
@@ -659,12 +664,14 @@ do_incoming(void)
 	conngrab cg = newgrab(NULL);
 	if(cg == NULL) {
 		resp = "OutOfMemFoo";
+		incomplete = 0;
 		goto inc_err;
 	}
 	cg->flags = F_INCOMING|F_DIALUP|F_PERMANENT|F_NRCOMPLETE|F_LNRCOMPLETE;
 	cinf = allocb(len,BPRI_LO);
 	if(cinf == NULL) {
 		resp = "OutOfMemFoo";
+		incomplete = 0;
 		goto inc_err;
 	}
 
@@ -673,8 +680,12 @@ do_incoming(void)
 	cinf->b_wptr += len;
 	cg->par_in = cinf;
 	cg->card = str_enter(crd);
-	if ((resp = findit (&cg,0)) != NULL) 
+	if ((resp = findit (&cg,0)) != NULL) {
+		if(incomplete && !strncmp(resp+1,"LNrIncomp",8)) 
+			resp = "waiting for number";
 		goto inc_err;
+	}
+	incomplete = 0;
 	if (quitnow) {
 		resp = "SHUTTING DOWN";
 		goto inc_err;
@@ -709,7 +720,7 @@ do_incoming(void)
 		resp = "0BUSY other";
 		goto inc_err;
 	}
-	if(((conn = startconn(cg,fminor,connref,&resp)) != NULL) && (resp != NULL)) {
+	if(((conn = startconn(cg,fminor,connref,&resp, NULL)) != NULL) && (resp != NULL)) {
 		/* An existing connection feels responsible for this. */
 		mblk_t *mz;
 		if(conn->state == c_forceoff) {
@@ -803,7 +814,7 @@ do_incoming(void)
 #if 1
 			/* cg->flags &=~ F_INCOMING; */
 			/* cg->flags |= F_OUTGOING; */
-			if(startconn(cg,fminor,connref,NULL) != conn)
+			if(startconn(cg,fminor,connref,NULL, NULL) != conn)
 				resp = "ClashRestart Failed";
 #endif
 			conn = malloc(sizeof(*conn));
@@ -852,60 +863,61 @@ do_incoming(void)
   cont:
 	if (resp != NULL) {
       inc_err:
-		xx.b_wptr = xx.b_rptr = ans;
-		xx.b_datap = &db;
-		db.db_base = ans;
-		db.db_lim = ans + sizeof (ans);
+		if(!incomplete) {
+			xx.b_wptr = xx.b_rptr = ans;
+			xx.b_datap = &db;
+			db.db_base = ans;
+			db.db_lim = ans + sizeof (ans);
 
-		if(1)printf("Dis3 ");
-		m_putid (&xx, CMD_OFF);
-		if(connref != 0) {
-			m_putsx (&xx, ARG_CONNREF);
-			m_puti (&xx, connref);
-		}
-
-		/* BUSY-if-no-channel is very ugly but unavoidable when
-			sharing the bus with brain-damaged devices (there are
-			many out there) which don't answer at all when they're busy.
-			Grr. The PBX should catch this case. */
-		/* We send the BUSY fast if _we_re busy, else we have to send it slow
-		  because somebody else might in fact answer... */
-		m_putsx (&xx, ARG_CAUSE);
-		if((bchan < 0) || !strncmp(resp+1,"BUSY",4)) {
-			m_putsx2 (&xx, ID_N1_UserBusy);
-			if(!strcmp(resp+1,"BUSY") || (cg->flags & F_FASTDROP))
-				m_putsx(&xx,ARG_FASTDROP);
-
-			if(conn != NULL && (conn->flags & F_BACKCALL)) {
-				if(conn->want_reconn == 0)
-					conn->want_reconn = MAX_RECONN - (MAX_RECONN >> 1);
-				setconnstate(conn,conn->state);
+			if(1)printf("Dis3 ");
+			m_putid (&xx, CMD_OFF);
+			if(connref != 0) {
+				m_putsx (&xx, ARG_CONNREF);
+				m_puti (&xx, connref);
 			}
-		} else {
-			if(cg->flags & F_NOREJECT)
-				m_putsx2 (&xx, ID_N1_NoChans);
-			else
-				m_putsx2 (&xx, ID_N1_CallRejected);
-			if(cg->flags & F_FASTDROP)
-				m_putsx(&xx,ARG_FASTDROP);
-		}
-		if(crd[0] != '\0') {
-			m_putsx(&xx,ARG_CARD);
-			m_putsz(&xx,crd);
-		}
-		if(callref != 0) {
-			m_putsx (&xx, ARG_CALLREF);
-			m_puti (&xx, callref);
-		}
 
-		if(cg != NULL) {
-			syslog (LOG_WARNING, "Got '%s' for %s/%s/%s/%s,%s", resp, cg->site, cg->protocol, cg->card, cg->cclass, nr);
-		} else
-			syslog (LOG_WARNING, "Got '%s' for ???,%s", resp, nr);
-		xlen = xx.b_wptr - xx.b_rptr;
-		DUMPW (ans, xlen);
-		(void) strwrite (xs_mon, ans, xlen, 1);
+			/* BUSY-if-no-channel is very ugly but unavoidable when
+				sharing the bus with brain-damaged devices (there are
+				many out there) which don't answer at all when they're busy.
+				Grr. The PBX should catch this case. */
+			/* We send the BUSY fast if _we_re busy, else we have to send it slow
+			because somebody else might in fact answer... */
+			m_putsx (&xx, ARG_CAUSE);
+			if((bchan < 0) || !strncmp(resp+1,"BUSY",4)) {
+				m_putsx2 (&xx, ID_N1_UserBusy);
+				if(!strcmp(resp+1,"BUSY") || (cg->flags & F_FASTDROP))
+					m_putsx(&xx,ARG_FASTDROP);
 
+				if(conn != NULL && (conn->flags & F_BACKCALL)) {
+					if(conn->want_reconn == 0)
+						conn->want_reconn = MAX_RECONN - (MAX_RECONN >> 1);
+					setconnstate(conn,conn->state);
+				}
+			} else {
+				if(cg->flags & F_NOREJECT)
+					m_putsx2 (&xx, ID_N1_NoChans);
+				else
+					m_putsx2 (&xx, ID_N1_CallRejected);
+				if(cg->flags & F_FASTDROP)
+					m_putsx(&xx,ARG_FASTDROP);
+			}
+			if(crd[0] != '\0') {
+				m_putsx(&xx,ARG_CARD);
+				m_putsz(&xx,crd);
+			}
+			if(callref != 0) {
+				m_putsx (&xx, ARG_CALLREF);
+				m_puti (&xx, callref);
+			}
+
+			if(cg != NULL) {
+				syslog (LOG_WARNING, "Got '%s' for %s/%s/%s/%s,%s", resp, cg->site, cg->protocol, cg->card, cg->cclass, nr);
+			} else
+				syslog (LOG_WARNING, "Got '%s' for ???,%s", resp, nr);
+			xlen = xx.b_wptr - xx.b_rptr;
+			DUMPW (ans, xlen);
+			(void) strwrite (xs_mon, ans, xlen, 1);
+		}
 		conn = malloc(sizeof(*conn));
 		if(conn != NULL) {
 			bzero(conn,sizeof(*conn));
@@ -1093,6 +1105,9 @@ do_disc(void)
 						freemsg(mb);
 					}
 				}
+				break;
+			case c_down:
+				setconnstate(conn,c_down);
 				break;
 			default:;
 			}
@@ -1531,6 +1546,7 @@ do_wantconnect(void)
 			}
 		}
 		if(conn->state < c_going_up) {
+			conn->got_hd = 0;
 			setconnref(conn,0);
 			try_reconn(conn);
 		}
@@ -1738,7 +1754,6 @@ do_atcmd(void)
 			case 'l': /* AT/L */
 			case 'L': /* List connections and state changes. */
 				{
-					char buf[30];
 					struct conninfo *fconn;
 					char *sp;
 					msgbuf = malloc(10240);
@@ -1798,8 +1813,7 @@ do_atcmd(void)
 					conn->ignore = 3;
 					conn->minor = minor;
 					conn->next = isdn4_conn; isdn4_conn = conn;
-					sprintf(buf,"# Waiting %s...",conn->cardname);
-					resp = str_enter(buf);
+					sp += sprintf(sp,"# Waiting %s...",conn->cardname);
 
 					return 1;
 				}
@@ -1842,7 +1856,7 @@ do_atcmd(void)
 						} else
 							conn->cardname = "*";
 					}
-					sprintf(buf,"# Monitoring %s...",conn->cardname);;
+					sprintf(buf,"# Monitoring %s...",conn->cardname);
 					resp = str_enter(buf);
 					return 1;
 				}
@@ -2110,11 +2124,17 @@ do_atcmd(void)
 					dropgrab(cg);
 					return 1;
 				}
+				if(!(cg->flags & F_NRCOMPLETE)) {
+					freeb(md);
+					dropgrab(cg);
+					resp = "RemoteNr incomplete";
+					return 1;
+				}
 				cg->refs++;
 				dropgrab(conn->cg);
 				conn->cg = cg;
 				setconnstate(conn,c_down);
-				if((conn = startconn(cg,fminor,0,NULL)) != NULL) {
+				if((conn = startconn(cg,fminor,0,NULL, NULL)) != NULL) {
 					freeb(md);
 					dropgrab(cg);
 					break;

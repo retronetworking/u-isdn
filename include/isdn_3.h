@@ -405,6 +405,9 @@ long isdn3_flags(mblk_t *info, uchar_t protocol, uchar_t subprot);
 #define FL_POINTMASK 0300
 
 #define FL_ANS_IMMED 0400 /* default is to delay */
+#define FL_BUG1 01000
+#define FL_BUG2 02000
+#define FL_BUG3 04000
 
 /**
  * Convenience macros for handling connection timeouts.
@@ -423,10 +426,13 @@ long isdn3_flags(mblk_t *info, uchar_t protocol, uchar_t subprot);
 #define UNTIMER(T,c,w,f) do { if((c)->timerflags & f) { untimeout(w,(c)); (c)->timerflags &=~ f; } } while(0)
 #define untimer(T,c) UNTIMER(T,c,T,RUN_##T)
 #define TIMER(T,c,w,v,f) do { if(!((c)->timerflags & f)) { if((c)->talk->state & IS_UP) timeout(w,(c),v); (c)->timerflags |= f; } } while(0)
-#define timer(T,c) TIMER(T,c,T,VAL_##T,RUN_##T)
+#define timer(T,c) TIMER(T,(c),T,VAL_##T,RUN_##T)
+#define ntimer(T,c,n) TIMER(T,(c),T,(n),RUN_##T)
 #define FTIMER(T,c,w,v,f) do { if(!((c)->timerflags & f)) { timeout(w,(c),v); (c)->timerflags |= f; } } while(0)
-#define ftimer(T,c) FTIMER(T,c,T,VAL_##T,RUN_##T)
+#define ftimer(T,c) FTIMER(T,(c),T,VAL_##T,RUN_##T)
+#define fntimer(T,c) FTIMER(T,(c),T,(n),RUN_##T)
 #define RTIMER(T,c,w,v,f) do { if((c)->timerflags & f) { untimeout(w,(c)); timeout(w,(c),v); } } while(0)
-#define rtimer(T,c) RTIMER(T,c,T,VAL_##T,RUN_##T)
+#define rtimer(T,c) RTIMER(T,(c),T,VAL_##T,RUN_##T)
+#define rntimer(T,c,n) RTIMER(T,(c),T,(n),RUN_##T)
 
 #endif							/* _ISDN_3 */

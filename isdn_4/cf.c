@@ -326,13 +326,15 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break;
 			if ((c->num = atoi (li)) == 0 && li[0] != '0')
 				break;
+			if (skipsp (&li)) break;
+			if ((c->num2 = atoi (li)) == 0 && li[0] != '0')
+				break;
 			if (skipsp (&li)) break; c->arg = li;
 			if(!skipsp (&li)) break;
 			chkone(c);
 			do_subclass(c);
 			c->card     = str_enter(c->card);
 			c->arg      = str_enter(c->arg);
-			c->num2     = ++seqnum;
 			app (&cf_LF, c);
 			continue;
 		case CHAR2 ('C', 'M'):

@@ -248,7 +248,8 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 	}
 	if(state >= c_going_up) {
 		conn->got_id = 0;
-		conn->got_hd = 0;
+		if(state > c_going_up)
+			conn->got_hd = 0;
 	}
 	if((state == c_off) && !conn->retime && (conn->flags & F_PERMANENT)) {
 		conn->retime = 1;
@@ -421,7 +422,7 @@ try_reconn(struct conninfo *conn)
 
 		/* anything else is added by startconn */
 
-		if((xconn = startconn(cg,0,0, &ret)) == conn) {
+		if((xconn = startconn(cg,0,0, &ret, NULL)) == conn) {
 			dropgrab(cg);
 			freeb(md);
 			return;

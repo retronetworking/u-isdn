@@ -403,9 +403,10 @@ void putenv2 (const char *key, const char *val);
 
 char *match_nr (char *extnr, char *locnr, char *locpref);
 int match_suffix(char *extsuf, char *extnr);
+int match_incom(char *extsuf, char *extnr);
 char *build_nr (char *extnr, char *locnr, char *locpref, int islocal);
 char *append_nr(char *extnr, char *extext);
-char *strip_nr(char *extnr);
+char *strip_nr(char *extnr, int keepfirst);
 
 
 /**
@@ -474,8 +475,8 @@ char * findit (conngrab *foo, int nobusy);
 mblk_t * getprot (char *protocol, char *site, char *cclass, char *suffix);
 #endif
 
-int pushprot (conngrab cg, int minor, char update);
-int pushcardprot (conngrab cg, int minor);
+int pushprot (conngrab cg, int minor, int connref, char update);
+int pushcardprot (conngrab cg, int minor, int connref);
 
 void xquit (const char *s, const char *t);
 
@@ -483,7 +484,7 @@ EXTERN int quitnow INIT(0);
 
 void panic(const char *x, ...);
 
-struct conninfo * startconn(conngrab cg, int fminor, int connref, char **ret);
+struct conninfo * startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg);
 EXTERN struct conninfo *zzconn INIT(NULL);
 void dropdead(void);
 char * runprog (cf cfr, struct conninfo **rconn, conngrab *foo);

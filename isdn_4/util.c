@@ -52,9 +52,9 @@ char *wildmatch(char *a, char *b)
 		return b;
 	else if(b == NULL)
 		return a;
-	else if(wildmat(a,b))
+	else if(wildmat(a,b) > 0)
 		return a;
-	else if(wildmat(b,a))
+	else if(wildmat(b,a) > 0)
 		return b;
 	else
 		return NULL;

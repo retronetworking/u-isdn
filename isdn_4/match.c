@@ -49,7 +49,7 @@ pmatch1 (cf prot, conngrab *cgm)
 	chkone(prot); chkone(cg);
 	/* Basic preprocessing */
 	sit = wildmatch(cg->site,    prot->site);    if(sit == NULL) return "7ERR Match SITE";
-	pro = wildmatch(cg->protocol,prot->protocol);if(pro == NULL) return "6ERR Match PROTOCOL";
+	pro = wildmatch(cg->protocol,prot->protocol);if(pro == NULL) return "7ERR Match PROTOCOL";
 	car = wildmatch(cg->card,    prot->card);    if(car == NULL) return "6ERR Match CARD";
 	cla =classmatch(cg->cclass,  prot->cclass);  if(cla == NULL) return "6ERR Match CLASS";
 	sub = maskmatch(cg->mask,    prot->mask);    if(sub == 0)    return "6ERR Match SUBCARD";
@@ -104,7 +104,7 @@ pmatch1 (cf prot, conngrab *cgm)
 				return "0OUT of MEMORY";
 			}
 		}
-#define DG(str) { if(first) { Xbreak(); dropgrab(cgc); dropgrab(cg); return str; } goto Ex; }
+#define DG(str) do { if(first) { dropgrab(cgc); dropgrab(cg); return str; } goto Ex; } while(0)
 
 		/* Remember pointers into the parameter strings. */
 		mbs_in = ((cgc->par_in !=NULL)? cgc->par_in->b_rptr : NULL);
@@ -162,8 +162,8 @@ pmatch1 (cf prot, conngrab *cgm)
 
 		/* Put it all together. */
 #define CHK(_what,_t) { \
-			if((nrt & ARG_OUT)&& (cgc->par_out!= NULL)) CHKO(_what,_t); \
-			if((nrt & ARG_IN) && (cgc->par_in != NULL)) CHKI(_what,_t); } break
+			if((nrt & ARG_OUT)&& (cgc->flags & F_OUTGOING) && (cgc->par_out!= NULL)) CHKO(_what,_t); \
+			if((nrt & ARG_IN) && (cgc->flags & F_INCOMING) && (cgc->par_in != NULL)) CHKI(_what,_t); } break
 
 	/* Same as above, but for vectorized parameters with optional bitmasks. */
 	/* You are not supposed to understand this code. */
@@ -235,8 +235,8 @@ pmatch1 (cf prot, conngrab *cgm)
 	ex:; })			 														/**/
 
 #define CHKV() { \
-				if((nrt & ARG_OUT)&& (cgc->par_out!= NULL)) CHKVO(); \
-				if((nrt & ARG_IN) && (cgc->par_in != NULL)) CHKVI(); } break
+				if((nrt & ARG_OUT)&& (cgc->flags & F_OUTGOING) && (cgc->par_out!= NULL)) CHKVO(); \
+				if((nrt & ARG_IN) && (cgc->flags & F_INCOMING) && (cgc->par_in != NULL)) CHKVI(); } break
 
 	/* Simple one-shot labels that can't be undone (and don't need to be). */
 #define CHKX()																\
@@ -284,20 +284,28 @@ pmatch1 (cf prot, conngrab *cgm)
 
 					if (m_getstr (cand, yy, MAXNR) != 0)
 						break;
-					if ((nrt & ARG_IN) && (cgc->nrsuf != NULL)) {
-						if(0)printf("MatchSuffix %s and %s\n",cgc->nrsuf,yy);
-						if(!match_suffix(cgc->nrsuf,yy)) { if(cgc->flags & F_OUTGOING) { printf("  SuffixBadness  "); Xbreak(); } else DG("2WrongNrSuffix 2") }
-					} else if((nrt & ARG_OUT) && (cgc->nrsuf == NULL))
-						cgc->nrsuf = str_enter(yy);
-					if((cgc->nr != NULL) && (nrt & ARG_OUT) && !(cgc->flags & F_NRCOMPLETE)) {
-						char *foo = append_nr(cgc->nr,yy);
-						if(0)printf("Append1 %s,%s -> %s\n",cgc->nr,yy,foo);
-						cgc->nr = foo;
-						if(cgc->nr != NULL) {
-							if(0)printf("Strip1 %s -> %s\n",cg->nr,strip_nr(cg->nr));
-							if(strip_nr(cgc->nr) != NULL)
-								cgc->flags |= F_NRCOMPLETE;
-						} else { if(cgc->flags & F_OUTGOING) { printf("  SuffixBadness2  "); Xbreak(); } else DG("3WrongNrSuffix 1") }
+					if ((nrt & ARG_IN) && (cgc->flags & F_INCOMING)) {
+						if (cgc->nrsuf != NULL) {
+							if(1)printf("MatchSuffix %s and %s\n",cgc->nrsuf,yy);
+							if(match_suffix(cgc->nrsuf,yy) <= 0) DG("2WrongNrSuffix 2");
+						} else
+							cgc->nrsuf = str_enter(yy);
+					}
+					if((nrt & ARG_OUT) &&(cgc->flags & F_OUTGOING)) {
+						if (cgc->nrsuf == NULL) 
+							cgc->nrsuf = str_enter(yy);
+						else if(match_suffix(cgc->nrsuf,yy) <= 0)
+							DG("4NrOutMatch");
+						if((cgc->nr != NULL) && !(cgc->flags & F_NRCOMPLETE)) {
+							char *foo = append_nr(cgc->nr,yy);
+							if(1)printf("Append1 %s,%s -> %s\n",cgc->nr,yy,foo);
+							cgc->nr = foo;
+							if(cgc->nr != NULL) {
+								if(0)printf("Strip1 %s -> %s\n",cg->nr,strip_nr(cg->nr,0));
+								if(strip_nr(cgc->nr,0) != NULL)
+									cgc->flags |= F_NRCOMPLETE;
+							} else DG("3WrongNrSuffix 1");
+						}
 					}
 				}
 				break;
@@ -306,23 +314,39 @@ pmatch1 (cf prot, conngrab *cgm)
 			case ARG_LNUMBER:
 				{
 					char yy[MAXNR + 2];
+					int suf;
 
 					if (m_getstr (cand, yy, MAXNR) != 0)
 						break;
-					if ((nrt & ARG_IN) && (cgc->lnrsuf != NULL)) {
-						if(0)printf("MatchLSuffix %s and %s\n",cgc->lnrsuf,yy);
-						if(!match_suffix(cgc->lnrsuf,yy)) { if(cgc->flags & F_OUTGOING) { printf("  SuffixBadness3  "); Xbreak(); } else DG("3WrongLNrSuffix 2") }
-					} else if((nrt & ARG_OUT) && (cgc->lnrsuf == NULL))
-						cgc->lnrsuf = str_enter(yy);
-					if((cgc->lnr != NULL) && (nrt & ARG_OUT) && !(cgc->flags & F_LNRCOMPLETE)) {
-						char *foo = append_nr(cgc->lnr,yy);
-						if(0)printf("Append2 %s,%s -> %s\n",cgc->lnr,yy,foo);
-						cgc->lnr = foo;
-						if(cgc->lnr != NULL) {
-							if(0)printf("Strip2 %s -> %s\n",cg->lnr,strip_nr(cg->lnr));
-							if(strip_nr(cgc->lnr) != NULL)
-								cgc->flags |= F_LNRCOMPLETE;
-						} else { if(cgc->flags & F_OUTGOING) { printf("  SuffixBadness4  "); Xbreak(); } else DG("3WrongLNrSuffix 1") }
+					if ((nrt & ARG_IN) && (cgc->flags & F_INCOMING)) {
+						if(cgc->lnrsuf != NULL) {
+							if(1)printf("MatchLSuffix %s and %s\n",cgc->lnrsuf,yy);
+							if((suf = match_suffix(cgc->lnrsuf,yy)) <= 0) 
+								DG(suf ? "3LNrIncompSuffix 2" : "3WrongLNrSuffix 2");
+						} else
+							DG("4LNrIncompSuffix 3");
+					}
+					if((nrt & ARG_OUT) && (cgc->flags & F_OUTGOING)) {
+						if(cgc->lnrsuf == NULL)
+							cgc->lnrsuf = str_enter(yy);
+						else if(match_suffix(cgc->lnrsuf,yy) <= 0)
+							DG("4LNrOutMatch");
+
+						if((cgc->lnr != NULL) && !(cgc->flags & F_LNRCOMPLETE)) {
+							char *foo = append_nr(cgc->lnr,yy);
+							if(1)printf("Append2 %s,%s -> %s\n",cgc->lnr,yy,foo);
+							cgc->lnr = foo;
+							if(cgc->lnr != NULL) {
+								if(0)printf("Strip2 %s -> %s\n",cg->lnr,strip_nr(cg->lnr,1));
+								if(strip_nr(cgc->lnr,1) != NULL)
+									cgc->flags |= F_LNRCOMPLETE;
+							} else {
+								if((cgc->lnrsuf != 0) && (match_suffix(cgc->lnrsuf,yy) < 0))
+									DG("3LNrIncompSuffix 4");
+								else
+									DG("3WrongLNrSuffix 4");
+							}
+						}
 					}
 				}
 				break;
@@ -411,7 +435,7 @@ findsite (conngrab *foo, int ignbusy)
 	cf dp = NULL;
 	cf dl = NULL;
 	cf d = NULL;
-	char *errstr = "8ERR FIND";
+	char *errstr = "8No matching ISDN card / DL entry";
 	char *errstrx;
 	int numwrap = 1;
 	conngrab cg = *foo;
@@ -443,12 +467,12 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				break;
 			}
 			if (dp == NULL) {
-				errstr = "9CARD UNKNOWN";
+				errstr = "9No matching DP entry";
 				continue;
 			}
 			matcrd = crd;
 			matsub = sub;
-		} /* if everybody had DSS1, we could skip the prefix nonsense... */
+		}
 
 		/* Now find a site to call out to. */
 		/* The numwrap stuff makes sure that we restart where we left off last
@@ -487,10 +511,8 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			if((matsit = wildmatch(cg->site,d->site)) == NULL) continue;
 			if((matpro = wildmatch(cg->protocol,d->protocol)) == NULL) continue;
 			if((matcar = wildmatch(matcrd,d->card)) == NULL) continue;
-			if((matcla = classmatch(cg->cclass,d->cclass)) == NULL) continue;
-			if((matcla = classmatch(matcla,matclass)) == NULL) continue;
+			if((matcla = classmatch(matclass,d->cclass)) == NULL) continue;
 			if((matsub = maskmatch(cg->mask,d->mask)) == 0) continue;
-			if((matsub = maskmatch(matsub,matsub)) == 0) continue;
 			if(!matchflag(cg->flags,d->type)) continue;
 
 			/* Preliminary match OK, remember the data so far. */
@@ -501,7 +523,6 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			cg->site = matsit; cg->cclass = matcla;
 			cg->card = matcar; cg->protocol = matpro;
 			cg->mask = matsub;
-			if(0)printf("%s...",matsit);
 
 			if(!(cg->flags & F_LEASED)) {
 				/* Now figure out the numbers... */
@@ -536,8 +557,8 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 						}
 						continue;
 					}
-				} else if(0) { /* Hmmm... */
-					cg->lnr = build_nr(dl->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0);
+				} else if(!(cg->flags & F_INCOMING)) { /* Hmmm... */
+					cg->lnr = build_nr(dl->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 2);
 					if(cg->lnr == NULL) {
 						if(*errstr > '4') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
@@ -550,9 +571,32 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 
 			/* Do we have a matching P line? */
 			if ((errstrx = pmatch (&cg)) == NULL) {
-			/* We have what we need. Now figure out if we can use it. */
+			/* We should have what we need. Now figure out if we can use it... */
 				cf cl = NULL;
 				int nrbchan = 0;
+
+				if(cg->nr != NULL && (cg->flags & (F_INCOMING|F_OUTGOING)) && !(cg->flags & F_NRCOMPLETE)) {
+					if(strip_nr(cg->nr,0) != NULL)
+						cg->flags |= F_NRCOMPLETE;
+					else {
+						if(*errstr > '3') {
+							errstr = "3RemoteNr incomplete";
+							errcg = cg; cg->refs++;
+						}
+						continue;
+					}
+				}
+				if(cg->lnr != NULL && (cg->flags & (F_INCOMING|F_OUTGOING)) && !(cg->flags & F_LNRCOMPLETE)) {
+					if(strip_nr(cg->lnr,1) != NULL)
+						cg->flags |= F_LNRCOMPLETE;
+					else {
+						if(*errstr > '3') {
+							errstr = "3LocalNr incomplete";
+							errcg = cg; cg->refs++;
+						}
+						continue;
+					}
+				}
 
 				/* Check if we know how many B channels the card has */
 				{
@@ -660,8 +704,7 @@ findit (conngrab *foo, int ignbusy)
 	char *errstr = "9NO CARD";
 	char *errstrx;
 	struct isdncard *c;
-	char *card;
-	conngrab cg = newgrab(*foo);
+	conngrab cg = newgrab(*foo), cgc = NULL;
 	conngrab errcg = NULL;
 	int cardlim;
 
@@ -673,12 +716,10 @@ findit (conngrab *foo, int ignbusy)
 		return "0Not Now";
 	}
 	p = cg->par_in;
-	card = cg->card;
 
 	if(p != NULL) {
 		streamchar *olds = p->b_rptr;
 		char st[MAXNR + 2];
-		char *card;
 		long x;
 
 		while (m_getsx (p, &id) == 0) {
@@ -697,7 +738,7 @@ findit (conngrab *foo, int ignbusy)
 				break;
 			case ARG_CARD:
 				m_getstr (p, st, 4);
-				if((card = wildmatch(st,cg->card)) == NULL) {
+				if((cg->card = wildmatch(str_enter(st),cg->card)) == NULL) {
 					dropgrab(cg);
 					return "0CARD MISMATCH";
 				}
@@ -721,39 +762,43 @@ findit (conngrab *foo, int ignbusy)
 				c = isdn4_card;
 				cardidx %= cardlim;
 			}
-			if(!wildmatch(card,c->name))  {
+			if(!wildmatch(cg->card,c->name))  {
 				cardlim += c->nrdchan;
 				continue;
 			}
 
-			cg->card = c->name;
 			cg->mask = 1;
 		  redo:
+		  	dropgrab(cgc);
+			cgc = newgrab(cg);
+			if(cgc == NULL) return "0NoMemFind";
+
 		  	cardlim++;
-			if(cg->flags & F_INCOMING) /* never skip */
+			cgc->card = c->name;
+			if(cgc->flags & F_INCOMING) /* never skip */
 				cardidx = 1;
 			if(cardlim >= cardidx) {
-				if ((errstrx = findsite (&cg,ignbusy)) == NULL) { /* Found it */
+				if ((errstrx = findsite (&cgc,ignbusy)) == NULL) { /* Found it */
 					cf crd;
 					cardidx++;
-					cg->flags |= F_OUTCOMPLETE;
+					cgc->flags |= F_OUTCOMPLETE;
 					if(c->cap & CHM_INTELLIGENT) {
-						dropgrab(*foo);
-						*foo = cg;
+						dropgrab(*foo); dropgrab(cg);
+						*foo = cgc;
 						return NULL;
 					}
 					for (crd = cf_CM; crd != NULL; crd = crd->next) {
 						if (!wildmatch (c->name, crd->card))
 							continue;
-						dropgrab(*foo);
-						*foo = cg;
+						dropgrab(*foo); dropgrab(cg);
+						*foo = cgc;
 						return NULL;
 					}
 					errstrx = "0CM line missing";
 				}
 				if(*errstrx < *errstr) {
 					errstr = errstrx;
-					dropgrab(errcg); errcg = cg;
+					dropgrab(errcg); errcg = cgc;
 					errcg->refs++;
 				}
 			}
@@ -771,7 +816,7 @@ findit (conngrab *foo, int ignbusy)
 		dropgrab(*foo);
 		*foo = errcg;
 	}
-	dropgrab(cg);
+	dropgrab(cg); dropgrab(cgc);
 	return errstr;
 }
 

@@ -675,10 +675,15 @@ get_ET_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t *nrpos, uchar_t wha
 		return 0;
 	switch(*qd_data & 0x70) {
 	case 0x00: /* unknown */
-		if(qd_data[0] == 0x00 && qd_data[1] == 0x83)
-			*nrpos++ = '='; /* at least one PBX is stupid */
-		else if(qd_data[0] == 0x81)
-			*nrpos++='.'; /* the very same PBX */
+		{
+			long flags = isdn3_flags(conn->card->info,-1,-1);
+			if(flags & FL_BUG1) {
+				if(qd_data[0] == 0x00 && qd_data[1] == 0x83)
+					*nrpos++ = '='; /* at least one PBX is stupid */
+				else if(qd_data[0] == 0x81)
+					*nrpos++='.'; /* the very same PBX */
+			}
+		}
 		break;
 	case 0x10: /* international */
 		*nrpos++='+';

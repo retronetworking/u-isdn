@@ -2390,7 +2390,6 @@ isdn2_wsrv (queue_t *q)
 				}
 #endif
 				{
-printf("m");
 					if (chan->card != NULL) {
 						if((err = do_chprot(chan->card,chan->channel,mp,CHP_FROMSTACK)|CHP_TOCARD) < 0) {
 							printf("%sChProtErr isdn_2.c %d %d\n",KERN_DEBUG,__LINE__,err);
@@ -2399,14 +2398,12 @@ printf("m");
 						}
 					} else {
 						mblk_t *mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
-printf("j");
 
 						if (mb == NULL) {
 							printf("%sNoMemHdr isdn_2.c %d\n",KERN_DEBUG,__LINE__);
 							putbqf (q, mp);
 							return;
 						}
-printf("i");
 						hdr2 = ((isdn23_hdr) mb->b_wptr)++;
 						hdr2->key = HDR_PROTOCMD;
 						hdr2->seqnum = hdrseq; hdrseq += 2;
@@ -2415,20 +2412,15 @@ printf("i");
 						hdr2->hdr_protocmd.channel = 0;
 						hdr2->hdr_protocmd.len = dsize (mp);
 						linkb (mb, mp);
-printf("h");
 						do {
 							DATA_TYPE(mp) = M_DATA;
 							mp = mp->b_cont;
 						} while(mp != NULL);
-printf("g");
 						if (isdn_chan.qptr != NULL) {
-printf("f");
 							if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
 							if(canput(isdn_chan.qptr->q_next)) {
-printf("e");
 								putnext (isdn_chan.qptr, mb);
 							} else {
-printf("d");
 								freemsg(mb);
 							}
 						} else {
@@ -2436,11 +2428,8 @@ printf("d");
 							printf ("%sHang 4\n",KERN_DEBUG);
 							putctlx (RD (q), M_HANGUP);
 						}
-printf("c");
 					}
-printf("b");
 				}
-printf("a");
 			}
 			break;
 		case CASE_DATA:
