@@ -160,8 +160,12 @@ bd_memchk(volatile void far *base, unsigned size)
 		ptr = base;                     /*  get memory pointer  */
 		for (i=0; i<size; ++i) {        /*  loop thru memory  */
 			if (*ptr++ != val) {        /*  check value  */
-				printf("memory check failed: i 0x%x, val 0x%lx (wanted 0x%lx)\n",i,*--ptr,val);
-				return -EIO;
+				if(i != 0xFFF) {
+					printf("memory check failed: i 0x%x, val 0x%lx (wanted 0x%lx)\n",i*sizeof(long),ptr[-1],val);
+					return -EIO;
+				} else {
+					printf("memory check: hmmm... at 0x%x, val 0x%lx (wanted 0x%lx)\n",i*sizeof(long),ptr[-1],val);
+				}
 			}
 			val += 0x12345678;          /*  adjust value  */
 		}
@@ -186,29 +190,24 @@ bd_check(struct _bintec *bp)
 
     bp->base = (unchar far *) bp->info.memaddr;
 
+	bp->state = (unchar far *) (bp->base + 0x3ffc);
+	bp->debugtext = (unchar far *) (bp->base + 0x3ffd);
+	bp->rcv.p = (unchar far *) (bp->base + 0x0008);
+	bp->snd.p = (unchar far *) (bp->base + 0x2000);
+	bp->rcv.d = (icinfo_t far *) (bp->base + 0x3ff0);
+	bp->snd.d = (icinfo_t far *) (bp->base + 0x3ff6);
     bp->ctrl  = (unchar far *) (bp->base + 0x3ffe);
     *bp->ctrl = 0xff;
 	if ((*(bp->ctrl) >> 5) != BOARD_ID_PMX) {
 		bp->type = *(bp->ctrl) >> 5;
-		bp->ctrl  = (unchar far *) (bp->base + 0x3ffe);
-		bp->state = (unchar far *) (bp->base + 0x3ffc);
-		bp->debugtext = (unchar far *) (bp->base + 0x3ffd);
-		bp->rcv.p = (unchar far *) (bp->base + 0x0008);
-		bp->snd.p = (unchar far *) (bp->base + 0x2000);
-		bp->rcv.d = (icinfo_t far *) (bp->base + 0x3ff0);
-		bp->snd.d = (icinfo_t far *) (bp->base + 0x3ff6);
 		size  = 16 * 1024 - 4;
 	} else {
 		bp->type = BOARD_ID_PMX;
+    	*bp->ctrl = 0;
 		bp->ctrl  = (unchar far *) (bp->base + 0xfffe);
-		bp->state = (unchar far *) (bp->base + 0x3ffc);
-		bp->debugtext = (unchar far *) (bp->base + 0x3ffd);
-		bp->rcv.p = (unchar far *) (bp->base + 0x0008);
-		bp->snd.p = (unchar far *) (bp->base + 0x2000);
-		bp->rcv.d = (icinfo_t far *) (bp->base + 0x3ff0);
-		bp->snd.d = (icinfo_t far *) (bp->base + 0x3ff6);
 		size  = 64 * 1024 - 4;
 	}
+    *bp->ctrl = 0;
 
     if (BOARD_TYPE(bp) != BOARD_ID_BRI
 		&& BOARD_TYPE(bp) != BOARD_ID_BRI4
@@ -255,7 +254,7 @@ bd_msgout( struct _bintec *bp )
 
     if (*bp->state & 0x80) {      /*  board failed  */
 		CTRL_RESET(bp);           /*  reset board  */
-		printf("BINTEC: msgout: board failed???\n");
+		printf("%sBINTEC: msgout: board failed???\n",KERN_WARNING);
 		if(bp->waitmsg == 0)
 			isdn2_new_state(&bp->card,2);
 		return -EIO;
@@ -425,29 +424,29 @@ putstart(struct _bintec *bp, int len)
 		return err;
 	}
     if ((sz < 2) || (wi >= sz) || (ri >= sz)) {
-		printf( "BINTEC error: write: ri %d, wi %d, sz %d\n",ri,wi,sz);
+		printf( "%sBINTEC error: write: ri %d, wi %d, sz %d\n",KERN_ERR,ri,wi,sz);
 		bp->sndoffset = sz;
 		splx(ms);
 		return -EIO;
     }
 	if(len > sz-3) {
-		printf("BINTEC error: write len %d > sz-3 %d\n",len,sz-3);
+		printf("%sBINTEC error: write len %d > sz-3 %d\n",KERN_ERR,len,sz-3);
 		bp->sndoffset = sz;
 		splx(ms);
 		return -ENXIO;
 	}
 	if(bp->sndoffset != -1) {
 		if(bp->sndoffset != bp->sndbufsize)
-			DEBUG(info) printf("BINTEC: busy sending\n");
+			DEBUG(info) printf("%sBINTEC: busy sending\n",KERN_DEBUG);
 		splx(ms);
 		return -EAGAIN; /* busy */
 	}
 	if(len > space-2) {
-		DEBUG(info) printf("BINTEC: buffer full, %d < %d\n",len,space-2);
+		DEBUG(info) printf("%sBINTEC: buffer full, %d < %d\n",KERN_DEBUG,len,space-2);
 		splx(ms);
 		return -EAGAIN;
 	}
-	if(0)DEBUG(capiout) printf("BINTEC write %d bytes at %d, free %d\n",len,wi,space);
+	if(0)DEBUG(capiout) printf("%sBINTEC write %d bytes at %d, free %d\n",KERN_DEBUG,len,wi,space);
 	bp->sndoffset = wi;
 	bp->sndbufsize = sz;
 	bp->sndend = (wi+len+2) % sz;
@@ -467,7 +466,7 @@ putend(struct _bintec *bp)
 		return err;
 	}
 	if(bp->sndoffset != bp->sndend) {
-		DEBUG(info) printf("BINTEC error: send end %d, should be %d\n",bp->sndoffset,bp->sndend);
+		DEBUG(info) printf("%sBINTEC error: send end %d, should be %d\n",KERN_ERR,bp->sndoffset,bp->sndend);
 		bp->sndoffset = bp->sndbufsize;
 		return -EIO;
 	}
@@ -548,12 +547,12 @@ getstart(struct _bintec *bp)
 	}
 	if(bp->rcvoffset != -1) {
 		if(bp->rcvoffset != sz)
-			DEBUG(info) printf("BINTEC: read: receiver busy\n");
+			DEBUG(info) printf("%sBINTEC: read: receiver busy\n",KERN_DEBUG);
 		return -EAGAIN; /* busy */
 	}
 
     if (sz < 2) {              /*  invalid buffer size  */
-		printf( "BINTEC error: read: invalid buffer size %d\n", sz);
+		printf( "%sBINTEC error: read: invalid buffer size %d\n",KERN_ERR, sz);
 		bp->rcvoffset = sz;
 		splx(ms);
 		return -EIO;
@@ -564,7 +563,7 @@ getstart(struct _bintec *bp)
 		return -ENODATA;
 	}
     if (space > sz || space < 2) {     /* we have a problem */
-		printf("BINTEC error: read: invalid space %d\n", space);
+		printf("%sBINTEC error: read: invalid space %d\n",KERN_ERR, space);
 		bp->rcvoffset = sz;
 		splx(ms);
 		return -EFAULT;
@@ -576,12 +575,12 @@ getstart(struct _bintec *bp)
 
 	len = ntohs(get16(bp));
 	if(len > space-2) {
-		printf("BINTEC error: read: len %d > space-2 %d\n",len,space-2);
+		printf("%sBINTEC error: read: len %d > space-2 %d\n",KERN_ERR, len,space-2);
 		bp->rcv.d->ri = bp->rcv.d->wi;
 		bp->rcvoffset = sz;
 		return -EFAULT;
 	}
-	if(0)DEBUG(capi) printf("BINTEC: reading %d bytes at %d\n",len,ri);
+	if(0)DEBUG(capi) printf("%sBINTEC: reading %d bytes at %d\n",KERN_DEBUG,len,ri);
 	bp->rcvend = (ri + len + 2) % sz;
 	return len;
 }
@@ -590,7 +589,7 @@ static int
 getend(struct _bintec *bp)
 {
 	if(bp->rcvoffset != bp->rcvend) {
-		printf("BINTEC error: read: now at %d instead of %d!\n",bp->rcvoffset,bp->rcvend);
+		printf("%sBINTEC error: read: now at %d instead of %d!\n",KERN_ERR, bp->rcvoffset,bp->rcvend);
 		bp->rcvoffset = bp->rcvbufsize;
 		return -EIO;
 	}
@@ -629,7 +628,7 @@ boot(struct _isdn1_card * card, int step, int offset, mblk_t *data)
    	if ((err = bd_msgout(bp)) < 0) {
 		return err;
    	}
-	DEBUG(info) if(offset == 0 || msgdsize(data) < 100) printf("BINTEC boot: step %d offset %d bytes %d for type %d\n",step,offset,msgdsize(data),bp->type);
+	DEBUG(info) if(offset == 0 || msgdsize(data) < 100) printf("%sBINTEC boot: step %d offset %d bytes %d for type %d\n",KERN_DEBUG,step,offset,msgdsize(data),bp->type);
 	switch(step) {
 	case 1:
 		if(offset == 0) {
@@ -668,7 +667,7 @@ boot(struct _isdn1_card * card, int step, int offset, mblk_t *data)
 		}
 		if(msgdsize(data) != 0) {
 			if(0)DEBUG(capiout) {
-				printf("BINTEC: write %d bytes to card at %x",msgdsize(data),0x200+offset);
+				printf("%sBINTEC: write %d bytes to card at %x",KERN_DEBUG, msgdsize(data),0x200+offset);
 				log_printmsg(NULL,": ",data,">>");
 			}
 			while(data != NULL) {
@@ -683,7 +682,7 @@ boot(struct _isdn1_card * card, int step, int offset, mblk_t *data)
     		} else {
 				CTRL_SET(bp, 0x03);
     		}
-			DEBUG(info) printf("BINTEC: Boot phase 1 complete; card started\n");
+			DEBUG(info) printf("%sBINTEC: Boot phase 1 complete; card started\n",KERN_DEBUG);
 			err = bd_msgout(bp);
 		}
 		break;
@@ -710,7 +709,7 @@ boot(struct _isdn1_card * card, int step, int offset, mblk_t *data)
 			int err = putstart(bp,len);
 
 			if(0)DEBUG(capiout) {
-				printf("BINTEC: write %d bytes to card",len);
+				printf("%sBINTEC: write %d bytes to card",KERN_DEBUG,len);
 				log_printmsg(NULL,": ",data,">>");
 			}
 
@@ -729,7 +728,8 @@ boot(struct _isdn1_card * card, int step, int offset, mblk_t *data)
 		}
 		bp->waitmsg = 2;
 		if(bp->info.irq != 0) {
-			setctl(bp,0); /* enable interrupts */
+			if(bp->type != BOARD_ID_PMX) 
+				setctl(bp,0); /* enable interrupts */
 			*bp->state = 3; /* ... send and receive */
 		}
 		break; /* boot is finished */
@@ -788,7 +788,7 @@ bintec_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
     int err = 0;
 	hdlc_buf chan = &bp->chan[channel];
 
-    DEBUG(info) printf("Prot chan %d flags 0%o\n",channel,flags);
+    DEBUG(info) printf("%sBintecProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
 
     if(!(flags & ~CHP_FROMSTACK)) { /* Nothing else set? */
         if ((err = m_getid (mp, &id)) != 0)
@@ -835,7 +835,7 @@ bintec_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 								chan->appID = a;
 								chan->PLCI = p;
 								chan->NCCI = n;
-								DEBUG(capi) printf("BINTEC: chan %d: assoc %04lx %04lx %04lx\n",channel,a,p,n);
+								DEBUG(capi) printf("%sBINTEC: chan %d: assoc %04lx %04lx %04lx\n",KERN_DEBUG,channel,a,p,n);
 								process_unknown(bp);
 							}
 							break;
@@ -907,6 +907,27 @@ bintec_flush (struct _isdn1_card * card, short channel)
 }
 
 
+static inline int
+recvone(struct _bintec *bp, int thechan)
+{
+	mblk_t *mb;
+	struct _hdlc_buf *chan = &bp->chan[thechan];
+	int err;
+
+	if(chan->q_in.nblocks == 0)
+		return -ENOENT;
+	if(!isdn2_canrecv(&bp->card,thechan))
+		return -EAGAIN;
+	if((mb = S_dequeue(&chan->q_in)) == NULL)
+		return -ENXIO;
+	if((err = isdn2_recv(&bp->card,thechan,mb)) < 0) {
+		S_requeue(&chan->q_in,mb);
+		return err;
+	}
+	return 0;
+}
+
+
 static int
 sendone(struct _bintec *bp, int thechan)
 {
@@ -938,7 +959,7 @@ sendone(struct _bintec *bp, int thechan)
 			if(capi->PRIM_type == CAPI_ALIVE_RESP)
 				goto foo;
 		}
-		printf("BINTEC: Send %d bytes on chan %d",len,thechan);
+		printf("%sBINTEC: Send %d bytes on chan %d",KERN_DEBUG,len,thechan);
 		if(thechan == 0)
 			log_printmsg(NULL,": ",mb,">>");
 		else
@@ -999,6 +1020,10 @@ pushone(struct _bintec *bp, int thechan)
 		return -EAGAIN;
 	}
 	mb = S_dequeue(&chan->q_in);
+	if(mb == NULL) {
+		DEBUG(info) if(thechan == 0) printf("%sBINTEC: upqueue cleared\n",KERN_INFO);
+		return 0;
+	}
 	if(mb->b_cont == NULL) {
 		freeb(mb);
 		return -EINVAL;
@@ -1069,15 +1094,12 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 	switch(capi->PRIM_type) {
 	case CAPI_ALIVE_IND:
 		err = 0;
-		if(!isdn2_canrecv(&bp->card,0)) 
+		if((bp->chan[0].q_out.nblocks > 10) || !isdn2_canrecv(&bp->card,0)) {
+			DEBUG(info)printf("%sBINTEC: keepalive on upqueue\n",KERN_INFO);
 			goto def;
-		capi->PRIM_type = CAPI_ALIVE_RESP;
-		if(bp->chan[0].q_out.nblocks < 100)
-			S_enqueue(&bp->chan[0].q_out,mb);
-		else {
-			isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
-			return -EIO;
 		}
+		capi->PRIM_type = CAPI_ALIVE_RESP;
+		S_enqueue(&bp->chan[0].q_out,mb);
 		sendone(bp,0);
 		break;
 	case CAPI_DATAB3_IND:
@@ -1142,17 +1164,10 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 		break;
 	default:
 	def:
-		if(!isdn2_canrecv(&bp->card,0)) {
-			printf("BINTEC read: cannot accept packet\n");
-			if(bp->chan[0].q_in.nblocks < 100)
-				S_enqueue(&bp->chan[0].q_in,mb);
-			else {
-				printf("BINTEC: incoming queue full\n");
-				isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
-			}
-			return 0;
-		} else if((err = isdn2_recv(&bp->card,0,mb)) != 0) {
-			printf("BINTEC read error: err %d\n",err);
+		if(!isdn2_canrecv(&bp->card,0)) 
+			return -EAGAIN;
+		else if((err = isdn2_recv(&bp->card,0,mb)) != 0) {
+			printf("%sBINTEC read error: err %d\n",KERN_WARNING,err);
 			return err;
 		}
 		break;
@@ -1330,17 +1345,26 @@ DoIRQ(struct _bintec *bp)
 					if(err == -ERESTART) {
 						static int prcnt;
 						if(bp->q_unknown.nblocks > 100) {
+							prcnt++;
 							if(prcnt < 3) {
-								prcnt++;
 								DEBUG(info)printf("BINTEC:read: 'unknown data' queue full\n");
 							}
 							freemsg(mb);
 						} else {
 							S_enqueue(&bp->q_unknown,mb);
+							err = 0;
 							if(prcnt)
 								prcnt--;
 						}
-						err = 0;
+					} else if(err == -EAGAIN) {
+						if(bp->chan[0].q_in.nblocks < 100) {
+							DEBUG(info) printf("BINTEC read: queued info packet\n");
+							S_enqueue(&bp->chan[0].q_in,mb);
+							err = 0;
+						} else {
+							printf("BINTEC: incoming queue full\n");
+							isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
+						}
 					}
 				}
 				if (err < 0)
@@ -1353,7 +1377,7 @@ DoIRQ(struct _bintec *bp)
 					log_printmsg(NULL,"BINTEC error: msgtype",mb,KERN_WARNING);
 					freemsg(mb);
 				} else {
-					printf("BINTEC error: msg type %04x\n",ntohs(err));
+					printf("%sBINTEC error: msg type %04x\n",KERN_ERR,ntohs(err));
 					getflush(bp,len);
 				}
 				err = getend(bp);
@@ -1361,6 +1385,12 @@ DoIRQ(struct _bintec *bp)
 		}
 	}
 
+	for(lastpos=0; lastpos <= bp->card.nr_chans; lastpos++) {
+		do {
+			err = recvone(bp,lastpos);
+		} while(err == 0);
+	}
+ 
 	lastpos = bp->lastout;
 	do {
 		err = sendone(bp,0);
@@ -1441,7 +1471,7 @@ bintectimer(struct _bintec *bp)
 #ifdef NEW_TIMEOUT
 	bp->timer =
 #endif
-		timeout((void *)bintectimer,bp, (bp->info.irq == 0) ? (HZ/100+1) : (HZ/2));
+		timeout((void *)bintectimer,bp, ((bp->info.irq == 0) || (bp->waitmsg > 0)) ? (HZ/100) : (HZ/2));
 }
 #endif
 
@@ -1452,7 +1482,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 
 	bp = kmalloc(sizeof(*bp),GFP_KERNEL);
 	if(bp == NULL) {
-		printf("BINTEC: no memory!\n");
+		printf("%sBINTEC: no memory!\n",KERN_ERR);
 		return -ENOMEM;
 	}
 	bzero(bp,sizeof(*bp));
@@ -1527,7 +1557,7 @@ void NAME(REALNAME,exit)(struct cardinfo *inf)
 	}
 
 	if(bp == NULL) {
-		printf("BINTEC error: exit: info record not found!\n");
+		printf("%sBINTEC error: exit: info record not found!\n",KERN_ERR);
 		return;
 	}
 #ifdef NEW_TIMEOUT

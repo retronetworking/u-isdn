@@ -30,13 +30,13 @@ ROUTE_PATH	/sbin/route
 ##
 ##
 ##
-## Card drivers to install. teles.
+## Card drivers to install. teles bintec.
 ##
 #### =()<CARDS	@<CARDS>@>()=
 CARDS	teles
 ##
 ##
-## Protocols to make. fixed phone tei.
+## Protocols to make. fixed phone tei capi.
 ##
 #### =()<PROTOCOLS	@<PROTOCOLS>@>()=
 PROTOCOLS	phone tei 
@@ -177,11 +177,6 @@ STR_IF		linux
 ##  NEW: untimeout takes return value of timeout().
 #### =()<TIMEOUT	@<TIMEOUT>@>()=
 TIMEOUT		NEW
-##
-## Streams XXXopen() -- does it get an additional "pointer to int" argument
-## which points to the appropriate errno value?
-#### =()<ADDERROR	@<ADDERROR>@>()=
-ADDERROR	DONT
 ##
 
 

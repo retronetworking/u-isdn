@@ -61,6 +61,8 @@ card_load_close(struct loader *ld, char success)
 		}
 	}
 	free(ld);
+    do_run_now++;
+    timeout(run_now,NULL,HZ/3);
 }
 
 void
@@ -77,7 +79,7 @@ card_load_fail(struct loader *ld, int err)
 		}
 	}
 
-	syslog(LOG_ERR,"Card %s was not loaded: Error at file %d, pos %d\n",ld->card,ld->nrfile,ld->foffset);
+	syslog(LOG_ERR,"Card %s was not loaded: Error %s at file %d, pos %d\n",ld->card,strerror(err),ld->nrfile,ld->foffset);
 
 	/* Tell lower layer to forget the thing */
 
@@ -272,9 +274,6 @@ card_load(struct loader *ld)
 		}
 		(void) strwritev (xs_mon, io,len, 1);
 		card_load_close(ld,1);
-
-        do_run_now++;
-        timeout(run_now,NULL,HZ/3);
 		return;
 	}
 

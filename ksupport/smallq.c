@@ -108,11 +108,13 @@ S_dequeue (smallq q)
 	mblk_t *mb = q->first;
 
 #ifdef CONFIG_DEBUG_STREAMS
+#if 0 /* this may actually happen if a queue is copied in toto */
 	if(mb != NULL && mb->deb_queue != (queue_t *)q) {
 		printf("%s:%d dequeues %p from %p, but is on %p by %s:%d\n",
 			deb_file,deb_line,mb,q,mb->deb_queue,mb->deb_file,mb->deb_line);
 		return NULL;
 	}
+#endif
 	if (!cS_check (deb_file, deb_line, q, NULL)) {
 		splx (ms);
 		return NULL;

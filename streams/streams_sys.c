@@ -9,7 +9,6 @@
  */
 
 #define UAREA
-
 #ifdef MODULE
 #include "f_module.h"
 #endif
@@ -36,9 +35,6 @@ unsigned long bh_mask;
 #endif
 #ifdef SK_STREAM
 #include <linux/skbuff.h>
-#endif
-#ifndef deb_kcheck
-#define deb_kcheck(a,b,c) deb_kcheck_s((a),(b),(c),0)
 #endif
 #else
 
@@ -78,16 +74,24 @@ int q_timeout = 0;
 #undef copyb
 #undef qenable
 #ifdef CONFIG_MALLOC_NAMES
+#ifdef KERNEL
 #undef kmalloc
 #undef kfree_s
-#define kmalloc(a,b) deb_kmalloc(deb_file,deb_line,a,b)
-#define kfree_s(a,b) deb_kfree_s(deb_file,deb_line,a,b)
+#undef kfree
+#undef kcheck_s
+#undef kcheck
+#define kmalloc(a,b) deb_kmalloc((a),(b),deb_file,deb_line)
+#define kfree_s(a,b) deb_kfree_s((a),(b),deb_file,deb_line)
+#define kfree(a) deb_kfree((a),deb_file,deb_line)
+#define kcheck_s(a,b) deb_kcheck_s((a),(b),deb_file,deb_line)
+#define kcheck(a) deb_kcheck((a),deb_file,deb_line)
 #endif
-#define allocb(a,b) deb_allocb(deb_file,deb_line,a,b)
-#define freeb(a) deb_freeb(deb_file,deb_line,a)
-#define dupb(a) deb_dupb(deb_file,deb_line,a)
-#define copyb(a) deb_copyb(deb_file,deb_line,a)
-#define qenable(a) deb_qenable(deb_file,deb_line,a)
+#endif
+#define allocb(a,b) deb_allocb(deb_file,deb_line,(a),(b))
+#define freeb(a) deb_freeb(deb_file,deb_line,(a))
+#define dupb(a) deb_dupb(deb_file,deb_line,(a))
+#define copyb(a) deb_copyb(deb_file,deb_line,(a))
+#define qenable(a) deb_qenable(deb_file,deb_line,(a))
 
 void traceback(char str) {
 #if 0 /* def KERNEL */
@@ -169,21 +173,13 @@ allocb(ushort size, ushort pri)
 		return NULL;
 	}
 #else
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-	p_data = (struct datab *) deb_kmalloc(deb_file,deb_line,size + sizeof(struct datab), GFP_ATOMIC);
-#else
 	p_data = (struct datab *) kmalloc(size + sizeof(struct datab), GFP_ATOMIC);
-#endif
 	if(p_data == NULL) {
 		printf("%sCouldn't allocate %d bytes (Streams Data)\n",KERN_WARNING,size+sizeof(struct datab));
 		return NULL;
 	}
 #endif
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-	p_msg = (struct msgb *)deb_kmalloc(deb_file,deb_line, sizeof(struct msgb), GFP_ATOMIC);
-#else
 	p_msg = (struct msgb *)kmalloc(sizeof(struct msgb), GFP_ATOMIC);
-#endif
 	if(p_msg == NULL) {
 #ifdef SK_STREAM
 		skb->free=1;
@@ -289,17 +285,9 @@ freeb(mblk_t *p_msg)
 #endif
 
 		if((streamchar *)(p_data+1) == p_data->db_base) {
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-			deb_kfree_s(deb_file,deb_line, p_data,sizeof(struct datab)+(p_data->db_lim-p_data->db_base));
-#else
 			kfree_s(p_data,sizeof(struct datab)+(p_data->db_lim-p_data->db_base));
-#endif
 		} else {
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-			deb_kfree_s(deb_file,deb_line,p_data,sizeof(struct datab));
-#else
 			kfree_s(p_data,sizeof(struct datab));
-#endif
 		}
 #endif /* SK_STREAM */
 	}
@@ -308,11 +296,7 @@ freeb(mblk_t *p_msg)
 	p_msg->deb_magic = DEB_PMAGIC+0x1357ACEF;
 #endif
 
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-	deb_kfree_s(deb_file,deb_line, p_msg,sizeof(struct msgb));
-#else
 	kfree_s(p_msg,sizeof(struct msgb));
-#endif
 }
 
 
@@ -373,11 +357,7 @@ allocq(void)
 	queue_t *p_queue;
 
 /* We're using GFP_ATOMIC because adding a module from below may be possible */
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-	if((p_queue = (struct queue *)deb_kmalloc(deb_file,deb_line, 2*sizeof(struct queue),GFP_ATOMIC)) == NULL)
-#else
 	if((p_queue = (struct queue *)kmalloc(2*sizeof(struct queue),GFP_ATOMIC)) == NULL)
-#endif
 		return NULL;
 	
 	memset(p_queue,0,2*sizeof(*p_queue));
@@ -407,11 +387,7 @@ freeq(queue_t *p_queue)
 #endif
 		return;
 	}
-#if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES)
-	deb_kfree_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-#else
 	kfree_s(RDQ(p_queue),2*sizeof(*p_queue));
-#endif
 }
 
 
@@ -473,11 +449,7 @@ dupb(mblk_t *p_msg)
 		return NULL;
 	}
 
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-	p_newmsg = (struct msgb *)deb_kmalloc(deb_file,deb_line,sizeof(struct msgb), GFP_ATOMIC);
-#else
 	p_newmsg = (struct msgb *)kmalloc(sizeof(struct msgb), GFP_ATOMIC);
-#endif
 
 	*p_newmsg = *p_msg;
 	p_newmsg->b_next = p_newmsg->b_prev = p_newmsg->b_cont = NULL;
@@ -763,11 +735,7 @@ pullupmsg(mblk_t *p_msg, short length)
 			return 0;
 	}
 
-#if defined(CONFIG_MALLOC_NAMES) && defined(CONFIG_DEBUG_STREAMS) && defined(__KERNEL__)
-	if ((p_temp = (struct msgb *)deb_kmalloc(deb_file,deb_line, sizeof(struct msgb),GFP_ATOMIC)) == NULL)
-#else
 	if ((p_temp = (struct msgb *)kmalloc(sizeof(struct msgb),GFP_ATOMIC)) == NULL)
-#endif
 		return 0;
 	if ((p_newmsg = allocb(length, BPRI_MED)) == NULL) {
 		kfree_s(p_temp,sizeof(struct msgb));
@@ -909,7 +877,7 @@ xmsgsize(mblk_t *p_msg)
 		short n;
 #ifdef CONFIG_DEBUG_STREAMS
 #if defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-		if(deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg)))
+		if(kcheck_s(p_msg,sizeof(*p_msg)))
 			return 0;
 #endif
 		if(p_msg->deb_magic != DEB_PMAGIC) 
@@ -923,7 +891,9 @@ xmsgsize(mblk_t *p_msg)
 #endif
 		if((n = p_msg->b_wptr - p_msg->b_rptr) > 0)
 			bytes += n;
+#ifdef CONFIG_DEBUG_STREAMS
 		segs++;
+#endif
 		if ((p_msg = p_msg->b_cont) == NULL)
 			break;
 	} while (type == DATA_TYPE(p_msg));
@@ -952,8 +922,8 @@ msgdsize(mblk_t *p_msg)
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
 		printf("%sMsgDSize of NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
-#endif
 		traceback(0);
+#endif
 		return -EFAULT;
 	}
 	while(p_msg != NULL) {
@@ -961,10 +931,14 @@ msgdsize(mblk_t *p_msg)
 #if defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
 		{
 			int err;
-			if((err = deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg))))
+			if((err = kcheck_s(p_msg,sizeof(*p_msg))))
 				return err;
 #ifndef SK_STREAM
-			if((err = deb_kcheck(deb_file,deb_line+20000,p_msg->b_datap)))
+#ifdef KERNEL
+			if((err = deb_kcheck(p_msg->b_datap,deb_file,deb_line+20000)))
+#else
+			if((err = kcheck(p_msg->b_datap)))
+#endif
 				return err;
 #endif
 		}
@@ -993,7 +967,9 @@ msgdsize(mblk_t *p_msg)
 				bytes += n;
 		}
 		p_msg = p_msg->b_cont;
+#ifdef CONFIG_DEBUG_STREAMS
 		segs++;
+#endif
 	}
 	return bytes;
 }
@@ -1021,15 +997,15 @@ rmv_post(queue_t *p_queue, mblk_t *p_msg)
 	unsigned long s = splstr();
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 	if(p_msg->b_cont != NULL) {
-		deb_kcheck_s(deb_file,deb_line,p_msg->b_cont,sizeof(*p_msg));
+		kcheck_s(p_msg->b_cont,sizeof(*p_msg));
 #ifndef SK_STREAM
-		deb_kcheck(deb_file,deb_line,p_msg->b_cont->b_datap);
+		kcheck(p_msg->b_cont->b_datap);
 #endif
 	}
 #endif
@@ -1094,15 +1070,15 @@ put_post(queue_t *p_queue, mblk_t *p_msg)
 	unsigned long s = splstr();
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 	if(p_msg->b_cont != NULL) {
-		deb_kcheck_s(deb_file,deb_line,p_msg->b_cont,sizeof(*p_msg));
+		kcheck_s(p_msg->b_cont,sizeof(*p_msg));
 #ifndef SK_STREAM
-		deb_kcheck(deb_file,deb_line,p_msg->b_cont->b_datap);
+		kcheck(p_msg->b_cont->b_datap);
 #endif
 	}
 #endif
@@ -1202,9 +1178,11 @@ getq(queue_t *p_queue)
 
 	s = splstr();
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
 #endif
-if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
+#if defined(CONFIG_DEBUG_STREAMS)
+	if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
+#endif
 	if ((p_msg = p_queue->q_first) == NULL) 
 		p_queue->q_flag |= QWANTR;
 	else {
@@ -1237,13 +1215,13 @@ if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
 	get_post(p_queue);
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
 	{
 		mblk_t *xm = p_msg;
 		while(xm != NULL) {
-			deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+			kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-			deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+			kcheck(p_msg->b_datap);
 #endif
 			xm = xm->b_cont;
 		}
@@ -1305,10 +1283,10 @@ rmvq(queue_t *p_queue, mblk_t *p_msg)
 			p_msg,p_queue,deb_file,deb_line,p_msg->deb_queue,p_msg->deb_file,p_msg->deb_line);
 #endif
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 #endif
 	s = splstr();
@@ -1372,10 +1350,10 @@ flushq(queue_t *p_queue, int flag)
 	while (p_msg != NULL) {
 		p_next = p_msg->b_next; 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-		deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-		deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+		kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+		kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-		deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+		kcheck(p_msg->b_datap);
 #endif
 #endif
 #ifdef CONFIG_DEBUG_STREAMS
@@ -1415,7 +1393,9 @@ canput(queue_t *p_queue)
 #endif
 		return 0;
 	}
-if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
+#ifdef CONFIG_DEBUG_STREAMS
+	if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
+#endif
 	while (p_queue->q_next != NULL && p_queue->q_qinfo->qi_srvp == NULL)
 		p_queue = p_queue->q_next;
 	if (p_queue->q_flag & QFULL) {
@@ -1479,13 +1459,15 @@ putq(queue_t *p_queue, mblk_t *p_msg)
 #endif
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 #endif
-if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
+#if defined(CONFIG_DEBUG_STREAMS)
+	if(0)printf("%sP %s:%d  ",KERN_ERR ,deb_file,deb_line);
+#endif
 	s = splstr();
 
 	if (p_queue->q_first == NULL) {
@@ -1570,10 +1552,10 @@ putbq(queue_t *p_queue, mblk_t *p_msg)
 #endif
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 #endif
 	s = splstr();
@@ -1639,15 +1621,15 @@ insq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 		return ;
 	}
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 	if(p_oldmsg != NULL) {
-		deb_kcheck_s(deb_file,deb_line,p_oldmsg,sizeof(*p_oldmsg));
+		kcheck_s(p_oldmsg,sizeof(*p_oldmsg));
 #ifndef SK_STREAM
-		deb_kcheck(deb_file,deb_line,p_oldmsg->b_datap);
+		kcheck(p_oldmsg->b_datap);
 #endif
 	}
 #endif
@@ -1724,15 +1706,15 @@ appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 	}
 #endif
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 	if(p_oldmsg != NULL) {
-		deb_kcheck_s(deb_file,deb_line,p_oldmsg,sizeof(*p_oldmsg));
+		kcheck_s(p_oldmsg,sizeof(*p_oldmsg));
 #ifndef SK_STREAM
-		deb_kcheck(deb_file,deb_line,p_oldmsg->b_datap);
+		kcheck(p_oldmsg->b_datap);
 #endif
 	}
 #endif
@@ -1881,10 +1863,10 @@ qreply(queue_t *p_queue, mblk_t *p_msg)
 #endif
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
-	deb_kcheck_s(deb_file,deb_line,p_msg,sizeof(*p_msg));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(p_msg,sizeof(*p_msg));
 #ifndef SK_STREAM
-	deb_kcheck(deb_file,deb_line,p_msg->b_datap);
+	kcheck(p_msg->b_datap);
 #endif
 #endif
 	p_queue = OTHERQ(p_queue);
@@ -2138,7 +2120,7 @@ qenable(queue_t *p_queue)
 
 	s = splstr();
 #if defined (CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
-	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
+	kcheck_s(RDQ(p_queue),2*sizeof(*p_queue));
 #endif
 
 	if (p_queue->q_flag & QENAB) {
@@ -2312,32 +2294,6 @@ do_runqueues(void *dummy)
 	splx(s);
 }
 
-/**
- * splstr 
- *
- */
-#ifdef linux
-#ifdef CONFIG_DEBUG_STREAMS
-
-const char *str__file; unsigned long str__line;
-
-int
-deb_splstr(const char * deb_file, unsigned int deb_line)
-{
-	if(bh_mask & (1<<STREAMS_BH)) {
-		long x;
-#ifdef CONFIG_DEBUG_LATENCY
-		x = deb_spl(deb_file,deb_line,(1<<STREAMS_BH)|(1<<IRQ_BH));
-#else
-		x = spl((1<<STREAMS_BH)|(1<<IRQ_BH));
-#endif
-		str__file = deb_file; str__line = deb_line;
-		return x;
-	} else
-		return spl((1<<STREAMS_BH)|(1<<IRQ_BH));
-}
-#endif
-#endif
 
 /**
  * streams_init

@@ -25,18 +25,14 @@ typedef unsigned char streamchar;
 #define NEW_TIMEOUT
 #endif
 
-/* =()<#define @<ADDERROR>@_ADDERROR>()= */
-#define DONT_ADDERROR
-
 #else
 #define OLD_TIMEOUT
-#define DONT_ADDERROR
 #define DONT_NEED_MEMCPY
 #define DONT_NEED_SPL
 #endif
 
-/* =()<#define @<ADDERROR>@_ADDERROR>()= */
-#define DONT_ADDERROR
+/* =()<#define @<DEBUGGING>@_DEBUGGING>()= */
+#define DO_DEBUGGING
 
 #ifndef KERNEL
 #ifdef DO_DEBUGGING

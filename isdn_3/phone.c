@@ -204,7 +204,6 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			goto out;
 		conn->call_ref = cref;
 		conn->subprotocol = prot;
-		printf (" NewConn");
 	} {
 		isdn3_prot proto = isdn3_findprot (talk->card->info, conn->subprotocol);
 
@@ -240,7 +239,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	if (prot != NULL)
 		return (*prot->sendcmd) (conn, id, data);
 	else {
-		printf("\n !*!*! ProtNull / %ld::%s !*!*!\n",conn->subprotocol,
+		if(log_34 & 2)printf("\n !*!*! ProtNull / %ld::%s !*!*!\n",conn->subprotocol,
 				conn->card->info ? (char *)conn->card->info->b_rptr : "none");
 		isdn3_killconn (conn, 1);
 		return -EINVAL;

@@ -42,11 +42,6 @@
 
 ushort_t hdrseq = 2;
 
-/* Show the reasons for not changing connection states? */
-#ifdef DO_DEBUGGING
-#define REPORT
-#endif
-
 /*
  * Global data. These should be allocated dynamically. They are not because
  * most kernels don't have a way to find out how much kernel memory is left,
@@ -204,7 +199,7 @@ conn_info (isdn3_conn conn, mblk_t * mb)
 
 /*
  * Disconnect timeout procedure. Implements the delay between sending
- * PROTO_DISCONNET to the device and taking down the connection.
+ * PROTO_DISCONNECT to the device and taking down the connection.
  */
 static int
 timeout_disc (isdn3_conn conn)
@@ -229,9 +224,8 @@ isdn3_killconn (isdn3_conn conn, char force)
 	isdn3_talk talk = conn->talk;
 
 
-#ifdef REPORT
-	printf ("Conn %ld: Killing %d St %lo: min %d, at %d", conn->call_ref, force, conn->minorstate, conn->minor, conn->fminor);
-#endif
+	if(log_34 & 2)
+		printf ("Conn %ld: Killing %d St %lo: min %d, at %d", conn->call_ref, force, conn->minorstate, conn->minor, conn->fminor);
 
 	if(force)
 		conn->id = 0;
@@ -277,7 +271,7 @@ isdn3_killconn (isdn3_conn conn, char force)
 			splx (ms);
 			return;
 		}
-		if (isdn3_setup_conn (conn, (force & 2) ? EST_WILL_INTERRUPT : EST_WILL_DISCONNECT) == 0) {
+		if (isdn3_setup_conn (conn, ((force & 2) && ((minorflags[conn->minor] & MINOR_STATE_MASK) != MINOR_STATE_NONE)) ? EST_WILL_INTERRUPT : EST_WILL_DISCONNECT) == 0) {
 #ifdef NEW_TIMEOUT
 			conn->disc_timer =
 #endif
@@ -499,12 +493,11 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
      **/
 
 	conn->lockit++;
-#ifdef REPORT
-	printf ("ConnAttach %p Delay%d %d(%d/%d) %lo/%o %d %s:%d: ",
-	conn, conn->delay, conn->conn_id, conn->minor, conn->fminor,
-	conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0,
-	established, deb_file, deb_line);
-#endif
+	if(log_34 & 2)
+		printf ("ConnAttach %p Delay%d %d(%d/%d) %lo/%o %d %s:%d: ",
+			conn, conn->delay, conn->conn_id, conn->minor, conn->fminor,
+			conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0,
+			established, deb_file, deb_line);
 	if((conn->minor > 0) && (minorflags[conn->minor] & MINOR_PROTO)) 
 		conn->minorstate |= MS_PROTO;
 	else
@@ -545,8 +538,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		putnext (isdn3_q, mb);
 		minorflags[conn->minor] |= MINOR_INITPROTO_SENT | MINOR_INITPROTO_SENT2;
 	}
-#ifdef REPORT
-	else if (!(minorflags[conn->minor] & MINOR_INITPROTO_SENT)) {
+	else if ((log_34 & 2) && !(minorflags[conn->minor] & MINOR_INITPROTO_SENT)) {
 		printf ("-InitProto: ");
 		if (conn->minor == 0)
 			printf ("Minor zero; ");
@@ -559,7 +551,6 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		if (conn->minorstate & MS_DETACHED)
 			printf ("Detached; ");
 	}
-#endif
 
 	/*
 	 * Initiate setting up the card stack. This is also done via L4.
@@ -579,8 +570,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		putnext (isdn3_q, mb);
 		conn->minorstate |= MS_INITPROTO_SENT;
 	}
-#ifdef REPORT
-	else if (!(conn->minorstate & MS_INITPROTO_SENT)) {
+	else if ((log_34 & 2) && !(conn->minorstate & MS_INITPROTO_SENT)) {
 		printf ("-InitCard: ");
 		if (conn->minor == 0)
 			printf ("Minor zero; ");
@@ -595,7 +585,6 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		if (conn->minorstate & MS_INITPROTO_SENT)
 			printf ("DidInitProto; ");
 	}
-#endif
 
 	/* If detached and connecting, clear detached flag */
 	if (established > EST_NO_CHANGE)
@@ -636,8 +625,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		conn->minorstate |= MS_SETUP_SENT;
 		conn->minorstate &=~ MS_DETACHED;
 	}
-#ifdef REPORT
-	else if (!(conn->minorstate & MS_SETUP_SENT)) {
+	else if ((log_34 & 2) && !(conn->minorstate & MS_SETUP_SENT)) {
 		printf ("-SentAttach: ");
 		if (conn->minor == 0)
 			printf ("Minor zero; ");
@@ -661,7 +649,6 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		if (!(minorflags[conn->minor] & MINOR_PROTO))
 			printf ("Protocol stack not set; ");
 	}
-#endif
 
 	/*
 	 * Send directional information, setup info to protocol stack.
@@ -689,8 +676,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		if ((err = isdn3_send_conn (conn->minor, AS_PROTO, mb)) != 0)
 			goto exitme;
 	}
-#ifdef REPORT
-	else if (!(conn->minorstate & MS_DIR_SENT)) {
+	else if ((log_34 & 2) && !(conn->minorstate & MS_DIR_SENT)) {
 		printf ("-SentDir: ");
 		if (conn->minor == 0)
 			printf ("Minor zero; ");
@@ -699,7 +685,6 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		if (!(minorflags[conn->minor] & MINOR_PROTO))
 			printf ("Protocol stack not set; ");
 	}
-#endif
 
 	/*
 	 * Figure out what the intended state is, and setup the timeout.
@@ -882,9 +867,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		mblk_t *mp;
 		isdn23_hdr hdr;
 
-#ifdef REPORT
-		printf ("Disconnect %d.",established);
-#endif
+		if(log_34 & 2)
+			printf ("Disconnect %d.",established);
 		/* The connection isn't in the process of being established any more. */
 		if (conn->minorstate & MS_CONNDELAY_TIMER) {
 			conn->minorstate &= ~MS_CONNDELAY_TIMER;
@@ -924,12 +908,9 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			minorflags[conn->minor] &= ~MINOR_INITPROTO_SENT;
 		}
 		conn->minorstate &=~ MS_INITPROTO;
-#ifdef REPORT
-		printf (" SentDetach %d ",conn->minor);
-#endif
-	}
-#ifdef REPORT
-	else {
+		if(log_34 & 2)
+			printf (" SentDetach %d\n",conn->minor);
+	} else if(log_34 & 2) {
 		printf (" -Detach: ");
 		if (established >= EST_NO_REAL_CHANGE)
 			printf ("Establ %d ", established);
@@ -939,9 +920,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			printf ("MS %lx ", conn->minorstate);
 		if (!(minorflags[conn->minor] & (MINOR_PROTO | MINOR_INITPROTO_SENT)))
 			printf ("MF %x ", minorflags[conn->minor]);
+		printf ("\n");
 	}
-	printf ("\n");
-#endif
 	if (conn->talk == NULL)
 		goto exitme;
 	if (conn->id != 0) {
@@ -2264,7 +2244,7 @@ printf("ErX k\n");
 		if(minor != 0 && do_int < 0) {
 			minorflags[minor] &= ~(MINOR_PROTO|MINOR_INITPROTO_SENT);
 		}
-		/* FALL THRU */
+		/* FALLL THRU */
 	default:
 		/*
 		 * Unknown command. Set pointer back to the beginning and forward to
@@ -2279,11 +2259,6 @@ printf("ErX k\n");
 			goto err_out;
 		}
 		if (conn == NULL) {		  /* If no appropriate connection, create one. */
-			if (subprotocol == -1) {
-				err = -EINVAL;
-				printf ("ErrOut i\n");
-				goto err_out;
-			}
 			if (chan < -1 || chan > (char)talk->card->bchans) {
 				err = -ENXIO;
 				printf ("ErrOut u\n");
@@ -2339,6 +2314,26 @@ printf("ErX k\n");
 		if(conn->state == 0) {
 			/* XXX */
 		}
+#if 0
+		if(theID == CMD_DIAL) {
+			if((card != NULL) && (card->is_up > 1)) { /* No, the thing isn't connected. */
+				mblk_t *mz = allocb(256,BPRI_MED);
+				if(log_34 & 2)
+					printf("Dialout blocked, card disconnected\n");
+				if(mz != NULL) {
+    				m_putid (mz, IND_DISC);
+					m_putsx(mz,ARG_CAUSE);
+					m_putsx2(mz,ID_NOCARD);
+	    			conn_info (conn, mz);
+				    if ((isdn3_at_send (conn, mz, 0)) != 0) 
+				        freemsg (mz);
+				} else
+					err = -ENOMEM;
+				isdn3_killconn(conn,1);
+				break;
+			}
+		}
+#endif
 		if ((err = (*talk->hndl->sendcmd) (conn, theID, mx)) == 0 ||
 				err == -EBUSY)
 			mx = NULL;
@@ -2353,7 +2348,7 @@ printf("ErX k\n");
 		freemsg (mx);
 	return 0;
   err_out:
-	if (mx != NULL) {
+	if ((mx != NULL) && !no_error) {
 		mblk_t *mb;
 
 		mx->b_rptr = origmx;
@@ -2382,8 +2377,8 @@ printf("ErX k\n");
 				freemsg (mb);
 		} else
 			freemsg (mx);
+		return 0;
 	}
-	return 0;
   err_out_x:
   	if(mx != NULL)
 		freemsg(mx);
@@ -3130,6 +3125,8 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 						}
 						card = malloc(sizeof(*card));
 						if (card == NULL) {
+							printf("HDR_CARD: out of memory\n");
+							break;
 						}
 						memset(card,0,sizeof(*card));
 						card->nr = hdr.hdr_card.card;
@@ -3246,13 +3243,42 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 								(*talk->hndl->chstate) (talk, hdr.hdr_notify.ind, hdr.hdr_notify.add);
 							}
 							switch (hdr.hdr_notify.ind) {
+							case PH_ACTIVATE_NOTE:
 							case PH_ACTIVATE_IND:
 							case PH_ACTIVATE_CONF:
-								card->is_up = 1;
+								{
+									isdn3_card card = isdn3_findcard(hdr.hdr_notify.card);
+									if(card != NULL) {
+										if(card->is_up > 1) {
+											mblk_t *mx = allocb(32,BPRI_MED);
+											if(mx != NULL) {
+												m_putid(mx,IND_RECARD);
+												m_putlx(mx,card->id);
+												putnext (q, mx);
+											}
+										}
+										card->is_up = 1;
+									}
+								}
+								break;
+							case PH_DISCONNECT_IND:
+								{
+									isdn3_card card = isdn3_findcard(hdr.hdr_notify.card);
+									if(card != NULL) {
+										if(card->is_up != 2) {
+											mblk_t *mx = allocb(32,BPRI_MED);
+											if(mx != NULL) {
+												m_putid(mx,IND_OFFCARD);
+												m_putlx(mx,card->id);
+												putnext (q, mx);
+											}
+										}
+										card->is_up = 2;
+									}
+								}
 								break;
 							case PH_DEACTIVATE_IND:
 							case PH_DEACTIVATE_CONF:
-							case PH_DISCONNECT_IND:
 								card->is_up = 0;
 								break;
 							}

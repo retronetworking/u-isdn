@@ -228,6 +228,55 @@ do_h (queue_t * q)
 		q->q_flag |= QWANTR;
 }
 
+
+/* from Linux libc:sysdeps/linux/writev.c */
+/* This is necessary because we need to write a partitioned Streams message
+   as one block, not as several. Linux however doesn't really implement
+   readv/writev yet. The extra copy doesn't hurt much, fortunately, except
+   when loading binary data down, and that's a temporary problem. */
+
+static int
+xwritev(int fd,struct iovec *vector, size_t count)
+{
+  char *buffer;
+  register char *bp;
+  size_t bytes, to_copy;
+  register size_t i;
+
+  /* Find the total number of bytes to be written.  */
+  bytes = 0;
+  for (i = 0; i < count; ++i)
+    bytes += vector[i].iov_len;
+
+  if (bytes == 0)
+    return 0;
+
+  /* Allocate a temporary buffer to hold the data.  */
+  buffer = (char *) __alloca(bytes);
+
+  /* Copy the data into BUFFER.  */
+  to_copy = bytes;
+  bp = buffer;
+  for (i = 0; i < count; ++i)
+    {
+#define	min(a, b)	((a) > (b) ? (b) : (a))
+      size_t copy = min(vector[i].iov_len, to_copy);
+
+      (void) memcpy(bp, vector[i].iov_base, copy);
+
+      bp += copy;
+      to_copy -= copy;
+      if (bytes == 0)
+	break;
+    }
+
+  return write(fd, buffer, bytes);
+}
+
+
+
+
+
 /* Lower stream read */
 void
 do_l (queue_t * q)
@@ -288,7 +337,7 @@ do_l (queue_t * q)
 		else {
 			if (((char *)(io[0].iov_base))[0] == 0x3F)
 				abort ();
-			err = writev (fd_mon, io, iovlen);
+			err = xwritev (fd_mon, io, iovlen);
 		}
 	}
 	if (err != 0) {

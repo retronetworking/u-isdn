@@ -38,10 +38,12 @@ typedef struct _dumb {
 	struct _hdlc_buf chan[MAX_B+1];
 #ifdef NEW_TIMEOUT
 	long timer;
+	long uptimer;
 #endif
 	struct _dumb *next;
 	int numHSCX;
 	long countme; signed char polled; char circ;
+	unsigned int do_uptimer:1;
 } *__dumb;
 
 extern struct _dumb dumbdata[];

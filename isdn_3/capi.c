@@ -195,8 +195,8 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 	}
 	if(state == 0 || state >= 20) {
 		if(conn->bchan != 0) {
-			conn->bchan = 0;
 			conn->talk->chanmask &=~ (1<<conn->bchan);
+			conn->bchan = 0;
 			conn->minorstate &=~ MS_BCHAN;
 			/* XXX send a clearing msg down? */
 		}
@@ -682,12 +682,14 @@ report_addcause(mblk_t *mb, ushort_t info, ushort_t cause)
 {
 	extern ushort_t n1_causetoid(uchar_t id);
 
-	if(cause == 0)
+	if((cause == 0) && ((info == 0) || (info == 0x3400)))
 		return;
+
 	m_putsx(mb,ARG_CAUSE);
-	m_putsx2(mb,n1_causetoid(cause&0x7F));
-	m_putsx2(mb,capi_infotoid(info));
-	m_puti(mb,cause);
+	if(cause != 0)
+		m_putsx2(mb,n1_causetoid(cause&0x7F));
+	if((info != 0) && (info != 0x3400))
+		m_putsx2(mb,capi_infotoid(info));
 }
 
 static void

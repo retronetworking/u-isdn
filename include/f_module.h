@@ -2,14 +2,26 @@
 #if defined (linux) && defined(__KERNEL__) && defined(MODULE)
 #define _HAS_MODULE
 
+#ifdef F_NOCODE
+#define __NO_VERSION__
+#endif
+
 #include <linux/config.h>
-#include <linux/module.h>
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= 66344
+#ifdef CONFIG_MODVERSIONS
+#define MODVERSIONS
+#include <linux/modversions.h>
+#endif
+#endif
+#include <linux/module.h>
 
 #include <linux/kernel.h>
 
 #ifndef F_NOCODE
+#if LINUX_VERSION_CODE < 66344
 char kernel_version[] = UTS_RELEASE;
+#endif
 
 static int do_init_module(void);
 static int do_exit_module(void);

@@ -12,42 +12,19 @@
 #include "sapi.h"
 
 #define ST_up 01
+#define ST_sent 02
+
+#define STATE_WAIT 1
+#define STATE_RUN 2
+#define STATE_DOWN 3
 
 static int
-fixed_chstate (isdn3_talk talk, uchar_t ind, short add)
+chstate (isdn3_talk talk, uchar_t ind, short add)
 {
-	printf ("FIXED state for card %d says %s:%o ", talk->card->nr, conv_ind(ind), add);
+	if(log_34 & 2)
+		printf ("FIXED state for card %d says %s:%o ", talk->card->nr, conv_ind(ind), add);
 
 	switch (ind) {
-	case PH_ACTIVATE_IND:
-	case PH_ACTIVATE_CONF:
-	case PH_ACTIVATE_NOTE:
-	case DL_ESTABLISH_IND:
-	case DL_ESTABLISH_CONF:
-		{
-			isdn3_conn conn, nconn;
-
-			if((talk->state & ST_up))
-				break;
-
-			for (conn = talk->conn; conn != NULL; conn = nconn) {
-				int err;
-				mblk_t *mb = allocb (16, BPRI_MED);
-
-				if(conn->state == 3)
-					conn->state = 1;
-				nconn = conn->next;
-
-				if (mb != NULL) {
-					m_putid (mb, PROTO_WANT_CONNECTED);
-					m_putsx (mb, ARG_FORCE);
-					if ((err = isdn3_at_send (conn, mb, 0)) != 0) 
-						freemsg (mb);
-				}
-			}
-
-			talk->state |= ST_up;
-		} break;
 	case PH_DEACTIVATE_IND:
 	case PH_DEACTIVATE_CONF:
 	case PH_DISCONNECT_IND:
@@ -56,16 +33,52 @@ fixed_chstate (isdn3_talk talk, uchar_t ind, short add)
 		{
 			isdn3_conn conn, nconn;
 
-			if(!(talk->state & ST_up))
-				break;
-
 			for (conn = talk->conn; conn != NULL; conn = nconn) {
 				nconn = conn->next;
-				conn->state = 2;
+				if(conn->state == STATE_RUN) 
+					conn->state = STATE_DOWN;
 				isdn3_killconn (conn, 0);
 			}
 
-			talk->state &= ~ST_up;
+			if((ind != PH_DEACTIVATE_IND) || !(talk->state & ST_sent)) 
+				talk->state &= ~(ST_up|ST_sent);
+		}
+		break;
+	case PH_ACTIVATE_NOTE:
+	case PH_ACTIVATE_IND:
+	case PH_ACTIVATE_CONF:
+	case DL_ESTABLISH_IND:
+	case DL_ESTABLISH_CONF:
+		{
+			isdn3_conn conn, nconn;
+
+			if(talk->state & ST_up)
+				break;
+
+			for (conn = talk->conn; conn != NULL; conn = nconn) {
+				int err;
+				mblk_t *mb;
+
+				nconn = conn->next;
+
+				if(conn->state == STATE_DOWN)
+					conn->state = STATE_RUN;
+				else if(conn->state == STATE_WAIT) {
+					conn->minorstate |= MS_WANTCONN;
+					isdn3_setup_conn (conn, EST_NO_CHANGE);
+					continue;
+				}
+
+				mb = allocb (16, BPRI_MED);
+				if (mb != NULL) {
+					m_putid (mb, PROTO_WANT_CONNECTED);
+					m_putsx (mb, ARG_FORCE);
+					if ((err = isdn3_at_send (conn, mb, 0)) != 0) 
+						freemsg (mb);
+				}
+			}
+			if(ind != PH_ACTIVATE_NOTE)
+				talk->state = (talk->state | ST_up) & ~ST_sent;
 		}
 		break;
 	}
@@ -73,15 +86,15 @@ fixed_chstate (isdn3_talk talk, uchar_t ind, short add)
 }
 
 static int
-send_fixed_disc (isdn3_conn conn, char release, mblk_t * data)
+send_disc (isdn3_conn conn, char release, mblk_t * data)
 {
 	int err = 0;
 
 	switch (conn->state) {
 	case 0:
 		break;
-	case 1:
-	case 3:
+	case STATE_RUN:
+	case STATE_DOWN:
 		/* B-Kanal trennen */
 		conn->state = 0;
 		isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -90,47 +103,53 @@ send_fixed_disc (isdn3_conn conn, char release, mblk_t * data)
 	return err;
 }
 static int
-fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
+sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 {
 	streamchar *oldpos = data->b_rptr;
 	int err = 0;
 	ushort_t typ;
 
+	conn->lockit++;
 	switch (id) {
 	case CMD_DIAL:
-	case CMD_ANSWER:
 		{
 			if (data == NULL) {
 				printf("DataInvalA ");
-				return -EINVAL;
+				err = -EINVAL;
+				break;
 			}
-			while ((err = m_getsx (data, &typ)) == 0) {
+#if 0
+			while (m_getsx (data, &typ) == 0) {
 				switch (typ) {
 				default:;
 				}
 			}
-		  /* end_arg_dial: */
-			conn->minorstate |= MS_OUTGOING | MS_WANTCONN;
-			conn->lockit++;
+#endif
+			conn->minorstate |= MS_OUTGOING;
+			if(conn->talk->state & ST_up)
+				conn->minorstate |= MS_WANTCONN;
 			isdn3_setup_conn (conn, EST_NO_CHANGE);
-			conn->lockit--;
 
-			if ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO)) {
-				data->b_rptr = oldpos;
-				isdn3_repeat (conn, id, data);
-				return 0;
-			}
 			switch (conn->state) {
 			case 0:
-			case 2:
-				if (conn->minor == 0)
-					return -ENOENT;
-				if (conn->mode == 0)
-					err = -ENOEXEC;
-				conn->state++;
+			case STATE_WAIT:
+				if (conn->minor == 0) {
+					err = -ENOENT;
+					break;
+				}
+				if (!(conn->talk->state & ST_up) || (conn->mode == 0) || ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO))) {
+					if((conn->talk->state & (ST_sent|ST_up)) == 0) {
+						conn->talk->state = ST_sent;
+						isdn3_chstate(conn->talk,PH_ACTIVATE_REQ,0,CH_OPENPROT);
+					}
+					conn->state = STATE_WAIT;
+					data->b_rptr = oldpos;
+					isdn3_repeat (conn, id, data);
+					data = NULL;
+					break;
+				}
+				conn->state = STATE_RUN;
 				{
-					int err = 0;
-
 					mblk_t *mb = allocb (128, BPRI_MED);
 
 					if (mb == NULL) {
@@ -143,14 +162,16 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 						freemsg (mb);
 						conn->state = 0;
-						return err;
+						break;
 					}
 					isdn3_setup_conn (conn, EST_CONNECT);
-					return 0;
+					err = 0;
+					break;
 				}
 				break;
 			default:
-				return -EBUSY;
+				err = -EBUSY;
+				break;
 			}
 		}
 		break;
@@ -158,7 +179,6 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		{
 			long error = -1;
 			char forceit = 0;
-			mblk_t *mb = NULL;
 
 			if (data != NULL)
 				while (m_getsx (data, &typ) == 0)
@@ -174,24 +194,24 @@ fixed_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			conn->minorstate &= ~MS_WANTCONN;
 
 			/* set Data */
-			if (send_fixed_disc (conn, 1 + forceit, mb) != 0 && mb != NULL)
-				freemsg (mb);
+			send_disc (conn, 1 + forceit, NULL);
 		}
 		break;
 	default:
 		err = -EINVAL;
 		break;
 	}
-	if (data != NULL && err == 0)
+	if ((data != NULL) && (err == 0))
 		freemsg (data);
 
+	conn->lockit--;
 	if(conn->state == 0)
 		isdn3_killconn(conn,1);
 	return err;
 }
 
 static void
-fixed_killconn (isdn3_conn conn, char force)
+killconn (isdn3_conn conn, char force)
 {
 	int err;
 	mblk_t *mb = allocb (16, BPRI_MED);
@@ -211,7 +231,7 @@ fixed_killconn (isdn3_conn conn, char force)
 
 
 static void
-fixed_newcard (isdn3_card card)
+newcard (isdn3_card card)
 {
 	(void) isdn3_findtalk (card, &FIXED_hndl, card->info, 1);
 }
@@ -219,7 +239,7 @@ fixed_newcard (isdn3_card card)
 struct _isdn3_hndl FIXED_hndl =
 {
 		NULL, SAPI_FIXED,1,
-		NULL, &fixed_newcard, NULL, &fixed_chstate, NULL, NULL,
-		NULL, &fixed_sendcmd, NULL, &fixed_killconn, NULL, NULL,
+		NULL, &newcard, NULL, &chstate, NULL, NULL,
+		NULL, &sendcmd, NULL, &killconn, NULL, NULL,
 };
 

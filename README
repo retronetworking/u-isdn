@@ -4,6 +4,47 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-11-1
+
+Release 20. Bugfixes et al.
+
+Standleitungen werden nun automatisch wieder aufgebaut, wenn sie als pf
+gekennzeichnet sind und das übliche reconn und :dI haben.
+
+Der Kartentreiber meckert, wenn er die Leitung nicht hochkriegt. Abhilfe:
+an dieser Leitung (manuell) anrufen. Dieser doofe Chip war schonmal
+einfacher zu programmieren...
+
+Kartentreiber weg- und wieder reinlinken ist noch problemaitsch. Das kann
+aber am GCC liegen, gcc 2.7.0 macht Mist mit -O2 -fomit-frame-pointer
+-m486. Ich habe alles mit -O -m386 gebaut (funktioniert) und für weitere
+Experimente im Moment keine Zeit (muß PPP für Binteckarten zum Laufen
+bekommen. Das ist einfach, die haben PPP bereits im Treiber eingebaut.
+PPP für passive Karten ist aufwendiger, leider). 
+
+Neues Flag ,X in der P-Zeile: es wird X-mal gewählt, bevor die Verbindung
+gekippt wird (Retry-Zähler).
+
+Neues Flag ,X in der D-Zeile macht prioritätsgesteuertes Wählen: alle
+D-Zeilen mit kleinem X werden durchprobiert (bis der Retryzähler ereicht
+ist), dann alle mit nächsthöherem X. Fehlendes X wird wie Null behandelt,
+negative Werte sind verboten.
+
+Mindestens drei Kartenhersteller bekundeten Interesse an einem Modul für
+meinen Treiber, und ließen dann nie wieder was von sich hören. You know who
+you are. Es wäre sinnvoll, wenn ein paar von euch die diversen Hersteller
+mal nerven würden, sie sollen mir eine Karte nebst Doku zur Verfügung
+stellen, auf daß es bald einen Treiber gebe. Anders wird das nämlich nix.
+
+Den Sub-Makefiles wird ein -r verpaßt (ignoriere die eingebauten Regeln),
+weil es sonst in mindestens einem Fall passiert. daß die expliziten Regeln
+in make.rules ignoriert werden (weil die eingebaute Regel einen Schritt
+kürzer ist). Grummel.
+
+Das Masterprogramm wird nun mit -static gelinkt, damit Libraries nicht
+rausgeswappt werden können. Grr.
+
+
 *** 1995-11-06
 
 Release 19. Kleinere Bugfixes, insbesondere funktioniert das Senden von

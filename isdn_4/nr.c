@@ -162,7 +162,7 @@ char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
 		char *xextpos = strchr(extnr,'/');
 		char *xlocpos = strchr(locnr,'/');
 		if(xextpos != NULL && xlocpos != NULL && 
-				(!strcmp(xextpos,xlocpos) || wildmatch(xextpos+1,xlocpos+1) > 0))
+				(!strcmp(xextpos,xlocpos) || (wildmatch(xextpos+1,xlocpos+1) != NULL)))
 			lastprefpos="/";
 	}
 	
@@ -170,11 +170,12 @@ char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
 	extpos=strchr(extnr,*lastprefpos);
 	if(islocal & 2)
 		*destpos++ = *lastprefpos++;
-	else
+	else {
 		lastprefpos++;
-	while(*lastprefpos != '\0' && isdigit(*lastprefpos)) {
-		*destpos++ = *lastprefpos;
-		lastprefpos++;
+		while(*lastprefpos != '\0' && isdigit(*lastprefpos)) {
+			*destpos++ = *lastprefpos;
+			lastprefpos++;
+		}
 	}
 	while(*extpos != '\0' && *extpos != '/' && *extpos != '.') {
 		if(*extpos != '+' && *extpos != '=' && *extpos != '-')

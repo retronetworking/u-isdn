@@ -714,22 +714,19 @@ Metaparameter:
     Angaben lokale und entfernte Nummern.
 
 Mod:
-R Die Zeile wird primär für einen Verbindungsaufbau verwendet.
-M Die Zeile wird nur dann analysiert, wenn eine über ihr gefundene P-Zeile
-  "paßt".
-X Wenn diese Zeile (oder eine darüberliegende) "paßt", wird das Scannen
-  nach weiteren passenden Angaben hier abgebrochen.
-i für ankommende Verbindungen
-o für abgehende Verbindungen
-f für Festverbindungen
-d für Wählverbindungen (nur eine gleichzeitig)
-m für Wählverbindungen (mehrere gleichzeitig)
-p für Verbindungsaufbau nach Bedarf
-  Ist keines der Zeichen 'd','p','f' vorhanden, wird 'd' angenommen, mit
-  dem Unterschied, daß die so bezeichnete Verbindung mehrmals unabhängig
-  voneinander aufgebaut werden kann (z.B. Login). 'd' bezeichnet eine
-  nur einmal herstellbare Verbindung (TCP, wenn das Interface nach
-  Verbindungsende verschwinden soll).
+R  Die Zeile wird primär für einen Verbindungsaufbau verwendet.
+M  Die Zeile wird nur dann analysiert, wenn eine über ihr gefundene P-Zeile
+   "paßt".
+X  Wenn diese Zeile (oder eine darüberliegende) "paßt", wird das Scannen
+   nach weiteren passenden Angaben hier abgebrochen.
+i  für ankommende Verbindungen
+o  für abgehende Verbindungen
+f  für Festverbindungen
+d  für Wählverbindungen (nur eine gleichzeitig)
+m  für Wählverbindungen (mehrere gleichzeitig)
+p  für Verbindungsaufbau nach Bedarf
+,# Ein Verbindungsaufbauversuch wird #-mal wiederholt, bevor ein Fehler
+   gemeldet und Daten weggeworfen werden.
 
 Der Suchalgorithmus findet zunächst eine zur Verbindung passende Zeile mit
 R-Flag und hängt an deren Parameterliste alle ebenfalls passenden Zeilen
@@ -816,14 +813,17 @@ mit der sie sich bei ankommenden Rufen meldet. Festverbindungen haben
 natürlich keine Nummer. 
 
 Mod:
-i für ankommende Verbindungen
-o für abgehende Verbindungen
-f für Festverbindungen (der zu verwendende B-Kanal steht in der P-Zeile)
-d für Wählverbindungen (nur eine gleichzeitig)
-m für Wählverbindungen (mehrere gleichzeitig)
-p für Verbindungsaufbau nach Bedarf
-B Backup-Nummer, wird nur verwendet, wenn das Wählen anderer Nummern
-  mindestens einmal fehlschlug.
+i  für ankommende Verbindungen
+o  für abgehende Verbindungen
+f  für Festverbindungen (der zu verwendende B-Kanal steht in der P-Zeile)
+d  für Wählverbindungen (nur eine gleichzeitig)
+m  für Wählverbindungen (mehrere gleichzeitig)
+p  für Verbindungsaufbau nach Bedarf
+,# Dies ist eine Backup-Nummer der Priorität #.
+   Zuerst werden alle Nummern mit Priorität Null (oder ohne Angabe)
+   probiert, dann die nächsthöhere Priorität, etc.
+   Der Verbindungsversuchszähler wird nach jedem Prioritätswechsel
+   zurückgesetzt.
 
 
 TM-Zeile ("Time")

@@ -133,7 +133,7 @@ ReportOneConn(conninfo conn, int minor)
 	if(conn->cg != NULL && (conn->cg->flags ^ conn->flags) != 0) {
 		int foo = strlen(FlagInfo(conn->cg->flags ^ conn->flags));
 		int bar = strlen(FlagInfo(conn->cg->flags));
-		if(foo < bar)
+		if(foo*3 < bar*2)
 			spf += sprintf(spf, "^%s",FlagInfo(conn->cg->flags ^ conn->flags));
 		else
 			spf += sprintf(spf, "/%s",FlagInfo(conn->cg->flags));
@@ -150,17 +150,21 @@ ReportOneConn(conninfo conn, int minor)
 	connreport(sp,(conn->cg ? conn->cg->card : "*"),minor);
 }
 
-int retimeout(conninfo conn)
+static inline int retimeout(conninfo conn)
 {
+	int tim = 0;
 	/* Exponential backoff. Sorry but this is necessary. */
 	if(conn->charge != 0)
-		return 5*60*(1<<++conn->retiming);
+		tim = 5*60*(1<<++conn->retiming);
 	else if (conn->cause == ID_priv_Busy)
-		return 5*(1<<(++conn->retiming/6));
+		tim = 5*(1<<(++conn->retiming/6));
 	else if(conn->flags & F_FASTREDIAL)
-		return 2+(1<<(++conn->retiming/4));
+		tim = 2+(1<<(++conn->retiming/4));
 	else
-		return 5+(1<<(++conn->retiming/2));
+		tim = 5+(1<<(++conn->retiming/2));
+	if((tim <= 0) || (tim > 60*60*2))
+		tim = 60*60*2;
+	return tim;
 }
 
 /* Sets the state of a connection; does all the housekeeping associated
@@ -189,6 +193,57 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 				timeout(time_reconn,conn,5*HZ);
 		}
 	}
+
+	if(conn->cg != NULL) {
+		if(state == c_up) {
+			conn->cg->d_level = 0;
+			conn->cg->d_nextlevel = 0;
+		} else if(state == c_off) {
+			if(conn->cg->d_level < conn->cg->d_nextlevel) {
+				conn->cg->d_level = conn->cg->d_nextlevel;
+				state = c_down;
+			}
+		}
+	}
+	if(conn->flags & F_PERMANENT) {
+		if((conn->state >= c_down) && (state <= c_off) && conn->sentsetup) {
+			mblk_t *mb = allocb(30,BPRI_MED);
+			if(mb != NULL) {
+				int xlen;
+
+				m_putid (mb, CMD_PROT);
+				m_putsx (mb, ARG_MINOR);
+				m_puti (mb, conn->minor);
+				m_putdelim (mb);
+				m_putid (mb, PROTO_DISABLE);
+				xlen = mb->b_wptr - mb->b_rptr;
+				DUMPW (mb->b_rptr, xlen);
+				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
+				freemsg(mb);
+			}
+		}
+		
+		if((state == c_down) && conn->sentsetup) {
+			mblk_t *mb = allocb(30,BPRI_MED);
+			if(mb != NULL) {
+				int xlen;
+
+				m_putid (mb, CMD_PROT);
+				m_putsx (mb, ARG_MINOR);
+				m_puti (mb, conn->minor);
+				m_putdelim (mb);
+				m_putid (mb, PROTO_ENABLE);
+				xlen = mb->b_wptr - mb->b_rptr;
+				DUMPW (mb->b_rptr, xlen);
+				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
+				freemsg(mb);
+			}
+		}
+		
+		if((conn->state < c_up) && (state == c_up))
+			pushprot(conn->cg,conn->minor,conn->connref,1);
+	}
+
 #if 0
 	if(conn->state <= c_down)
 		setconnref(conn,0);
@@ -344,24 +399,6 @@ void
 retime(struct conninfo *conn)
 {
 	if(conn->retime) {
-		int xlen;
-
-		if (conn->flags & F_PERMANENT) {
-			mblk_t *mb = allocb(30,BPRI_MED);
-
-			if(mb != NULL) {
-				m_putid (mb, CMD_PROT);
-				m_putsx (mb, ARG_MINOR);
-				m_puti (mb, conn->minor);
-				m_putdelim (mb);
-				m_putid (mb, PROTO_ENABLE);
-				xlen = mb->b_wptr - mb->b_rptr;
-				DUMPW (mb->b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-				freemsg(mb);
-			}
-		}
-
 		conn->retime = 0;
 		setconnstate(conn,c_down);
 
@@ -383,7 +420,6 @@ void
 try_reconn(struct conninfo *conn)
 {
 	mblk_t *md;
-	int xlen;
 
 	chkone(conn);
 	if(conn == NULL || conn->state <= c_off)
@@ -428,7 +464,9 @@ try_reconn(struct conninfo *conn)
 		if((cg->par_out = allocb(256,BPRI_LO)) == NULL) {
 			dropgrab(cg);
 			freeb(md);
-			return;
+			conn->cause = ID_priv_Print;
+			conn->causeInfo = "NoMem";
+			setconnstate(conn,c_off);
 		}
 		if(cg->par_in != NULL) {
 			freemsg(cg->par_in);
@@ -450,36 +488,8 @@ try_reconn(struct conninfo *conn)
 				conn->cause = ID_priv_Print;
 				conn->causeInfo = ret;
 			}
-printf("DropThis, %s\n",ret);
-			setconnstate(conn,c_off);
-			if ((conn->flags & F_PERMANENT) && (conn->minor != 0)) {
-				mblk_t *mb = allocb(30,BPRI_MED);
-
-				setconnstate(conn, c_down);
-				m_putid (mb, CMD_PROT);
-				m_putsx (mb, ARG_MINOR);
-				m_puti (mb, conn->minor);
-				m_putdelim (mb);
-				m_putid (mb, PROTO_DISABLE);
-				xlen = mb->b_wptr - mb->b_rptr;
-				DUMPW (mb->b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-				freeb(mb);
-			}
-			return;
 		}
-
-		md->b_rptr = md->b_wptr = md->b_datap->db_base;
-		m_putid(md,CMD_PROT);
-		m_putsx(md,ARG_MINOR);
-		m_puti(md,conn->minor);
-		m_putdelim (md);
-		m_putid (md, PROTO_DISABLE);
 		setconnstate(conn,c_off);
-
-		xlen=md->b_wptr-md->b_rptr;
-		DUMPW (md->b_rptr, xlen);
-		(void) strwrite (xs_mon, md->b_rptr, xlen, 1);
 		freeb(md);
 	} else
 		setconnstate(conn,c_off);
