@@ -1,5 +1,5 @@
 DOKU zum ISDN-Paket. R 7.      // TEXT ohne Tabs //
-Basiert auf Linuxkernel 1.2.5.
+Basiert auf Linuxkernel 1.2.13, 1.3.26.
 
 Dies ist eine Betaversion.
 
@@ -16,8 +16,13 @@ unter der GPL bzw. ihrem deutschen Äquivalent verfügbar sein.
 Achtung:
 =======
 
+In der Version 11 lagen noch ein paar .depend-Dateien und anderer Kram rum,
+die den Buildprozeß gestört haben. Abhilfe: "make clean".
+
+
 Mit der Version 11 ist das OK am Ende des statischen Teils der AT/L-Ausgabe
-weggefallen, weil das zu viele Leute irritiert hat.
+weggefallen, weil das zu viele Leute irritiert hat. (Schließlich folgt noch
+was nach.)
 
 Mit der Version 11 hat sich die Installationsprozedur fuer ISDN-Karten
 geaendert. Vorher: Config.c editieren, Modul bauen. Jetzt: d_teles.o
@@ -76,11 +81,6 @@ Bekannte Fehler
 Die Konfigurationsdatei ist manchmal etwas undurchsichtig.
 _Ich_ werde das nicht ändern, keine Zeit; wenn jemand ein Frontend
 schreiben will -- nur zu!
-
-Das Masterprogramm hat noch Speicherlecks.
-
-Euro-ISDN ist moderat getestet; Gebührenerfassen während der Verbindung
-geht noch nicht.
 
 Login über ISDN macht noch leichte Probleme.
 
@@ -221,14 +221,61 @@ for i in * ; do patch -p0 -d /usr/src/aktueller-kernel < $i ; done
 # Danach:
 
 vi config/config.data
-vi isdn/cards/dumb/Config.c    # Speicherlage+Interrupts der ISDN-Karten
 make.isdn
-make load # Einbau der Module in den laufenden Kernel
+# Als Superuser:
+make.isdn
+Editiere /lib/modules/modules.isdn:
+    isdn/teles.o name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
+  anstatt
+    isdn/teles.o
+  eintragen. Näheres siehe "Treiberparameter" weiter unten.
 cd /usr/local/isdn/bin
 vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
-bin/master /etc/isdn.conf  # geht automatisch in den Hintergrund
+/etc/rc.d/rc.isdn # geht automatisch in den Hintergrund
 
 Sämtliche Gerätedateien werden automatisch angelegt.
+
+
+Treiberparameter:
+-----------------
+
+Die Treiber für einzelne Karten werden wie folgt geladen:
+- Zunächst wird ein generischer Treiber installiert (d_XXX.o).
+- Dann wird pro Interface ein Modul (XXX.o) geladen, das diesem Treiber
+  genau eine Karte nennt, die er erkennen soll. Karte nicht erkannt ->
+  Laden schlägt fehl.
+
+ Alle Treiber verstehen:
+- name=XXXX
+  XXXX ist eine Zahl. Die Zahl wird durch Aufruf des Programms "cardname"
+  aus dem 'eigentlichen' Namen der Karte gewonnen; ich wollte mich nicht
+  darauf verlassen, daß insmod korrekt Strings in den Treiber einbaut.
+
+ Treiber mit Adressen im Speicher verstehen;
+- mem=0xZZZZZ
+  Lage der Karte im Hauptspeicher.
+
+ Treiber mit I/O-Adreßbereich verstehen;
+- io=0xZZZ
+  Lage der Karte im I/O-Adreßbereich.
+
+ Treiber für Karten mit Interrupt verstehen:
+- irq=XX
+  Interrupt der Karte.
+
+ Treiber für softkonfigurierbare Karten verstehen:
+- ipl=X
+  Für softwarekonfigurierte Karten: Verwende die Xte Karte.
+  
+
+Beispiel:  insmod d_teles.o
+           insmod -o Tel0 teles.o name=$(cardname Tel0) mem=0xD8000 irq=5
+ Zum Entfernen des Treibers:
+           rmmod Tel0 ; rmmod d_teles.o
+
+
+Alle Treiber können vor oder nach Start des Masterprogramms geladen oder
+wieder entfernt werden. Aktive Verbindungen werden (unsauber) abgebrochen.
 
 
 Testen:
@@ -238,9 +285,6 @@ Testen:
 AT/L
 
 sollte die konfigurierten TCP-Verbindungen auflisten.
-Wenn nicht: Wahrscheinlich stimmt der Kartenname in der D-Zeile nicht.
-Generell gilt: Unvollständige Konfigurationsdateien werden nicht
-angemeckert, sondern ignoriert. (Ja ich weiß, das ist unbefriedigend...)
 
 
 AT-Befehle
@@ -272,7 +316,7 @@ AT/L
         ->up    Verbindung wird gerade ab- bzw. aufgebaut.
     <UnitNow>   Einheiten in der aktuellen Verbindung.
     <UnitAll>   Einheiten insgesamt seit Start des Prozesses.
-	<Flags>     interner Zustand der Verbindung, komma remote-Nummer,
+    <Flags>     interner Zustand der Verbindung, komma remote-Nummer,
                 strichpunkt lokale-Nummer (jeweils wenn bekannt/vorhanden)
     <Status>    Text; Meldung der Vermittlung (Groß/Kleinschreibung) oder
                       interner Zustand (Großschreibung).
@@ -660,14 +704,17 @@ Die Reihenfolge ist wichtig.
 
 :pr 0      Normaler ISDN-D-Kanal, angeschlossen am Netz oder an einer
            Telefonanlage. Darf nur zusammen mit TEI-Handler (:pr 63)
-		   verwendet werden.
+           verwendet werden.
   :kl      Level-2-Verbindung zur Vermittlung nicht trennen. Bei Punkt-
            zu-Punkt-Verbindungen und bei entsprechend konfigurierten
-           ISDN-Anschlüssen ("Dauer-irgendwas") notwendig.
-  :cl      Level-2-Verbindung zur Vermittlung trennen. Default.
+           ISDN-Anschlüssen ("Dauerüberwachung oder sowas ähnliches")
+           notwendig.
+  :cl      Level-2-Verbindung zur Vermittlung trennen, wenn keine
+           Verbindung besteht. Default.
 
   :sp 8    DSS1, Euro-ISDN.
   :sp 65   1TR6, deutscher Standard.
+           Entweder :sp 8 oder :sp 65 muß angegeben werden, NICHT beides!
 
   :ai      Ankommenden Anruf mit dem ISDN-Äquivalent von "RINGING"
            beantworten, dann prüfen ob der Anruf angenommen werden kann. 
@@ -680,7 +727,7 @@ Die Reihenfolge ist wichtig.
   :td      TEI beim ersten Verbindungsaufbau zuordnen lassen. Default.
 :pr 64     Festverbindung: kein D-Kanal.
 :pr 65     Intelligente Karte mit CAPI 1.x-Schnittstelle.
-           (Noch nicht!)
+           (Noch nicht implementiert.)
 
 
 DP-Zeile ("Dial Prefix")

@@ -996,9 +996,7 @@ isdn2_register (struct _isdn1_card *card, long id)
 	do {
 		nr++;
 		found_nr = 0;
-printk("Check %d: ",nr);
 		for (crd = isdn_card; crd != NULL; crd = crd->next) {
-printk("has %d, ",crd->nr);
 			if (crd->id == id) {
 				splx (ms);
 				if (isdn2_debug & 0x10)
@@ -1006,13 +1004,11 @@ printk("has %d, ",crd->nr);
 				return -EEXIST;
 			}
 			if (crd->nr == nr) {
-printk("Did! ");
 				found_nr++;
 				break;
 			}
 		}
 	} while(found_nr);
-printk("\n");
 	crd = malloc(sizeof(*crd));
 	if (crd == NULL) {
 		if (isdn2_debug & 0x10)
@@ -1020,7 +1016,6 @@ printk("\n");
 		splx (ms);
 		return -EBUSY;
 	}
-printf("2_card is %p\n",crd);
 	bzero(crd,sizeof(*crd));
 	crd->next = isdn_card;
 	isdn_card = crd;

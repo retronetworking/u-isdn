@@ -19,15 +19,17 @@ HEADERS = count.h log.h qinfo.h
 
 SOURCES	= q_data.c streamlib.c dump.c sioctl.c timeout.c streams.c \
 	kernel.c smallq.c log.c logh.c wildmat.c count.c  \
-	qinfo.c libc.c vectcmp.c 
-
+	qinfo.c libc.c vectcmp.c streams_sys.c
+XSOURCES = count.c count.h dump.c log.c log.h logh.c qinfo.c qinfo.h \
+	smallq.c streamlib.c
+YSOURCES = streams_sys.c
 OBJ	= q_data.o streamlib.o dump.o sioctl.o timeout.o streams.o \
 	kernel.o smallq.o log.o logh.o wildmat.o count.o  \
 	qinfo.o libc.o vectcmp.o 
 
 ALL	= ../support.a
 
-all prog:	$(OBJ) $(ALL)
+all prog:	$(HEADERS) $(OBJ) $(ALL)
 lib: all
 
 ../support.a:	$(OBJ)
@@ -39,6 +41,7 @@ indent:
 
 clean:
 	rm -f $(OBJ) $(ALL) ../support.a
+	rm -f $(XSOURCES) $(YSOURCES)
 
 install update: all
 
@@ -51,6 +54,9 @@ ifeq (.depend,$(wildcard .depend))
 include .depend
 endif
 
-count.c count.h dump.c log.c log.h logh.c qinfo.c qinfo.h smallq.c streamlib.c:
+$(XSOURCES):
 	ln -sf ../ksupport/$@ $@
+
+$(YSOURCES):
+		ln -sf ../streams/$@ $@
 

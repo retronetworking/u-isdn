@@ -41,7 +41,7 @@ if test -f make.isdn.local ; then
 . make.isdn.local $*
 fi
 
-VERSION=$(isdn/tools/getversion)
+VERSION=$(tools/getversion)
 
 if test "$(whoami)" = "root" ; then
 dir=/lib/modules/$VERSION/isdn
@@ -50,8 +50,18 @@ cp /dev/null $dir/modules.isdn.all
 if test ! -f .depend ; then make depend && touch .depend ; fi
 	PATH=$(pwd)/tools:$PATH make load
 	make iprog
+	test -f /etc/rc.d/rc.isdn || cp tools/rc.isdn /etc/rc.d/rc.isdn
+	if test -f /lib/modules/modules.isdn ; then 
+		echo "Ist /lib/modules/modules.isdn auf dem neuesten Stand?"
+	else
+		cp /lib/modules/modules.isdn.full /lib/modules.isdn"
+		echo "In /lib/modules/modules.isdn anpassen!"
+	fi
+	if grep cardname /lib/modules/modules.isdn ; then : ; else
+		echo "Die Treiber der Karten muessen parametrisiert sein!! -> DOKU."
+	fi
 else
-	if test ! -f .depend ; then make depend && touch .depend ; fi
+	if test ! -f .depend ; then make depend ; fi
 	make all
 	make prog
 fi

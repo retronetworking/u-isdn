@@ -48,7 +48,7 @@ unsigned long bh_mask = 0;
 unsigned long bh_active = 0;
 #endif
 
-#include "../streams/streams_sys.c"
+#include "streams_sys.c"
 
 #ifdef CONFIG_DEBUG_STREAMS
 

@@ -2227,6 +2227,7 @@ send_ET_disc (isdn3_conn conn, char release, mblk_t * data)
 		pr_setstate (conn, 19);
 		break;
 	case 19:
+	case 99:
 		break;
 	}
 	if(data != NULL && data == owndata && err != 0)

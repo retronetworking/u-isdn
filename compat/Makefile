@@ -33,6 +33,7 @@ indent:
 	../indent.sh $(SOURCES)
 
 clean:
+	rm -f linux
 	rm -f $(ALL) $(OBJ)
 	# @sh ../iftrue.sh "-d $(SYS)" "cd $(SYS); make clean"
 

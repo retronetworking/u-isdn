@@ -344,7 +344,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 		return NULL;
 	}
 
-	/* Returning "+" int he first position means keep the new connection. */ 
+	/* Returning "+" in the first position means keep the new connection. */ 
 
 	if(conn->state == c_forceoff) {
 		dropgrab(cg);
@@ -362,6 +362,11 @@ startconn(conngrab cg, int fminor, int connref, char **ret)
 			**ret = '-';
 		if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
 			**ret = '-';
+		dropgrab(cg);
+		return conn;
+	}
+	if((cg->flags & F_FORCEOUT) && (cg->flags & F_INCOMING)) {
+		*ret = "=CALLBACK";
 		dropgrab(cg);
 		return conn;
 	}

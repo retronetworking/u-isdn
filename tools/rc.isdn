@@ -1,5 +1,5 @@
 #!/bin/sh
-PATH=.:/sbin:/usr/sbin:$PATH
+PATH=/usr/local/isdn/bin-$(uname -r):/usr/local/isdn/bin:.:/sbin:/usr/sbin:$PATH
 
 set -e
 
@@ -9,22 +9,19 @@ cd /usr/local/isdn
 	while read a ; do
 		/bin/echo -n "\rISDN Modules:                                                               "  >&2
 		/bin/echo -n "\rISDN Modules: $a: " >&2
-		insmod -m -f $a ;
+		eval "insmod -m $a"  ## wegen name=$(cardname Foo0) in $a
 	done < ../modules.isdn >> symbols
 	/bin/echo "\rISDN Modules...done.                                                       "
 ) 
-exit 0
 
-cd bin
+cd bin-$(uname -r) || cd bin
 
-if test $(hostname) = smurf.noris.de ; then
-	monitor -b >>/var/log/acct/ip &
-fi
+# monitor -b >>/var/log/acct/ip &
 
 set +e
 while : ; do
-	master -wdi /etc/isdn.conf >>/var/log/root/isdn.log 2>>/var/log/acct/isdn
-	sleep 20
+	master -wdi /etc/isdn.conf >>/tmp/isdn.log 2>>/var/log/isdn
+	sleep 15
 done &
 if test -x /etc/isdn.route ; then
 	/etc/isdn.route
