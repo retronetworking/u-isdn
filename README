@@ -4,6 +4,14 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1996-04-??
+
+Update 39. Support für "altes" /sbin/route ist gestrichen!
+
+/sbin/route --help _muß_ bei "route del" die Angabe einer Netmask und eines
+Interfaces zulassen. Test mit "route --help".
+
+
 *** 1996-04-11
 
 Update 38. Support für "alte" Kernels (< 1.3.78 oder so) ist gestrichen!

@@ -175,7 +175,7 @@ printk("Q NULL\n");
 	
 	if(!lp->encap && (skb->protocol != lp->ethertype)) {
 printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
-		lp->stats.tx_dropped++;
+		lp->stats.tx_errors++;
 		dev_kfree_skb (skb, FREE_WRITE);
 		return 0;
 	}
@@ -183,6 +183,7 @@ printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
 	if(!canput(WR(lp->q)->q_next)) {
 /* printk("Queue full\n"); */
 		dev->tbusy = 1;
+		lp->stats.collisions++;
 		return -EAGAIN;
 	}
 
@@ -190,6 +191,7 @@ printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
 	if(mb == NULL)  {
 printk("No Buff\n");
 		dev->tbusy = 1;
+		lp->stats.tx_dropped++;
 		return -ENOBUFS;
 	}
 

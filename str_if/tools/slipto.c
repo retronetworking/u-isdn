@@ -159,12 +159,12 @@ enable (void)
 
 #ifdef ROUTE_IF
 		if(!dontroutemyhost) 
-			sprintf(makeroute+strlen(makeroute), "%s add -host %s dev lo; ", ROUTE_PATH,ichaddr);
-		sprintf(makeroute+strlen(makeroute), "%s add -host %s dev %s; ", ROUTE_PATH,duaddr,ifname);
+			sprintf(makeroute+strlen(makeroute), "%s add -host %s metric 2 dev lo; ", ROUTE_PATH,ichaddr);
+		sprintf(makeroute+strlen(makeroute), "%s add -host %s metric 2 dev %s; ", ROUTE_PATH,duaddr,ifname);
 		if(arpaddr != NULL)
 			sprintf(makeroute+strlen(makeroute), "%s -s %s %s pub; ", ARP_PATH,duaddr,arpaddr);
 
-		sprintf(unmakeroute+strlen(unmakeroute), "%s del %s; ",ROUTE_PATH,duaddr);
+		sprintf(unmakeroute+strlen(unmakeroute), "%s del -host %s dev %s; ",ROUTE_PATH,duaddr,ifname);
 		if(arpaddr != NULL)
 			sprintf(unmakeroute+strlen(unmakeroute), "%s -d %s; ",ARP_PATH,duaddr);
 #endif
@@ -201,8 +201,8 @@ enable (void)
 				foo = *y;
 			}
 #ifdef SET_STEP
-			sprintf (makeroute+strlen(makeroute), "%s add -net %s gw %s dev %s; ", ROUTE_PATH, foo,duaddr,ifname);
-			sprintf (unmakeroute+strlen(unmakeroute), "%s del %s; ", ROUTE_PATH, foo);
+			sprintf (makeroute+strlen(makeroute), "%s add -net %s gw %s metric 2 dev %s; ", ROUTE_PATH, foo,duaddr,ifname);
+			sprintf (unmakeroute+strlen(unmakeroute), "%s del -net %s dev %s; ", ROUTE_PATH, foo,ifname);
 #else
 			sprintf (makeroute+strlen(makeroute), "%s -- add %s %s; ", ROUTE_PATH, foo,duaddr);
 			sprintf (unmakeroute+strlen(unmakeroute), "%s -- delete %s %s; ", ROUTE_PATH, foo,duaddr);
@@ -210,11 +210,11 @@ enable (void)
 		}
 		for(y = desthaddr;y != desthxaddr;y++) {
 #ifdef SET_STEP
-			sprintf (makeroute+strlen(makeroute), "%s add -host %s gw %s dev %s; ", ROUTE_PATH, *y,duaddr,ifname);
+			sprintf (makeroute+strlen(makeroute), "%s add -host %s gw %s metric 2 dev %s; ", ROUTE_PATH, *y,duaddr,ifname);
 			if(arpaddr != NULL)
 				sprintf(makeroute+strlen(makeroute), "%s -s %s %s pub; ", ARP_PATH, *y, arpaddr);
 
-			sprintf (unmakeroute+strlen(unmakeroute), "%s del %s; ", ROUTE_PATH, *y);
+			sprintf (unmakeroute+strlen(unmakeroute), "%s del -host %s dev %s; ", ROUTE_PATH, *y, ifname);
 			if(arpaddr != NULL)
 				sprintf(unmakeroute+strlen(unmakeroute), "%s -d %s; ",ARP_PATH, *y);
 #else

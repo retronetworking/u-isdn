@@ -9,6 +9,9 @@ VERSION=${VERSION:-$(${TOPDIR}/tools/getversion)}
 dir=/lib/modules/$VERSION
 echo isdn/d_$FILE >>$dir/../modules.isdn.all
 rm -f $dir/isdn/d_$FILE
-cp $FILE $dir/isdn/d_$FILE &
+(
+cp $FILE $dir/isdn/d_$FILE 
+strip --strip-debug $dir/isdn/d_$FILE 
+) &
 
 exit 0

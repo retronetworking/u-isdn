@@ -249,6 +249,22 @@ char *strip_nr(char *extnr, int keepfirst)
 
 #ifdef TESTING
 
+char * str_enter(char *x) {
+	char *xx = malloc(strlen(x)+1);
+	if(xx == NULL)
+		return NULL;
+	strcpy(xx,x);
+	return xx;
+}
+
+char *wildmatch(char *a, char *b) {
+	char *x = wildmat(a,b);
+	if(x == NULL)
+		x = wildmat(b,a);
+	return x;
+}
+
+
 char *nam;
 void pri(char *x) {
 	if(x==NULL)
@@ -260,7 +276,7 @@ void strt(char *a,char *z) {
 	pri("strip_nr");
 	pri(a);
 	pri("->");
-	pri(strip_nr(a));
+	pri(strip_nr(a,0));
 	pri("||");
 	pri(z);
 	printf("\n");
@@ -308,9 +324,16 @@ main()
 matn("09119599131","+911-959913/[1-3]","=00+0-","/1");
 matn("09119599131","+911-959913/1","=00+0-","");
 matn("09119599131","+911-9599131","=00+0-","");
-matn("+9119599131","+911-959913/[1-3]","=00+0-","/1");
 matn("+9119599131","+911-959923/[1-3]","=00+0-","NULL");
 matn("+9119599134","+911-959913/[1-3]","=00+0-","NULL");
+matn("09119599131","=*","=00+0-","1");
+matn("09119599131","+*","=00+0-","2");
+matn("09119599131","-*","=00+0-","3");
+matn("+9119599131","=*","=00+0-","4");
+matn("+9119599131","+*","=00+0-","5");
+matn("+9119599131","-*","=00+0-","6");
+matn("131","+*","=000+00-0.","7");
+matn("131",".*","=000+00-0.","8");
 matt("/[1-3]","/4",0);
 matt("/[1-3]","/2",1);
 matt(".[1-3]","/2",0);
