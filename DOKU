@@ -766,6 +766,10 @@ m  für Wählverbindungen (mehrere gleichzeitig)
 p  für Verbindungsaufbau nach Bedarf
 ,# Ein Verbindungsaufbauversuch wird #-mal wiederholt, bevor ein Fehler
    gemeldet und Daten weggeworfen werden.
+.# Eine Verbindung muß mindestens # Sekunden lang bestehen, sonst wird sie
+   als Fehler gewertet und erstmal als OFF markiert.
+   Dasselbe passiert, wenn eine Verbindung nicht vollständig aufgebaut
+   werden konnte, aber Kosten verursacht hat.
 
 Der Suchalgorithmus findet zunächst eine zur Verbindung passende Zeile mit
 R-Flag und hängt an deren Parameterliste alle ebenfalls passenden Zeilen

@@ -340,6 +340,18 @@ void do_updown(CState state)
 		setconnstate(conn,has_force ? c_off : state);
 }
 
+void do_down(CState state)
+{
+	if(conn->cg != NULL && conn->cg->mintime > 0) {
+		if(time(NULL) - conn->upwhen < conn->cg->mintime) {
+			syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
+			setconnstate(conn,c_off);
+			return;
+		}
+	}
+	setconnstate(conn,state);
+}
+
 
 /* Incoming IND_CARD -- a new ISDN card is recognized, or somebody put the
    ISDN cable back in. */
@@ -1073,6 +1085,8 @@ do_discrun(CState state)
 			}					
 			break;
 		case c_up:
+			do_down(state);
+			break;
 		case c_down:
 			setconnstate(conn,state);
 			break;
@@ -1399,9 +1413,14 @@ do_disconnect(void)
 {
 #if 1
 	if (conn != NULL) {
-		if(conn->state > c_down) {
-			if(conn->state == c_going_up)
-				do_updown(c_going_down);
+		switch(conn->state) {
+		case c_going_up:
+			do_updown(c_going_down);
+			break;
+		case c_up:
+			do_down(c_going_down);
+			break;
+		default:;
 		}
 	}
 	xx.b_rptr = xx.b_wptr = ans;
@@ -1466,7 +1485,7 @@ do_hasdisconnect(void)
 			do_updown(c_going_down);
 			break;
 		case c_up:
-			setconnstate(conn,c_going_down);
+			do_down(c_going_down);
 			break;
 		default:;
 		}
@@ -1988,24 +2007,23 @@ do_atcmd(void)
 					m2 = NULL;
 					m3 = NULL;
 				}
+				conn = xmalloc(sizeof(*conn));
 				if(conn == NULL) {
-					conn = xmalloc(sizeof(*conn));
-					if(conn != NULL) {
-						bzero(conn,sizeof(*conn));
-						conn->seqnum = ++connseq;
-						conn->fminor = fminor;
-						conn->minor = minor;
-						conn->next = isdn4_conn; isdn4_conn = conn;
-					}
+					dropgrab(cg);
+					resp = "NoMemConn";
+					return 1;
 				}
+				bzero(conn,sizeof(*conn));
+				conn->seqnum = ++connseq;
+				conn->fminor = fminor;
+				conn->minor = minor;
+				conn->next = isdn4_conn; isdn4_conn = conn;
 
-				if(conn != NULL) {
-					setconnref(conn,isdn4_connref);
-					isdn4_connref += 2;
-					cg->refs++;
-					dropgrab(conn->cg);
-					conn->cg = cg;
-				}
+				setconnref(conn,isdn4_connref);
+				isdn4_connref += 2;
+				cg->refs++;
+				dropgrab(conn->cg);
+				conn->cg = cg;
 
 				cg->flags = F_OUTGOING|F_MULTIDIALUP|F_DIALUP;
 				if(m3 != NULL)
@@ -2026,27 +2044,33 @@ do_atcmd(void)
 				resp = findit (&cg,0);
 				if (resp != NULL) {
 					freeb (md);
-					dropgrab(cg);
+					conn->cause = ID_priv_Print;
+					conn->causeInfo = isdigit(*resp) ? resp+1 : resp;
+					dropconn(conn);
 					return 1;
 				}
 				if(!(cg->flags & F_NRCOMPLETE)) {
 					freeb(md);
-					dropgrab(cg);
 					resp = "RemoteNr incomplete";
+					conn->cause = ID_priv_Print;
+					conn->causeInfo = resp;
+					dropconn(conn);
 					return 1;
 				}
 				cg->refs++;
 				dropgrab(conn->cg);
 				conn->cg = cg;
 				setconnstate(conn,c_down);
-				if((conn = startconn(cg,fminor,0,NULL, NULL)) != NULL) {
+				if(startconn(cg,fminor,0,&resp, NULL) != NULL) {
 					freeb(md);
-					dropgrab(cg);
 					break;
 				}
-				dropgrab(cg);
 				freeb (md);
-				resp = "ERROR (internal)";
+				if(resp == NULL) 
+					resp = "ERROR (internal)";
+				conn->cause = ID_priv_Print;
+				conn->causeInfo = isdigit(*resp) ? resp+1 : resp;
+				dropconn(conn);
 				return 1;
 			}
 			break;

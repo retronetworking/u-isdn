@@ -100,7 +100,7 @@ pmatch1 (cf prot, conngrab *cgm)
 		streamchar *mbs_in = NULL, *mbs_out = NULL;
 
 		if((flg = matchflag(cg->flags,prot->type)) == 0) { if(first) { 
-			if(1)printf(":BadFlag %s for 0%o\n",prot->type,cg->flags);
+			if(0)printf(":BadFlag %s for 0%o\n",prot->type,cg->flags);
 			dropgrab(cg); return "5ERR BadFlag"; } else continue;}
 		if (first) {
 			if (strchr (prot->type, 'M')) { /* First Match not allowed. */
@@ -131,13 +131,19 @@ pmatch1 (cf prot, conngrab *cgm)
 		}
 		if(cgc->retries == 0 && prot->num != 0)
 			cgc->retries = prot->num;
+		if(cgc->mintime == 0 && prot->num2 != 0)
+			cgc->mintime = prot->num2;
 		if(cgc->par_out == NULL) { /* No outgoing parameter list? Yet! */
 			if ((cgc->par_out = allocb(256,BPRI_LO)) == NULL) {
 				dropgrab(cgc); dropgrab(cg);
 				return "0OUT of MEMORY";
 			}
 		}
-#define DG(str) do { if(first) { dropgrab(cgc); dropgrab(cg); return str; } goto Ex; } while(0)
+#define DG(str,a,b) do { if(first) { \
+	char sf[50]; sprintf(sf,"%s %s %s",(str),(a),(b)); \
+	dropgrab(cgc); dropgrab(cg); \
+	return str_enter(sf); \
+	} goto Ex; } while(0)
 
 		/* Remember pointers into the parameter strings. */
 		mbs_in = ((cgc->par_in !=NULL)? cgc->par_in->b_rptr : NULL);
@@ -295,19 +301,19 @@ pmatch1 (cf prot, conngrab *cgm)
 				   interessant. */
 			case ARG_NEEDNOLOCAL:
 				if((cg->flags & F_INCOMING) && (cg->lnr != NULL))
-					DG("3LocalNrGiven");
+					DG("3LocalNrGiven","","");
 				break;
 			case ARG_NEEDNOREMOTE:
 				if((cg->flags & F_INCOMING) && (cg->nr != NULL))
-					DG("3RemoteNrGiven");
+					DG("3RemoteNrGiven","","");
 				break;
 			case ARG_NEEDLOCAL:
 				if((cg->flags & F_INCOMING) && (cg->lnr == NULL))
-					DG("3LocalNrRequired");
+					DG("3LocalNrRequired","","");
 				break;
 			case ARG_NEEDREMOTE:
 				if((cg->flags & F_INCOMING) && (cg->nr == NULL))
-					DG("3RemoteNrRequired");
+					DG("3RemoteNrRequired","","");
 				break;
 
 				/* Suffix fuer entfernte Nummer. */
@@ -320,7 +326,7 @@ pmatch1 (cf prot, conngrab *cgm)
 					if ((nrt & ARG_IN) && (cgc->flags & F_INCOMING)) {
 						if (cgc->nrsuf != NULL) {
 							if(0)printf("MatchSuffix %s and %s\n",cgc->nrsuf,yy);
-							if(match_suffix(cgc->nrsuf,yy) <= 0) DG("3WrongNrSuffix 2");
+							if(match_suffix(cgc->nrsuf,yy) <= 0) DG("3WrongNrSuffix2",cgc->nrsuf,yy);
 						} else
 							cgc->nrsuf = str_enter(yy);
 					}
@@ -328,7 +334,7 @@ pmatch1 (cf prot, conngrab *cgm)
 						if (cgc->nrsuf == NULL) 
 							cgc->nrsuf = str_enter(yy);
 						else if(match_suffix(cgc->nrsuf,yy) <= 0)
-							DG("4NrOutMatch");
+							DG("4NrMatch_Out",cgc->nrsuf,yy);
 						if((cgc->nr != NULL) && !(cgc->flags & F_NRCOMPLETE)) {
 							char *foo = append_nr(cgc->nr,yy);
 							if(1)printf("Append1 %s,%s -> %s\n",cgc->nr,yy,foo);
@@ -337,7 +343,7 @@ pmatch1 (cf prot, conngrab *cgm)
 								if(0)printf("Strip1 %s -> %s\n",cg->nr,strip_nr(cg->nr,0));
 								if(strip_nr(cgc->nr,0) != NULL)
 									cgc->flags |= F_NRCOMPLETE;
-							} else DG("3WrongNrSuffix 1");
+							} else DG("3WrongNrSuffix_Out",yy,"");
 						}
 					}
 				}
@@ -355,29 +361,29 @@ pmatch1 (cf prot, conngrab *cgm)
 						if(cgc->lnrsuf != NULL) {
 							if(0)printf("MatchLSuffix %s and %s\n",cgc->lnrsuf,yy);
 							if((suf = match_suffix(cgc->lnrsuf,yy)) <= 0) 
-								DG(suf ? "1LNrIncompSuffix 2" : "2WrongLNrSuffix 2");
+								DG(suf ? "1LocalNrIncompleteSuffix" : "2LocalNrWrongSuffix",cgc->lnrsuf,yy);
 						} else
-							DG("4LNrIncompSuffix 3");
+							DG("4LNrIncompSuffix3",cgc->lnrsuf,yy);
 					}
 					if((nrt & ARG_OUT) && (cgc->flags & F_OUTGOING)) {
 						if(cgc->lnrsuf == NULL)
 							cgc->lnrsuf = str_enter(yy);
 						else if(match_suffix(cgc->lnrsuf,yy) <= 0)
-							DG("4LNrOutMatch");
+							DG("4LNrOutMatch",cgc->lnrsuf,yy);
 
 						if((cgc->lnr != NULL) && !(cgc->flags & F_LNRCOMPLETE)) {
 							char *foo = append_nr(cgc->lnr,yy);
 							if(0)printf("Append2 %s,%s -> %s\n",cgc->lnr,yy,foo);
-							cgc->lnr = foo;
-							if(cgc->lnr != NULL) {
+							if(foo != NULL) {
+								cgc->lnr = foo;
 								if(0)printf("Strip2 %s -> %s\n",cg->lnr,strip_nr(cg->lnr,1));
 								if(strip_nr(cgc->lnr,1) != NULL)
 									cgc->flags |= F_LNRCOMPLETE;
 							} else {
 								if((cgc->lnrsuf != 0) && (match_suffix(cgc->lnrsuf,yy) < 0))
-									DG("2LNrIncompSuffix 4");
+									DG("2LocalNrIncompleteSuffix",cgc->lnrsuf,yy);
 								else
-									DG("2WrongLNrSuffix 4");
+									DG("2WrongLocalNrSuffix",cgc->lnr,yy);
 							}
 						}
 					}
@@ -472,6 +478,7 @@ findsite (conngrab *foo, int ignbusy)
 	int numwrap;
 	conngrab cg = *foo;
 	conngrab errcg = NULL;
+	char no_site = 1;
 
 	chkone(cg);
 	cg->refs++;
@@ -499,7 +506,8 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				break;
 			}
 			if (dp == NULL) {
-				errstr = "8No matching DP entry";
+				if(no_site && (*errstr > '8'))
+					errstr = "8No matching DP entry";
 				continue;
 			}
 			matcrd = crd;
@@ -567,7 +575,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				if(cg->nr != NULL) {
 					cg->nrsuf = match_nr(cg->nr,d->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
 					if(cg->nrsuf == NULL) {
-						if(*errstr > '8') {
+						if(no_site && (*errstr > '8')) {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr = "8NrRemMatch";
 						}
@@ -576,7 +584,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				} else if(!(cg->flags & F_INCOMING)) {
 					cg->nr = build_nr(d->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0);
 					if(cg->nr == NULL) {
-						if(*errstr > '8') {
+						if(no_site && (*errstr > '8')) {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr="8RemNrMatch";
 						}
@@ -589,16 +597,16 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				if(cg->lnr != NULL) {
 					cg->lnrsuf = match_nr(cg->lnr,dl->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
 					if(cg->lnrsuf == NULL) {
-						if(*errstr > '3') {
+						if(no_site && (*errstr > '3')) {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr = "6NrLocMatch";
 						}
 						continue;
 					}
 				} else if(!(cg->flags & F_INCOMING)) { /* Hmmm... */
-					cg->lnr = build_nr(dl->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 2);
+					cg->lnr = build_nr(dl->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 3);
 					if(cg->lnr == NULL) {
-						if(*errstr > '4') {
+						if(no_site && (*errstr > '4')) {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr="6LocNrMatch";
 						}
@@ -607,6 +615,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				}
 			}
 
+			no_site = 0;
 			/* Do we have a matching P line? */
 			if ((errstrx = pmatch (&cg)) == NULL) {
 			/* We should have what we need. Now figure out if we can use it... */
@@ -722,7 +731,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				}
 			}
 			/* No go. Remember the error, if appropriate. */
-			if(*errstr > *errstrx) {
+			if((no_site || (*errstr >= '8')) && (errstrx != NULL) && (*errstr > *errstrx)) {
 				errstr = errstrx;
 				errcg = cg; cg->refs++;
 			}
