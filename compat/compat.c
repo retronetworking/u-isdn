@@ -410,10 +410,6 @@ void deb_kfree(void *fo, const char *deb_file, unsigned int deb_line)
 
 #ifdef MODULE
 
-#if LINUX_VERSION_CODE < 66344
-char kernel_version[] = UTS_RELEASE;
-#endif
-
 static int do_init_module(void)
 {
 /* This should _really_ work... */

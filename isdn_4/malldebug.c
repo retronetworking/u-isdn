@@ -26,7 +26,7 @@ tr_mallochook (size)
   __ptr_t hdr;
 
   __malloc_hook = tr_old_malloc_hook;
-  hdr = (__ptr_t) malloc (size);
+  hdr = (__ptr_t) xmalloc (size);
   __malloc_hook = tr_mallochook;
 
   /* We could be printing a NULL here; that's OK.  */
@@ -67,7 +67,7 @@ mmtrace ()
 	if (mallfile != NULL) {
     	mallstream = fopen (mallfile != NULL ? mallfile : "/dev/null", "a");
 		if (mallstream != NULL) {
-	  		/* Be sure it doesn't malloc its buffer!  */
+	  		/* Be sure it doesn't xmalloc its buffer!  */
 	  		setbuf (mallstream, mallbuf);
 	  		fprintf (mallstream, "= Start\n");
 	  		tr_old_free_hook = __free_hook;
@@ -129,7 +129,7 @@ mallochook (size)
   struct hdr *hdr;
 
   __malloc_hook = old_malloc_hook;
-  hdr = (struct hdr *) malloc (sizeof (struct hdr) + size + 1);
+  hdr = (struct hdr *) xmalloc (sizeof (struct hdr) + size + 1);
   __malloc_hook = mallochook;
   if (hdr == NULL)
     return NULL;
@@ -185,7 +185,7 @@ mcheck (func)
   if (func != NULL)
     abortfunc = func;
 
-  /* These hooks may not be safely inserted if malloc is already in use.  */
+  /* These hooks may not be safely inserted if xmalloc is already in use.  */
   if (!__malloc_initialized && !mcheck_used)
     {
       old_free_hook = __free_hook;

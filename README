@@ -4,6 +4,24 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-11-15
+
+Release 21. Ditto Bugfixes. Callback funktioniert wieder in beide
+Richtungen, und nicht nur mit U-ISDN oder mit einer Karte.
+
+Das Teil ist bei mir im aktiven Einsatz als IP-Router. Also meckert nicht
+"es funktioniert überhaupt nix", das ist falsch. ;-)
+
+Nein, ich werde nicht dafür bezahlt, dieses ISDN-Tier zu bauen. Folglich
+habe ich auch keine Zeit, dieses und jenes Feature in jedem neuen Release
+neu zu testen. Sorry, aber das ist so. Insbesondere habe ich hier nur noch
+einen Rechner unter 1.2.x laufen, und den fasse ich momentan nicht an; der
+Rest ist 1.3.40. Wenn das System nicht unter 1.2 zu kompilieren ist, dann
+ist das zwar scheußlich, aber ich erwarte, daß sich jemand aufrafft und mir
+einen diff schickt, weil ich es _nicht_ selber mache(n kann). Sorry, aber
+so ist es nunmal. 
+
+
 *** 1995-11-1
 
 Release 20. Bugfixes et al.

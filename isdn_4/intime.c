@@ -58,7 +58,7 @@ static const struct
  * angegebenen Fensters an.
  *
  * isintime=0  : Zeitpunkt nicht im Fenster;
- * isintime=-1 : Fehler (z.B. Syntax Error im Fenster, oder malloc() failed)
+ * isintime=-1 : Fehler (z.B. Syntax Error im Fenster)
  *
  * Georgios Papoutsis, 1995 zum Einbinden in Matthias Urlichs' ISDN
  *

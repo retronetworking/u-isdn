@@ -204,10 +204,10 @@ pmatch1 (cf prot, conngrab *cgm)
 #define CHKVI()																\
 	({ __label__ ex; int xx,yy,xm; streamchar *vx,*vy,*vm; ushort_t id2;		\
 		yy = m_gethexlen(cand);												\
-		if (yy <= 0 || (vy=malloc(yy))==NULL) break;						\
+		if (yy <= 0 || (vy=xmalloc(yy))==NULL) break;						\
 		if(m_gethex(cand,vy,yy) != 0) { free(vy); break; }					\
 		if ((xm = m_gethexlen(cand)) > 0) {									\
-			if ((vm=malloc(xm)) == NULL)									\
+			if ((vm=xmalloc(xm)) == NULL)									\
 				{ free(vy); break; }										\
 			if(m_gethex(cand,vm,xm) != 0)									\
 				{ free(vy); free(vm); break; }								\
@@ -217,7 +217,7 @@ pmatch1 (cf prot, conngrab *cgm)
 			while(m_getsx(cgc->par_in,&id2) == 0) {							\
 				if(id != id2) continue;										\
 				xx = m_gethexlen(cgc->par_in);								\
-				if (xx <= 0 || (vx=malloc(xx))==NULL) break;				\
+				if (xx <= 0 || (vx=xmalloc(xx))==NULL) break;				\
 				if(m_gethex(cgc->par_in,vx,xx) != 0)						\
 					{ free(vx); break; }									\
 				if(abs(vectcmp(vx,xx,vy,yy,vm,xm)) < 5)						\
@@ -235,10 +235,10 @@ pmatch1 (cf prot, conngrab *cgm)
 #define CHKVO()																\
 	({ __label__ ex; int xx,yy,xm; streamchar *vx,*vy,*vm; ushort_t id2;		\
 		yy = m_gethexlen(cand);												\
-		if (yy <= 0 || (vy=malloc(yy))==NULL) break;						\
+		if (yy <= 0 || (vy=xmalloc(yy))==NULL) break;						\
 		if(m_gethex(cand,vy,yy) != 0) { free(vy); break; }					\
 		if ((xm = m_gethexlen(cand)) > 0) {									\
-			if ((vm=malloc(xm)) == NULL)									\
+			if ((vm=xmalloc(xm)) == NULL)									\
 				{ free(vy); break; }										\
 			if(m_gethex(cand,vm,xm) != 0)									\
 				{ free(vy); free(vm); break; }								\
@@ -248,7 +248,7 @@ pmatch1 (cf prot, conngrab *cgm)
 			while(m_getsx(cgc->par_out,&id2) == 0) {						\
 				if(id != id2) continue;										\
 				xx = m_gethexlen(cgc->par_out);								\
-				if (xx <= 0 || (vx=malloc(xx))==NULL) break;				\
+				if (xx <= 0 || (vx=xmalloc(xx))==NULL) break;				\
 				if(m_gethex(cgc->par_out,vx,xx) != 0)						\
 					{ free(vx); break; }									\
 				if(abs(vectcmp(vx,xx,vy,yy,vm,xm)) < 5)						\
@@ -685,19 +685,24 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 						continue;
 					
 					for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+						char *prot,*sit;
 						if(conn->ignore || !conn->cg)
 							continue;
 						if(conn->state < c_going_up) 
 							continue;
 						if(wildmatch(conn->cg->card, cl->card) == NULL)
 							continue;
-						if(wildmatch(conn->cg->protocol, cl->protocol) == NULL)
+						if((prot = wildmatch(conn->cg->protocol, cl->protocol)) == NULL)
 							continue;
-						if(wildmatch(conn->cg->site, cl->site) == NULL)
+						if((sit = wildmatch(conn->cg->site, cl->site)) == NULL)
 							continue;
 						if(classmatch(conn->cg->cclass, cl->cclass) == NULL)
 							continue;
 						if(maskmatch(conn->cg->mask,cl->mask) == 0)
+							continue;
+						if(conn->state == c_going_up &&
+								wildmatch(sit,cg->site) != NULL &&
+								wildmatch(prot,cg->protocol) != NULL)
 							continue;
 						if(conn->flags & F_IGNORELIMIT)
 							continue;

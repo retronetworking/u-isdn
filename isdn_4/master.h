@@ -68,6 +68,7 @@ EXTERN int fd_mon;
 EXTERN char *progname;
 
 void xquit (const char *s, const char *t);
+void *xmalloc(size_t sz);
 
 #ifdef DO_DEBUG_MALLOC
 

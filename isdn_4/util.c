@@ -7,6 +7,23 @@
 
 #include "master.h"
 
+/* If we could assume it'd work right without any memory,
+   we might die cleanly, like AT/Q does. Maybe sometime in the future.
+   Thus, DO NOT assume xmalloc aborts; it may still return NULL. */
+
+void *
+xmalloc(size_t sz)
+{
+	void *foo;
+
+	foo = malloc(sz);
+	if(foo == NULL) {
+		syslog(LOG_CRIT,"No memory for %ld bytes! Dying!\n",sz);
+		abort();
+	}
+	return foo;
+}
+
 /* Too many strings to keep track of, no time for garbage collection. */
 /* Enter them in a binary tree... */
 /* str_enter MUST NOT be called while any string in the tree is temporarily
@@ -31,7 +48,7 @@ char *str_enter(char *master)
 			str = &st->right;
 		st = *str;
 	}
-	st = malloc(sizeof(struct string)+strlen(master));
+	st = xmalloc(sizeof(struct string)+strlen(master));
 	if(st == NULL)
 		return NULL;
 
@@ -206,7 +223,7 @@ classmatch(char *a, char *b)
 void
 putenv2 (const char *key, const char *val)
 {
-	char *xx = (char *)malloc (strlen (key) + strlen (val) + 2);
+	char *xx = (char *)xmalloc (strlen (key) + strlen (val) + 2);
 
 	if (xx != NULL) {
 		sprintf (xx, "%s=%s", key, val);
@@ -236,8 +253,7 @@ void
 dropdead(void)
 {
 	if(zzconn != NULL && zzconn->cg != NULL)
-		syslog(LOG_ERR, "Startup of %s:%s cancelled --
-		timeout",zzconn->cg->site,zzconn->cg->protocol);
+		syslog(LOG_ERR, "Startup of %s:%s cancelled -- timeout",zzconn->cg->site,zzconn->cg->protocol);
 	else 
 		syslog(LOG_ERR, "Startup cancelled because of a timeout!");
 	exit(9);
@@ -246,15 +262,32 @@ dropdead(void)
 void
 log_idle (void *xxx)
 {
-	syslog (LOG_DEBUG, "ISDN is still alive.");
-	timeout (log_idle, NULL, 10 * 60 * HZ);
+	static time_t started = 0;
+	char repbuf[80];
+	struct tm *tm;
+	time_t now;
+
+	if(started == 0)
+		started = time(NULL);
+
+	now = time(NULL);	
+	tm = localtime(&now);
+	now = (now - started) / 60;
+	
+	sprintf(repbuf,"#%d %02d:%02d", (int)now, tm->tm_hour,tm->tm_min);
+	connreport(repbuf,"*",0);
+
+	if(!(now % 5))
+		syslog (LOG_DEBUG, "ISDN is alive; %d minutes.",(int)now);
+
+	timeout (log_idle, NULL, 60 * HZ);
 }
 
 void
 queue_idle (void *xxx)
 {
-	runqueues (); runqueues();
-	timeout (queue_idle, NULL, HZ/2);
+	runqueues ();
+	timeout (queue_idle, NULL, HZ);
 }
 
 void

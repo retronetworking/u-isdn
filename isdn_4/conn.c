@@ -16,7 +16,7 @@ Xnewgrab(conngrab master, int lin)
 {
 	conngrab slave;
 
-	slave = malloc(sizeof(*slave));
+	slave = xmalloc(sizeof(*slave));
 	if(slave == NULL)
 		return NULL;
 	if(master == NULL) {
@@ -98,7 +98,7 @@ connreport(char *foo, char *card, int minor)
 			continue;
 		if(conn->lastMsg != NULL) 
 			free(conn->lastMsg);
-		conn->lastMsg = malloc(strlen(foo)+1);
+		conn->lastMsg = xmalloc(strlen(foo)+1);
 		if(conn->lastMsg != NULL) 
 			strcpy(conn->lastMsg,foo);
 
@@ -286,7 +286,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		}
 		if(conn->state != c_forceoff && state == c_forceoff && conn->pid != 0) {
 			struct conninfo *xconn;
-			xconn = malloc(sizeof(*xconn));
+			xconn = xmalloc(sizeof(*xconn));
 			if(xconn != NULL) {
 				bzero(xconn,sizeof(*xconn));
 				xconn->seqnum = ++connseq;

@@ -537,8 +537,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		conn_info (conn, mb);
 		putnext (isdn3_q, mb);
 		minorflags[conn->minor] |= MINOR_INITPROTO_SENT | MINOR_INITPROTO_SENT2;
-	}
-	else if ((log_34 & 2) && !(minorflags[conn->minor] & MINOR_INITPROTO_SENT)) {
+	} else if ((log_34 & 2) && !(minorflags[conn->minor] & MINOR_INITPROTO_SENT)) {
 		printf ("-InitProto: ");
 		if (conn->minor == 0)
 			printf ("Minor zero; ");
@@ -896,6 +895,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			hdr->key = HDR_DETACH;
 			hdr->seqnum = hdrseq; hdrseq += 2;
 			hdr->hdr_detach.minor = conn->minor;
+			hdr->hdr_detach.card = conn->card->nr;
+			hdr->hdr_detach.chan = conn->bchan;
 			hdr->hdr_detach.error = 0;
 			hdr->hdr_detach.perm = 0;
 			if ((err = isdn3_sendhdr (mp)) != 0) {
@@ -2206,6 +2207,8 @@ printf("ErX k\n");
 					hdr->key |= HDR_NOERROR;
 				hdr->seqnum = hdrseq; hdrseq += 2;
 				hdr->hdr_detach.minor = fminor;
+				hdr->hdr_detach.card = 0;
+				hdr->hdr_detach.chan = 0;
 				hdr->hdr_detach.error = 0xFF;
 				hdr->hdr_detach.perm = 1;
 				if ((err = isdn3_sendhdr (mp)) != 0) {
@@ -2226,17 +2229,17 @@ printf("ErX k\n");
 		}
 		break;
 	case CMD_OFF:
+#if 0
 		if(nodisc) { /* Prevent disconnect from being sent to the stream */
 			if(conn != NULL) {
 				if(conn->minor != 0 && minor2conn[conn->minor] == conn) 
 					minor2conn[conn->minor] = NULL;
 				conn->minor = 0;
-				conn->minorstate |= MS_NOMINOR|MS_DETACHED;
+				conn->minorstate |= MS_NOMINOR;
 			}
 			minor = fminor = 0; /* XXX */
 		}
-#if 0
-		if (conn != NULL && !force) {
+		if ((conn != NULL) && ((conn->minorstate & MS_CONN_MASK) == MS_CONN) && !force) {
 			isdn3_killconn (conn, 0);
 			break;
 		}
@@ -2244,7 +2247,7 @@ printf("ErX k\n");
 		if(minor != 0 && do_int < 0) {
 			minorflags[minor] &= ~(MINOR_PROTO|MINOR_INITPROTO_SENT);
 		}
-		/* FALLL THRU */
+		/* FALL THRU */
 	default:
 		/*
 		 * Unknown command. Set pointer back to the beginning and forward to
@@ -2937,15 +2940,15 @@ isdn3_rsrv (queue_t * q)
 					break;
 				case HDR_XDATA:
 					{
-						isdn3_conn conn = isdn3_findminor (hdr.hdr_detach.minor);
+						isdn3_conn conn = isdn3_findminor (hdr.hdr_xdata.minor);
 						isdn3_talk talk;
 
 						if (conn == NULL) {
-							if (0) printf ("XData: Conn for minor %d nf\n", hdr.hdr_detach.minor);
+							if (0) printf ("XData: Conn for minor %d nf\n", hdr.hdr_xdata.minor);
 							break;
 						}
 						if ((talk = conn->talk) == NULL) {
-							printf ("XData m %d: No Talker\n", hdr.hdr_detach.minor);
+							printf ("XData m %d: No Talker\n", hdr.hdr_xdata.minor);
 							break;
 						}
 						if (talk->hndl->send != NULL && (*talk->hndl->send) (conn, mp) == 0)
@@ -3106,7 +3109,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 								printf ("Detach: Conn for minor %d nf\n", hdr.hdr_detach.minor);
 							break;
 						}
-						isdn3_killconn (conn, 0);
+						if(0) isdn3_killconn (conn, 0);
 					}
 					break;
 				case HDR_CARD:

@@ -19,6 +19,8 @@ include Make.rules
 	$(MAKE) depend
 	touch .diddepend
 
+config/config.data: config
+
 clean::
 	rm -f .toldem .diddepend
 

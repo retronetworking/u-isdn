@@ -116,7 +116,7 @@ static void CAPI_TFOO (isdn3_conn conn);
 struct capi_info {
 	unsigned short service;
 	unsigned char subcard;
-	unsigned char bchan;
+	unsigned char bchan; /* the _real_ channel */
 	unsigned char flags;
 #define INF_SPV 01
 	unsigned char lnr[MAXNR];
@@ -193,22 +193,30 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 		timer(CAPI_TFOO,conn);
 		break;
 	}
-	if(state == 0 || state >= 20) {
+
+	/* Select/free a fake B channel. This is _not_ related to the channel
+	   the ISDN is actually using, as it's shared if there's more than one
+	   ISDN on the card. */
+	if(state == 0 || state == 99) {
 		if(conn->bchan != 0) {
-			conn->talk->chanmask &=~ (1<<conn->bchan);
+			conn->talk->chanmask &=~ (1<<(conn->bchan-1));
 			conn->bchan = 0;
 			conn->minorstate &=~ MS_BCHAN;
 			/* XXX send a clearing msg down? */
 		}
-	} else if(conn->bchan == 0) {
-		int ch; unsigned long chm;
-		for(ch=1,chm = 1;chm; chm <<= 1, ch++)
-			if(!(conn->talk->chanmask & chm))
-				break;
-		if(chm) {
-			conn->bchan = ch;
+	} else {
+		if((conn->bchan == 0) && (state > 0 && state <= 15)) {
+			int ch; unsigned long chm;
+			for(ch=1,chm = 1;chm; chm <<= 1, ch++) {
+				if(!(conn->talk->chanmask & chm)) {
+					conn->bchan = ch;
+					break;
+				}
+			}
+		}
+		if(conn->bchan != 0) {
 			conn->minorstate |= MS_BCHAN;
-			conn->talk->chanmask |= chm;
+			conn->talk->chanmask |= 1<<(conn->bchan-1);
 			isdn3_setup_conn (conn, EST_NO_CHANGE);
 		}
 	}
@@ -559,6 +567,7 @@ chstate (isdn3_talk talk, uchar_t ind, short add)
 			/* TODO: reset / restart / XXX the card? */
 			break;
 		}
+		talk->chanmask = 0;
 		send_open(talk);
 		break;
 	case MDL_ERROR_IND:

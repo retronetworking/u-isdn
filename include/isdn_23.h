@@ -83,14 +83,15 @@ typedef struct _isdn23_hdr {
 		struct {				  /* Attach B/D channel */
 			SUBDEV minor;		  /* Device to attach to */
 			uchar_t card;		  /* which card? */
-			uchar_t chan;		  /* B/D channel to attach. Zero: D chan, else
-								   * B. */
+			uchar_t chan;		  /* B/D channel to attach. Zero: D chan, else * B. */
 			uchar_t mode;		  /* Mode to switch card to */
 			char listen;		  /* listen-only mode? (Bit 1) Force channel? (bit 2) */
 		} _hdr_attach;			  /* Downstream only. */
 
 		struct {				  /* disconnect B/D channel */
 			SUBDEV minor;		  /* what to disconnect */
+			uchar_t card;		  /* which card? */
+			uchar_t chan;		  /* B/D channel to attach. Zero: D chan, else * B. */
 			uchar_t error;		  /* force error? */
 			uchar_t perm;		  /* also take down protocol stack */
 		} _hdr_detach;			  /* Usually downstream. Upstream if card

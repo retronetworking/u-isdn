@@ -1928,6 +1928,8 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 					hdr->key = HDR_DETACH;
 					hdr->seqnum = hdrseq; hdrseq += 2;
 					hdr->hdr_detach.minor = ch->dev;
+					hdr->hdr_detach.card = 0;
+					hdr->hdr_detach.chan = 0;
 					hdr->hdr_detach.error = error;
 					hdr->hdr_detach.perm = 0;
 					if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
@@ -2802,6 +2804,27 @@ isdn2_wsrv (queue_t *q)
 								{
 									NOLENHDR ();
 									xMINOR (detach);
+									if (isdn2_debug & 0x10)
+										printf ("%sDetach card %d channel %d to minor %d%s\n",KERN_DEBUG, hdr.hdr_detach.card, hdr.hdr_detach.chan, minor, hdr.hdr_detach.perm ? " force" : "");
+									if(hdr.hdr_detach.card != 0) {
+										CARD (attach);
+
+										if (chan->card != crd) {
+											printf ("%s -- bad card\n",KERN_DEBUG);
+											h_reply (q, &hdr, EBUSY);
+											break;
+										
+										}
+										if (hdr.hdr_detach.chan > crd->card->nr_chans) {
+											printf ("%s -- bad channel (%d > %d)\n",KERN_DEBUG, hdr.hdr_detach.chan, crd->card->nr_chans);
+											h_reply (q, &hdr, EINVAL);
+										}
+										if (crd->chan[hdr.hdr_detach.chan] != NULL && crd->chan[hdr.hdr_detach.chan] != chan) {
+											printf ("%s -- bad channel (%d)\n",KERN_DEBUG,hdr.hdr_detach.chan);
+											h_reply (q, &hdr, EBUSY);
+											break;
+										}
+									}
 									if (hdr.hdr_detach.perm)
 										poplist (chan->qptr, 0);
 									isdn2_disconnect (chan, hdr.hdr_detach.error);

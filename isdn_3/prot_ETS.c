@@ -2276,7 +2276,7 @@ send_ET_disc (isdn3_conn conn, char release, mblk_t * data)
 			goto common_off; /* XXX experimental */
 		if ((err = phone_sendback (conn, MT_ET_REL_COM, data)) != 0 && data != NULL)
 			freemsg(data);
-		pr_setstate (conn, 99); /* was 19 -- mistake */
+		pr_setstate (conn, 99);
 		break;
 	case 19:
 	case 99:
@@ -2296,6 +2296,8 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	uchar_t suppress = 0;
 	/* uchar_t svc = 0; */
 	struct e_info *info;
+	long cause = -1;
+	char forceit = 0;
 
 	if(conn->p_data == NULL) {
 		if((conn->p_data = malloc(sizeof(struct e_info))) == NULL) {
@@ -2309,6 +2311,23 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		oldpos = data->b_rptr;
 		while ((err = m_getsx (data, &typ)) == 0) {
 			switch (typ) {
+			case ARG_FASTDROP:
+				if (conn->state == 6 || conn->state == 7 ||
+					conn->state == 8)
+					forceit = 1;
+				break;
+			case ARG_FORCE:
+				forceit = 1;
+				break;
+			case ARG_CAUSE:
+				{
+					ushort_t causeid;
+
+					if (m_getid (data, &causeid) != 0)
+						break;
+					cause = et_idtocause(causeid);
+				}
+				break;
 			case ARG_LLC:
 				{
 					int len = m_gethexlen(data);
@@ -2345,29 +2364,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			case ARG_SUPPRESS:
 				suppress = 1;
 				break;
-#if 0
-			case ARG_SERVICE:
-				if ((err = m_getx (data, &service)) != 0) {
-					data->b_rptr = oldpos;
-					printf("GetX Service: ");
-					conn->lockit--;
-					return err;
-				}
-				break;
-			case ARG_SPV:
-				svc = 1;
-				break;
-			case ARG_EAZ:{
-					m_getskip (data);
-					if (data->b_rptr == data->b_wptr) {
-						data->b_rptr = oldpos;
-						printf("GetX EAZ: ");
-						conn->lockit--;
-						return -EINVAL;
-					}
-					conn->eaz = *data->b_rptr++;
-				} break;
-#endif
 			case ARG_LNUMBER:
 				m_getskip (data);
 				if ((err = m_getstr (data, (char *) info->lnr, MAXNR)) != 0) {
@@ -2684,193 +2680,26 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				freemsg (asn);
 		}
 		break;
-#if 0
-	case CMD_FORWARD:
-		{
-			mblk_t *asn = NULL;
-			char donum = 0;
-			char doforce = 1;
-			char gotservice = 0;
-			char eaz = 0;
-			char eaz2 = 0;
-			char nr[MAXNR + 1];
-
-			service = conn->service;
-
-			if (data == NULL) {
-				conn->lockit--;
-				return -ENOENT;
-			}
-			while (m_getsx (data, &typ) == 0) {
-				switch (typ) {
-				case ARG_FORCE:
-					doforce = 1;
-					break;
-				case ARG_NUMBER:
-					m_getskip (data);
-					if ((err = m_getstr (data, nr, MAXNR)) != 0) {
-						conn->lockit--;
-						return err;
-					}
-					donum = 1;
-					break;
-				case ARG_SERVICE:
-					if ((err = m_getx (data, &service)) != 0) {
-						data->b_rptr = oldpos;
-						conn->lockit--;
-						return err;
-					}
-					gotservice = 1;
-					break;
-				case ARG_EAZ:{
-						m_getskip (data);
-						if (data->b_rptr == data->b_wptr) {
-							data->b_rptr = oldpos;
-							printf("EAZ3 ");
-							conn->lockit--;
-							return -EINVAL;
-						}
-						eaz = *data->b_rptr++;
-					} break;
-				case ARG_EAZ2:{
-						m_getskip (data);
-						if (data->b_rptr == data->b_wptr) {
-							data->b_rptr = oldpos;
-							printf("EAZ4 ");
-							conn->lockit--;
-							return -EINVAL;
-						}
-						eaz2 = *data->b_rptr++;
-					} break;
-				}
-			}
-			isdn3_setup_conn (conn, EST_NO_CHANGE);
-
-			if ((conn->delay > 0) && (conn->minorstate & MS_DELAYING)
-			     || !(conn->minorstate & MS_PROTO)
-			     || !(conn->minorstate & MS_INITPROTO)
-				 || !(conn->minorstate & MS_BCHAN)
-				 || (conn->((struct e_info *)conn->p_data) & FAC_PENDING)) {
-				data->b_rptr = oldpos;
-				isdn3_repeat (conn, id, data);
-				conn->lockit--;
-				return 0;
-			}
-			if ((conn->minorstate & MS_CONN_MASK) == MS_CONN_NONE) {
-				printf("NoConnThere ");
-				conn->lockit--;
-				return -EINVAL;
-			}
-			if ((conn->minorstate & MS_CONN_MASK) != MS_CONN_INTERRUPT) {
-				isdn3_setup_conn (conn, EST_WILL_INTERRUPT);
-				data->b_rptr = oldpos;
-				isdn3_repeat (conn, id, data);
-				conn->lockit--;
-				return 0;
-			}
-			{
-				int qd_len = 0;
-				uchar_t *qd_d;
-
-				if ((asn = allocb (32, BPRI_MED)) == NULL) {
-					conn->lockit--;
-					return -ENOMEM;
-				}
-
-				if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, (gotservice || eaz2 != 0) ? ((eaz != 0 || eaz2 != 0) ? 6 : 4) : (eaz != 0) ? 5 : 4, 0)) == NULL) {
-					freeb (asn);
-					conn->lockit--;
-					return -EIO;
-				}
-				qd_d[0] = 0;
-				qd_d[1] = (eaz2 > 0) ? ET_FAC_Dienstwechsel2 : ET_FAC_Dienstwechsel1;
-				qd_d[2] = service >> 8;
-				qd_d[3] = service & 0xFF;
-				if ((gotservice && eaz != 0) || eaz2 != 0) {
-					qd_d[4] = (eaz != 0) ? eaz : '0';
-					qd_d[5] = (eaz2 != 0) ? eaz2 : '0';
-				} else if (eaz != 0)
-					qd_d[4] = eaz;
-				asn->b_wptr = asn->b_rptr + qd_len;
-			}
-
-			switch (conn->state) {
-			case 4:
-			case 7:
-			case 8:
-				if (!doforce) {
-					if (data != NULL)
-						data->b_rptr = oldpos;
-					isdn3_repeat (conn, id, data);
-					if (asn != NULL)
-						freemsg (asn);
-					conn->lockit--;
-					return 0;
-				}
-			case 10:
-				if (!donum)
-					conn->minorstate |= MS_FORWARDING;
-				conn->((struct e_info *)conn->p_data) |= FAC_PENDING;
-
-				if ((err = phone_sendback (conn, MT_ET_FAC, asn)) == 0)
-					asn = NULL;
-				isdn3_setup_conn (conn, EST_LISTEN);
-				pr_setstate (conn, 8);
-				break;
-			default:
-				printf("BadState4 ");
-				err = -EINVAL;
-				break;
-			}
-			if (asn != NULL)
-				freemsg (asn);
-		}
-		break;
-#endif
 	case CMD_OFF:
 		{
-			long error = -1;
-			long cause = -1;
-			char forceit = 0;
 			mblk_t *mb = NULL;
 
-			if (data != NULL) {
-				while (m_getsx (data, &typ) == 0) {
-					switch (typ) {
-					case ARG_FASTDROP:
-						if (conn->state == 6 || conn->state == 7 ||
-							conn->state == 8)
-							forceit = 1;
-						break;
-					case ARG_FORCE:
-						forceit = 1;
-						break;
-					case ARG_ERRNO:
-						if (m_geti (data, &error) != 0)
-							break;
-						break;
-					case ARG_CAUSE:{
-							int len;
-							uchar_t *dp;
-							ushort_t causeid;
+			if(cause != -1) {
+				int len;
+				uchar_t *dp;
 
-							if (m_getid (data, &causeid) != 0)
-								break;
-							cause = et_idtocause(causeid);
-							if (mb == NULL && (mb = allocb (16, BPRI_LO)) == NULL)
-								break;
+				if ((mb = allocb (16, BPRI_LO)) == NULL)
+					break;
 
-							len = mb->b_wptr - mb->b_rptr;
-							dp = qd_insert ((uchar_t *) mb->b_rptr, &len, 0, PT_E0_cause, 2, 0);
-							if (dp != NULL) {
-								mb->b_wptr = mb->b_rptr + len;
-								*dp++ = 0x80;
-								*dp = cause | 0x80;
-							}
-						} break;
-					}
+				len = mb->b_wptr - mb->b_rptr;
+				dp = qd_insert ((uchar_t *) mb->b_rptr, &len, 0, PT_E0_cause, 2, 0);
+				if (dp != NULL) {
+					mb->b_wptr = mb->b_rptr + len;
+					*dp++ = 0x80;
+					*dp = cause | 0x80;
 				}
 			}
+
 			conn->minorstate &= ~MS_WANTCONN;
 
 			/* set Data */

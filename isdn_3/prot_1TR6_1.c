@@ -1952,14 +1952,73 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	ulong_t service = ~0;
 	int err = 0;
 	ushort_t typ;
-	uchar_t suppress = 0;
-	uchar_t svc = 0;
+	char suppress = 0;
+	char svc = 0;
+	char doforce = 0;
+	char donodisc = 0;
+	long cause = -1;
 
 	if(conn->p_data == NULL) {
 		if((conn->p_data = malloc(sizeof(struct t_info))) == NULL) {
 			return -ENOMEM;
 		}
 		bzero(conn->p_data,sizeof(struct t_info));
+	}
+	if(data != NULL) {
+		while (m_getsx (data, &typ) == 0) {
+			switch (typ) {
+			case ARG_FASTDROP:
+				if (conn->state == 6 || conn->state == 7 ||
+					conn->state == 8)
+					doforce = 1;
+				break;
+			case ARG_CAUSE:
+				{
+					ushort_t causeid;
+
+					if (m_getid (data, &causeid) != 0)
+						break;
+					cause = n1_idtocause(causeid);
+				}
+				break;
+			case ARG_FORCE:
+				doforce = 1;
+				break;
+			case ARG_NODISC:
+				donodisc = 1;
+				break;
+			case ARG_SUPPRESS:
+				suppress = 1;
+				break;
+			case ARG_SPV:
+				svc = 1;
+				break;
+			case ARG_SERVICE:
+				if ((err = m_getx (data, &service)) != 0) {
+					data->b_rptr = oldpos;
+					return err;
+				}
+				break;
+			case ARG_NUMBER:
+				m_getskip (data);
+				if ((err = m_getstr (data, (char *) ((struct t_info *)conn->p_data)->nr, MAXNR)) != 0) {
+					printf("GetStr Number: ");
+					return err;
+				}
+				break;
+			case ARG_LNUMBER:
+				{
+					char nbuf[MAXNR];
+					m_getskip (data);
+					if ((err = m_getstr (data, nbuf, MAXNR)) != 0) {
+						printf("GetX EAZans: ");
+						return err;
+					}
+					((struct t_info *)conn->p_data)->eaz = nbuf[strlen(nbuf)-1];
+				}
+				break;
+			}
+		}
 	}
 	conn->lockit++;
 	switch (id) {
@@ -1969,45 +2028,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				printf("DataNull: ");
 				conn->lockit--;
 				return -EINVAL;
-			}
-			while ((err = m_getsx (data, &typ)) == 0) {
-				switch (typ) {
-				case ARG_SUPPRESS:
-					suppress = 1;
-					break;
-				case ARG_SERVICE:
-					if ((err = m_getx (data, &service)) != 0) {
-						data->b_rptr = oldpos;
-						printf("GetX Service: ");
-						conn->lockit--;
-						return err;
-					}
-					break;
-				case ARG_SPV:
-					svc = 1;
-					break;
-				case ARG_LNUMBER:
-					{
-						char nbuf[MAXNR];
-						m_getskip (data);
-						if ((err = m_getstr (data, nbuf, MAXNR)) != 0) {
-							printf("GetX EAZ: ");
-							conn->lockit--;
-							return err;
-						}
-						((struct t_info *)conn->p_data)->eaz = nbuf[strlen(nbuf)-1];
-					}
-					break;
-				case ARG_NUMBER:
-					m_getskip (data);
-					if ((err = m_getstr (data, (char *) ((struct t_info *)conn->p_data)->nr, MAXNR)) != 0) {
-						printf("GetStr Number: ");
-						conn->lockit--;
-						return err;
-					}
-					break;
-				default:;
-				}
 			}
 		  /* end_arg_dial: */
 			if (service == ~0) {
@@ -2167,29 +2187,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			mblk_t *asn = NULL;
 
 			if (data != NULL) {
-				while (m_getsx (data, &typ) == 0) {
-					switch (typ) {
-					case ARG_SERVICE:
-						if ((err = m_getx (data, &service)) != 0) {
-							data->b_rptr = oldpos;
-							conn->lockit--;
-							return err;
-						}
-						break;
-					case ARG_LNUMBER:
-						{
-							char nbuf[MAXNR];
-							m_getskip (data);
-							if ((err = m_getstr (data, nbuf, MAXNR)) != 0) {
-								printf("GetX EAZans: ");
-								conn->lockit--;
-								return err;
-							}
-							((struct t_info *)conn->p_data)->eaz = nbuf[strlen(nbuf)-1];
-						}
-						break;
-					}
-				}
 				{
 					int qd_len = 0;
 					uchar_t *qd_d;
@@ -2272,52 +2269,15 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		{
 			mblk_t *asn = NULL;
 			char donum = 0;
-			char doforce = 1;
 			char gotservice = 0;
 			char eaz = 0;
 			char eaz2 = 0;
-			char nr[MAXNR + 1];
 
 			service = ((struct t_info *)conn->p_data)->service;
 
 			if (data == NULL) {
 				conn->lockit--;
 				return -ENOENT;
-			}
-			while (m_getsx (data, &typ) == 0) {
-				switch (typ) {
-				case ARG_FORCE:
-					doforce = 1;
-					break;
-				case ARG_NUMBER:
-					m_getskip (data);
-					if ((err = m_getstr (data, nr, MAXNR)) != 0) {
-						conn->lockit--;
-						return err;
-					}
-					donum = 1;
-					break;
-				case ARG_SERVICE:
-					if ((err = m_getx (data, &service)) != 0) {
-						data->b_rptr = oldpos;
-						conn->lockit--;
-						return err;
-					}
-					gotservice = 1;
-					break;
-				case ARG_LNUMBER:
-					{
-						m_getskip (data);
-						if (data->b_rptr > data->b_wptr-2) {
-							data->b_rptr = oldpos;
-							printf("EAZ3 ");
-							conn->lockit--;
-							return -EINVAL;
-						}
-						eaz = data->b_rptr[1];
-						eaz2= data->b_rptr[0];
-					} break;
-				}
 			}
 			isdn3_setup_conn (conn, EST_NO_CHANGE);
 
@@ -2401,59 +2361,37 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		break;
 	case CMD_OFF:
 		{
-			long error = -1;
-			long cause = -1;
-			char forceit = 0;
 			mblk_t *mb = NULL;
 
-			if (data != NULL) {
-				while (m_getsx (data, &typ) == 0) {
-					switch (typ) {
-					case ARG_FASTDROP:
-						if (conn->state == 6 || conn->state == 7 ||
-							conn->state == 8)
-							forceit = 1;
-						break;
-					case ARG_FORCE:
-						forceit = 1;
-						break;
-					case ARG_ERRNO:
-						if (m_geti (data, &error) != 0)
-							break;
-						break;
-					case ARG_CAUSE:
-						{
-							int len;
-							uchar_t *dp;
-							ushort_t causeid;
+			conn->minorstate &= ~MS_WANTCONN;
+			if(cause != -1) {
+				int len;
+				uchar_t *dp;
+				ushort_t causeid;
 
-							if (m_getid (data, &causeid) != 0)
-								break;
-							cause = n1_idtocause(causeid);
-							if (mb == NULL && (mb = allocb (16, BPRI_LO)) == NULL)
-								break;
+				if ((mb = allocb (16, BPRI_LO)) == NULL)
+					break;
 
-							len = mb->b_wptr - mb->b_rptr;
-							dp = qd_insert ((uchar_t *) mb->b_rptr, &len, 0, PT_N0_cause, 1, 0);
-							if (dp != NULL) {
-								mb->b_wptr = mb->b_rptr + len;
-								*dp = cause | 0x80;
-							}
-						}
-						break;
-					}
-
+				len = mb->b_wptr - mb->b_rptr;
+				dp = qd_insert ((uchar_t *) mb->b_rptr, &len, 0, PT_N0_cause, 1, 0);
+				if (dp != NULL) {
+					mb->b_wptr = mb->b_rptr + len;
+					*dp = cause | 0x80;
 				}
 			}
-			conn->minorstate &= ~MS_WANTCONN;
-
 			/* set Data */
 			if (conn->state == 6 && cause == -1) {
 				pr_setstate(conn,99);
 				if(mb != NULL)
 					freemsg(mb);
-			} else if (send_N1_disc (conn, 1 + forceit, mb) != 0 && mb != NULL)
-				freemsg (mb);
+			} else {
+				if(doforce && donodisc) {
+					doforce = 0;
+					/* Hmmm */
+				}
+				if (send_N1_disc (conn, 1 + doforce, mb) != 0 && mb != NULL)
+					freemsg (mb);
+			}
 
 			isdn3_setup_conn (conn, EST_DISCONNECT);
 			err = 0;
