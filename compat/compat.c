@@ -143,11 +143,7 @@ timeout(void (*func)(void *), void *arg, int expire)
 	timer->proc = func;
 	timer->arg = arg;
 	timer->tim.data = (unsigned long)timer;
-	timer->tim.expires = expire
-#if LINUX_VERSION_CODE >= 66318 /* 1.3.14 -- is that right ?? */
-		+ jiffies;
-#endif
-		;
+	timer->tim.expires = expire + jiffies;
 #ifdef MODULE
 	MOD_INC_USE_COUNT;
 #endif
@@ -181,11 +177,7 @@ timeout_old(void (*func)(void *), void *arg, int expire)
 	timer->tim.arg = arg;
 	timer->tim.tim.function = (fct)dotimer_old;
 	timer->tim.tim.data = (unsigned long)timer;
-	timer->tim.tim.expires = expire
-#if LINUX_VERSION_CODE >= 66318 /* 1.3.14 -- is that right ?? */
-		+ jiffies;
-#endif
-		;
+	timer->tim.tim.expires = expire + jiffies;
 	save_flags(s); cli();
 	if(start != NULL)
 		start->prev = timer;

@@ -270,7 +270,13 @@ find_conn(void)
 		if(conn->flags & F_INCOMING)
 			dialin = 1;
 		if(charge > 0) {
-			if((conn->retries > 0) && (conn->charge > 0)) {
+			if(conn->did_bounce && (conn->state < c_going_up)) {
+				if(conn->cg != NULL)
+					syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
+				else
+					syslog(LOG_ERR,"OFF ??? %s",CauseInfo(conn->cause, conn->causeInfo));
+				setconnstate(conn,c_off);
+			} else if((conn->retries > 0) && (conn->charge > 0)) {
 				if(conn->cg != NULL)
 					syslog(LOG_ALERT,"Cost Runaway, connection not closed for %s:%s",conn->cg->site,conn->cg->protocol);
 				else
@@ -352,14 +358,18 @@ void do_updown(CState state)
 		lim = 20;
 	else
 		lim = 10;
-	if((conn->charge > 0) || (++conn->retries > lim)) {
+	if((conn->charge > 0) || (conn->retries >= lim)) {
 		if(conn->cg != NULL)
 			syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
 		else
 			syslog(LOG_ERR,"OFF ??? %s",CauseInfo(conn->cause, conn->causeInfo));
+		if(conn->state > c_off)
+			conn->retries++;
 		setconnstate(conn,c_off);
-	} else
+	} else {
+		conn->retries++;
 		setconnstate(conn,has_force ? c_off : state);
+	}
 }
 
 void do_down(CState state)
@@ -395,8 +405,7 @@ do_card(void)
 		return ret;
 	if ((ret = m_getx (&xx, &cardcap)) != 0)
 		return ret;
-	if(in_boot < 0)
-		in_boot = 0;
+	cards_known++;
 	for(ld = isdn4_loader; ld != NULL; ld = ld->next) {
 		if (!strcmp(ld->name, crd))
 			return -EEXIST;
@@ -429,7 +438,7 @@ do_card(void)
 
 		card->name = str_enter("NULL");
 		ld->card = card;
-		in_boot++;
+		cards_loading++;
 	} else {
 		struct iovec io[3];
 		int len;
@@ -482,7 +491,7 @@ do_card(void)
 	if(ld != NULL)
 		card_load(ld);
 	do_run_now++;
-	timeout(run_now,NULL,3*HZ);
+	timeout(run_now,NULL,2*HZ);
 
 	return 0;
 }
@@ -1827,7 +1836,7 @@ do_atcmd(void)
 					} else
 						conn->cardname = "*";
 					conn->seqnum = ++connseq;
-					conn->ignore = 3;
+					conn->ignore = (minor < 0) ? 4 : 3;
 					conn->minor = fminor;
 					conn->next = isdn4_conn; isdn4_conn = conn;
 

@@ -3082,23 +3082,22 @@ isdn2_wsrv (queue_t *q)
 						{
 							struct _isdn1_card *crd1;
 
-							if(0)if(isdn2_debug&0x200) printf(".BConn");
-
 							if (chan->card != NULL && (crd1 = chan->card->card) != NULL) {
 								if ((*crd1->cansend) (crd1, chan->channel)) {
 									if ((*crd1->send) (crd1, chan->channel, mp) != 0) {
 										putbqf (q, mp);
-										printf (".");
+										if(0)printf ("%s.\n",KERN_DEBUG);
 										return;
-									}
+									} else
+										if(0)printf("%sC\n",KERN_DEBUG);
 								} else {
-									if(0)printf (",");
+									if(0)printf ("%s,\n",KERN_DEBUG);
 									putbqff (q, mp);
 									return;
 								}
 							} else {
 								freemsg (mp);
-								printf ("Hang 5\n");
+								if(0)printf ("Hang 5\n");
 								putctlx (RD (q), M_HANGUP);
 							}
 						}
