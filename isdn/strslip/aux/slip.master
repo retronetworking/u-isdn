@@ -1,4 +1,0 @@
-include .
-if . include streamlib
-x	-	slip	-	1	1
-

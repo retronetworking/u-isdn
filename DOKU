@@ -15,11 +15,25 @@ unter der GPL bzw. ihrem deutschen Äquivalent verfügbar sein.
 
 Achtung:
 =======
-Mit der Version für 1.2.0 hat sich die Syntax der cf-Datei leicht geändert.
+
+Mit der Version 11 ist das OK am Ende des statischen Teils der AT/L-Ausgabe
+weggefallen, weil das zu viele Leute irritiert hat.
+
+Mit der Version 11 hat sich die Installationsprozedur fuer ISDN-Karten
+geaendert. Vorher: Config.c editieren, Modul bauen. Jetzt: d_teles.o
+laden, dann fuer jede Karte "insmod -o Tel0 teles.o name=$(cardname Tel0)
+mem=0xD6000 irq=5" ausfuehren. Daten anpassen! Unterschiedliche Namen
+verwenden! Das rc-Skript in tools/ wurde entsprechend angepasst.
+16-Bit-Karten: Zusaetzlich "ipl=X" (X=1..3) fuer die erste bis dritte Karte.
+Damit sollte es problemlos sein, zwischen verschiedenen Systemen (mit
+einigermaßen identisch konfigurierten Kernels) die Treiber auszutauschen.
+
+Mit der Version für 1.2.0 hat sich die Syntax der cf-Datei leicht geändert:
 
 Der :ea-Parameter in der P-Zeile wurde durch den :lr-Parameter ersetzt:
-    verwende ":lr /X" statt ":ea X".
-	hänge an die DL-Zeile einen / an.
+-   verwende ":lr /X" statt ":ea X".
+-   hänge an die DL-Zeile an die Nummer einen / an und danach ":pr 0 :sp 65
+    :pr 63" für 1TR6 oder :sp 8 für Euro-ISDN.
 Generell steht nun "/" für EAZs und so; "." steht für Nebenstellennummern.
 Bei externen Nummern verwende ich generell ".", aber das ist
 Geschmackssache.
@@ -28,7 +42,7 @@ Einige Konfigzeilen haben als zusätzlichen Parameter das ISDN-Interface
 verpaßt bekommen.
 
 Die Parameter :pr und :sp stehen nun in der DL-Zeile und nicht mehr in
-der P-Zeile; siehe unten.
+der P-Zeile.
 
 Die I- und O-Flags werden nun klein geschrieben.
 
@@ -63,9 +77,10 @@ Die Konfigurationsdatei ist manchmal etwas undurchsichtig.
 _Ich_ werde das nicht ändern, keine Zeit; wenn jemand ein Frontend
 schreiben will -- nur zu!
 
-Das Masterprogramm könnte noch Speicherlecks haben...
+Das Masterprogramm hat noch Speicherlecks.
 
-Euro-ISDN ist moderat getestet; Gebührenerfassen geht noch nicht.
+Euro-ISDN ist moderat getestet; Gebührenerfassen während der Verbindung
+geht noch nicht.
 
 Login über ISDN macht noch leichte Probleme.
 
@@ -122,10 +137,16 @@ wer kann und will, möge sich dransetzen.
 Kernelpatches
 =============
 
-Die Patches basieren auf dem Kernel Linux-1.1.86. Frühere und spätere
-Kernels auf eigene Gefahr bzw. Bastelei. 
+Die Patches basieren auf dem in der Versionsnummer bezeichneten Kernel.
+Frühere bzw. spätere Kernels auf eigene Gefahr bzw. Bastelei. 
+
 Was die einzelnen Patches machen und ob sie benötigt werden,
 steht in den einzelnen Dateien am Anfang.
+
+Der Kernel muß mit CONFIG_MODVERSION gebaut werden. Alternativ (aber das ist
+unsicherer) kann im ISDN-Paket aus config/config.data -DCONFIG_MODVERSION
+entfernt werden. Das modutils-1.2.8-Paket wird in jedem Fall benötigt, um
+Parameter an die einzelnen Module zu übergeben.
 
 
 Grundstruktur
@@ -149,7 +170,7 @@ Sache des Steuerprogramms (D-Kanal) bzw. anderer Streams-Module (B-Kanäle).
 
 Ein kommunikationswilliges Programm öffnet einen freien ISDN-Port
 (/dev/isdn/isdnX, X von 1 bis 99 oder so) und sendet einen Verbindungs-
-wunsch an das Steuerprogramm ("atd/subnet/login", ffnen einer Verbindung
+wunsch an das Steuerprogramm ("atd/subnet/login", öffnen einer Verbindung
 zum System "subnet" im Protokollmodus "login"). Das Steuerprogramm schiebt
 diesem Kanal nun automatisch die notwendigen B-Kanal-Module unter (X.75,
 T.70, V.110, was-auch-immer), baut die Verbindung auf, meldet den Zustand
@@ -162,14 +183,8 @@ Dasselbe passiert bei abgehenden Anrufen, die auf das zuständige Programm
 beschränkt sind, zB TCP/IP.
 
 Beispiel:
-% kermit
-> set lin /dev/isdn/isdn31
+% cu -l isdn/isdn22
   beliebig, muß nur frei sein.
-> set spe 1200
-  Die eingestellte Geschwindigkeit wird ignoriert, aber Kermit besteht
-  darauf...
-> c
-  Verbindung herstellen.
 AT
  OK
   Der Interpreter im Kontrollprogramm tut so, als wäre er ein Modem mit
@@ -180,12 +195,12 @@ ATD/subnet/login
  RRING
  CONNECT
  login:
-  Die Verbindung steht. Viel Spaß beim Hacken eines Paßworts für die subnet. ;-)
+  Die Verbindung steht. Viel Spaß beim Hacken eines Paßworts. ;-)
 
 BETA-BEMERKUNG: Loginverbindungen sind in der jetztigen Version nicht allzu
 gut getestet. Was sehr gut tut, ist TCP/IP; siehe dazu die Beispielkonfi-
-guration cf.tcp. Ein Anrufbeantworter existiert ebenfalls (leider noch ohne
-DMTF-Erkennung); siehe dazu die Beispielkonfiguration cf.answer.
+guration. Ein Anrufbeantworter existiert ebenfalls (leider noch ohne
+DMTF-Erkennung).
 
 Statt eines Sitenamens tut auch ATD und die Nummer; /login ist der Default
 für das Protokoll.
@@ -209,9 +224,12 @@ vi config/config.data
 vi isdn/cards/dumb/Config.c    # Speicherlage+Interrupts der ISDN-Karten
 make.isdn
 make load # Einbau der Module in den laufenden Kernel
-cd /usr/local/isdn
-vi cf.tcp # ISDN-Nummern, Dienste, etc. eintragen
-bin/master cf.tcp  # geht automatisch in den Hintergrund
+cd /usr/local/isdn/bin
+vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
+bin/master /etc/isdn.conf  # geht automatisch in den Hintergrund
+
+Sämtliche Gerätedateien werden automatisch angelegt.
+
 
 Testen:
 -------
@@ -238,18 +256,27 @@ AT/K
     Kann nur vom Superuser ausgeführt werden.
 AT/Kn
     Beendet die Verbindung <n>, beendet das betreffende Programm.
-    Kann nur vom Superuser ausgeführt werden.
 AT/L
     Listet den momentanen Status aller Verbindungen.
-<n> <Art> <Partner> <Key> <pid> <Modus/Karte> <UnitNow> <UnitAll> <Stat>
-    <Modus> ist:
+<[minor:]id> <Art> <Partner> <Key> <pid> <Modus/Karte> <UnitNow> <UnitAll> <Status>
+    <minor>     Nummer der Verbindung, für AT/K o.ä.
+    <n>         interne Folgenummer der Statusmeldung; Meldungen, die einen
+                alten Status ersetzen, bekommen dieselbe Nummer.
+    <pid>       PID des Prozesses, der für die Verbindung gestartet wurde.
+    <Modus>
         off     Verbindung nicht aktiv, wird bei ankommendem Ruf reaktiviert.
         down    Standby; sobald ein Datenpaket ansteht, wird die Verbindung 
                 aufgebaut.
         up      Verbindung steht
-    ->down
-    ->up    Verbindung wird gerade ab- bzw. aufgebaut.
-    Ein Ausrufezeichen an erster Stelle bedeutet, daß die Verbindung bereits
+        ->down
+        ->up    Verbindung wird gerade ab- bzw. aufgebaut.
+    <UnitNow>   Einheiten in der aktuellen Verbindung.
+    <UnitAll>   Einheiten insgesamt seit Start des Prozesses.
+	<Flags>     interner Zustand der Verbindung, komma remote-Nummer,
+                strichpunkt lokale-Nummer (jeweils wenn bekannt/vorhanden)
+    <Status>    Text; Meldung der Vermittlung (Groß/Kleinschreibung) oder
+                      interner Zustand (Großschreibung).
+    Ein Ausrufezeichen an erster Stelle bedeutet, daß die Verbindung intern
     nicht mehr bekannt ist, der Zustand aber noch eine Zeitlang angezeigt wird.
 
     Bis zum nächsten AT-Befehl bleibt der Kanal im Monitormodus und meldet
@@ -257,7 +284,7 @@ AT/L
 AT/I
     Listet den internen Zustand. In der ersten Zeile stehen die erkannten
     ISDN-Karten, die zweite Zeile enthält den internen Zustand des ISDN-
-    Protokolls.
+    Systems. Zum Debuggen.
 AT/M foo
     Sendet den Systembefehl "foo" nach unten. Gefährlich.
     Kann zum Online-Rekonfigurieren von Modulen verwendet werden. Beispiel:
@@ -284,7 +311,7 @@ ATH
 
 Diverse andere Befehle sind 100% ungetestet. <BREAK> habe ich seit Ewigkeiten 
 nicht mehr ausprobiert.
-ATA existiert übrigens nicht; stattdessen Konfigdatei ändern.
+ATA existiert nicht; stattdessen Konfigdatei ändern.
 
 
 Einschub: Was ist dieser Streams-Kram eigentlich?
@@ -301,28 +328,31 @@ pro Fragment) oder von der Gegenseite weggeschmissen werden (Overhead:
 unendlich ;-) , muß man sie so kennzeichnen, daß die Gegenseite sie direkt
 wieder zusammensetzen kann (Overhead: 2 Bytes; braucht aber besagte gesicherte 
 Verbindung, um vernünftig zu funktionieren). BTX beispielsweise arbeitet
-so.
+so. Außerdem ist ISDN bytesynchrton, d.h. irgendjemand muß kennzeichnen, wo
+ein Datenpaket aufhört und wo/wann das nächste anfängt. Dafür gibt es, wie
+üblich, mehrere Methoden...
 
 Streams sind nun eine Möglichkeit, mehrere speziell geschriebene Module
-so auf einem ebenfalls speziell geschriebenen Treiber so zu stapeln, daß
-jedes Modul eine Einzelaufgabe dieser Arbeit erledigt. Im Idealfall sind
-die einzelnen Module recht klein und damit debugbar, lassen sich vielseitig
+auf einem ebenfalls speziell geschriebenen Treiber so zu stapeln, daß jedes
+Modul eine Einzelaufgabe dieser Arbeit erledigt. Im Idealfall sind die
+einzelnen Module recht klein und damit debugbar, lassen sich vielseitig
 zusammenstöpseln, etc.pp. In der Praxis ist die Sache natürlich nicht ganz
 so einfach; insbesondere ist der Overhead, die Pakete von einem Modul zum
 nächsten zu schaufeln, nicht zu vernachlässigen. Er ist aber tolerierbar,
-vor allem wenn man auf die ganzen überflüssigen "Features" (von vielen
-vernünftigen Menschen als "Bugs" oder "Designfehler" bezeichnet...)
-verzichtet, die USL und Co. in Sys5 Release 4 dazuerfunden haben.
+vor allem wenn man auf die ganzen überflüssigen "Features" (von manchen
+Menschen als "Bugs" oder "Designfehler" bezeichnet...) verzichtet, die
+USL und Co. in Sys5 Release 4 dazuerfunden haben.
 
 Die einzelnen Module müssen parametrisiert werden. Im Normalfall spricht
 man sich mit der Gegenseite vorher ab, ob beispielsweise X.75 verwendet
 wird und in welchem Modus. Alternativ, und wenn man die Normen auswendig
-weiß, schaltet man ein Monitor-Modul zuunterst auf den Datenstrom, ruft
-die Gegenseite an, beobachte genau was da passiert, und richtet die Konfi-
-guration entsprechend ein. (Das klingt nicht nur kompliziert, das ist
-es auch. Außerdem gibt es ein paar Details, die sich nicht ohne weiteres
-beobachten lassen.) Zum Glück haben sich ein paar "normale" Betriebsarten
-herauskristallisiert, an die sich die meisten Systeme halten.
+weiß, schaltet man ein Monitor-Modul zuunterst auf den Datenstrom, läßt
+sich von der Gegenseite anrufen, beobachtet genau was da passiert, und
+richtet die Konfiguration entsprechend ein. (Das klingt nicht nur
+kompliziert, das ist es auch. Außerdem gibt es ein paar Details, die sich
+nicht ohne weiteres beobachten lassen.) Zum Glück haben sich ein paar
+"normale" Betriebsarten herauskristallisiert, an die sich die meisten
+Systeme halten.
 
 
 Noch ein Einschub: TCP-IP-Routing
@@ -340,48 +370,51 @@ Wichtige Spezialfälle:
   slipto mit -d starten und auf den ganzen anderen Rechnern im lokalen Netz 
   eine Defaultroute zum ISDN-Rechner eintragen. ACHTUNG! ALLE LOKALEN
   RECHNER BRAUCHEN OFFIZIELL ZUGETEILTE IP-NUMMERN. Das Weiterleiten von
-  Nummernbereichen nach RFC 1597 muß unterbunden werden (IP-Firewall in den
-  Kernel einbauen); andere unzulässige Netznummern müssen durch einen
-  zweiten Gatewayrechner mit zwei Ethernetkarten o.ä., auf dem _keine_
-  Route eingetragen ist, die auf den ISDN-Rechner zeigt, abgeschottet
-  werden.
+  Nummernbereichen nach RFC 1597 muß unterbunden werden (wenn diese lokal
+  verwendet werden: unbedingt IP-Firewall in den Kernel einbauen und
+  rausfiltern); andere unzulässige Netznummern müssen durch einen zweiten
+  Gatewayrechner mit zwei Ethernetkarten o.ä. abgeschottet werden.
 
 - Ein System, das eigentlich Teil des lokalen Netzes wäre, sitzt am anderen
   Ende der Leitung. Am einfachsten ist hier Proxy-ARP; der benötigte Befehl
   beim Booten lautet "arp -s IP_der_entfernten_Kiste Ether_des_ISDN_-
   _Rechners pub". Die Ethernetadresse spuckt "ifconfig eth0" aus.
 
+  diplogin (für IP über serielle Leitung) kann den arp-Eintrag automatisch
+  setzen. Wenn jemand entsprechende Patches für slipto macht -> her zu mir.
+
 - Ein Netz mit stupidem ISDN-Router, der ein Transfernetz sehen will, ist
   auf der anderen Seite. Einfachste Methode: Vom lokalen Netzbereich wird
   ein 4-Adressen-Bereich abgezwackt und als Transfernetz mißbraucht. Sei
   die lokale Adresse 129.130.131.x, so wird zum Beispiel der Bereich x =
-  [224..227] verwendet (die beiden untersten Bits der unteren Kante des
+  [224..227] verwendet (die beiden untersten Bits des unteren Endes des
   Adressbereichs, hier 224, müssen(!!!) 00 sein). Die nächste Adresse
-  (hier: 225) wird die lokale Adresse (am besten eintragen via
-  dummy-Interface: "ifconfig dummy0 129.130.131.225; route add -host
-  129.130.131.225 dev lo" -- in der Konfigdatei wird die normale
-  Ethernetadresse des Rechners als lokale Adresse verwendet). Danach (hier
-  ..226) kommt die entfernte Adresse (eintragen via Proxy-ARP).
+  (hier: 225) wird die lokale Adresse (entweder als lokale Adresse im
+  slipto, oder via dummy-Interface: "ifconfig dummy0 129.130.131.225; route
+  add -host 129.130.131.225 dev lo" -- in der Konfigdatei wird in diesem
+  Fall die normale Ethernetadresse des Rechners als lokale Adresse
+  verwendet). Danach (hier; .226) kommt die entfernte Adresse (eintragen
+  via Proxy-ARP).
 
   Auf der Gegenstelle wird dann das Transfernetz mit einer Netmask von
   255.255.255.252 konfiguriert, die ..225 wird dort die entfernte
   Adresse und die Defaultroute an der Gegenstelle zeigt darauf.
   (Außerdem muß manchmal eine Route für das Netz, hier 129.130.131.0,
-  eingetragen werden.)
+  eingetragen werden, die auf die Gegenseite, hier .225, zeigt.)
 
-  Diese Methode verschwendet 75% des Adressbereichs (die Nummern ..224,
-  ..225 und ..227 werden nie in Erscheinung treten) und einer der Rechner
-  auf der Gegenseite verwendet dummerweise eine Nummer aus dem lokalen
-  Netz, für die ein funktionierender Nameserver-Eintrag gepflegt werden
-  muß, hat aber den Vorteil, daß sie funktioniert.
+  Diese Methode verschwendet 75% des Adressbereichs (die Nummern .224,
+  .225 und .227 werden im Internet nie in Erscheinung treten) und einer der
+  Rechner auf der Gegenseite verwendet dummerweise eine Nummer aus dem
+  lokalen Netz, für die ein funktionierender Nameserver-Eintrag gepflegt
+  werden muß, hat aber den Vorteil, daß sie funktioniert.
 
   Es fällt außerdem auf, daß die lokale Adresse und Konfiguration des
-  ISDN-Links nichts, aber auch gar nichts, mit dem zu tun hat, was die
-  Gegenseite von uns denkt. Das ist auch total egal. Das einzige, auf das
-  es ankommt, ist, daß die jeweils lokalen Adressen auch als lokal
-  angesehen werden und _nicht_ irgendwie wieder zur Gegenseite geroutet
-  werden. Pingpongpakete haben auf einer ISDN-Leitung nichts verloren!
-  (Und auch nirgends anders.)
+  ISDN-Links nichts mit dem zu tun haben muß, was die Gegenseite von uns
+  denkt. Das ist auch total egal -- im Gegensatz zu PPP werden die Adressen
+  nicht mit der Gegenstelle abgeglichen. Das einzige, auf das es ankommt,
+  ist, daß die jeweils lokalen Adressen auch als lokal angesehen werden und
+  _nicht_ irgendwie wieder zur Gegenseite geroutet werden. Pingpongpakete
+  haben auf einer ISDN-Leitung nichts verloren! (Und auch nirgends anders.)
 
   Es fällt außerdem auf, daß ich nichts von routed und ähnlichen Programmen
   gesagt habe. Das ist Absicht. Konfiguriert eure Routen lieber statisch,
@@ -409,8 +442,8 @@ Alle Zeilentypen:
       behandlung verpassen.
 <Parameter...> ist eine Folge von einem oder mehr Parameter-Wert-Angaben.
                (Manche Parameter haben keine Wertangabe.)
-			   Merke: Zeilen ohne Parameter sind im allgemeinen nicht sinnvoll
-			   und führen (momentan noch) zu Fehlverhalten des Treibers.
+      Merke: Zeilen ohne Parameter sind im allgemeinen nicht sinnvoll
+      und führen (momentan noch) zu Fehlverhalten des Treibers.
 
 
 P-Zeile ("Protokoll")
@@ -420,11 +453,7 @@ Form:
 P <Art> <Partner> <Key> <Karte> <Mod> <Parameter...>
 
 Beispiel:
-P login * * R   :sv 0700 :nr .2 :ea 2 :pr 0 :sp 65
-
-Anderes Beispiel, mit derselben Wirkung:
-P login * * R :sv 0700 :nr .2 :ea 2
-P * * * MX :pr 0 :sp 65
+P login * * R   :sv 0700 :nr .2 :lr /2
 
 Parameter:
 :Ft Bei Festverbindungen angeben. (Erzwingt das Laden des
@@ -437,6 +466,8 @@ Parameter:
     Bei Festverbindungen wird dieser Parameter nicht benötigt.
 :bc Zu verwendender B-Kanal, 1 oder 2. Nur für Festverbindungen
     interessant; im normalen ISDN managt die Vermittlung B-Kanäle für uns.
+:nj Kann der Ruf nicht angenommen werden, wird BUSY statt CallRejected
+    gesendet.
 :xi Wenn ankommende und abgehende Anrufe kollidieren, soll der an-
     kommende abgewiesen werden. (Default: Der abgehende Ruf wird
     abgebrochen.) (Nicht allzu gut getestet.)
@@ -478,8 +509,8 @@ Spezifisch für die Bearbeitung von Telefonnummern:
     Angaben lokale und 
 
 Mod:
-R Die Zeile kann primär für einen Verbindungsaufbau verwendet werden.
-M Die Zeile wird nur dann analysiert, wenn eine über ihr gefundene R-Zeile
+R Die Zeile wird primär für einen Verbindungsaufbau verwendet.
+M Die Zeile wird nur dann analysiert, wenn eine über ihr gefundene P-Zeile
   "paßt".
 X Wenn diese Zeile (oder eine darüberliegende) "paßt", wird das Scannen
   nach weiteren passenden Angaben hier abgebrochen.
@@ -603,7 +634,53 @@ DL Tel0 +49=911-34567. :pr 0 :sp 8 :pr 63
 Beispiel Festverbindung:
 DL Tel2 - :pr 64
 
+Beispiel intelligente Karte mit CAPI:
+DL Bin0 +49=911-45678. :pr 65
+
 Bedeutung der Spezialzeichen in der Nummer: Siehe "DP" unten.
+
+Protokolle und Flags in der DL-Zeile:
+--------------------
+
+Die Reihenfolge ist wichtig.
+
+:pp        Punkt-zu-Punkt-Verbindung, feste TEI (0x00). :kl ebenfalls
+           angeben!
+:mp        Verbindung am Bus, variabler TEI-Identifier. Bei manchen 1TR6-
+           Vermittlungen und Nebenstellenanlagen sinnvoll.
+:mf        Verbindung am Bus, fester TEI-Identifier. Default.
+:mt        Verbindung am Bus, feste TEI(0x12). In Spezialfällen notwendig.
+
+:ud XX     Verzögerung zwischen dem Verbindungsaufbau (D-Kanal) und dem
+           eigentlichen Datenaustausch (B-Kanal). Zehntelsekunden; max.
+           2 Sekunden; Default 1/4 Sekunde. Mit :ud 0 geht der Verbindungs-
+           aufbau entweder etwas schneller, oder das erste Paket wird
+           verschluckt, oder die Vermittlung kommt durcheinander und die
+           Verbindung ist tot.  :-(
+
+:pr 0      Normaler ISDN-D-Kanal, angeschlossen am Netz oder an einer
+           Telefonanlage. Darf nur zusammen mit TEI-Handler (:pr 63)
+		   verwendet werden.
+  :kl      Level-2-Verbindung zur Vermittlung nicht trennen. Bei Punkt-
+           zu-Punkt-Verbindungen und bei entsprechend konfigurierten
+           ISDN-Anschlüssen ("Dauer-irgendwas") notwendig.
+  :cl      Level-2-Verbindung zur Vermittlung trennen. Default.
+
+  :sp 8    DSS1, Euro-ISDN.
+  :sp 65   1TR6, deutscher Standard.
+
+  :ai      Ankommenden Anruf mit dem ISDN-Äquivalent von "RINGING"
+           beantworten, dann prüfen ob der Anruf angenommen werden kann. 
+           Notwendig bei langsamen Rechnern.
+  :ad      Ankommende Anrufe erst prüfen, dann annehmen (oder auch nicht).
+           Default.
+:pr 63     TEI-Handler (Transport Endpoint Identifier).
+  :ti      TEI sofort zuordnen lassen. Notwendig bei langsamen / sehr
+           beschäftigten Rechnern und bei manchen Telefonanlagen.
+  :td      TEI beim ersten Verbindungsaufbau zuordnen lassen. Default.
+:pr 64     Festverbindung: kein D-Kanal.
+:pr 65     Intelligente Karte mit CAPI 1.x-Schnittstelle.
+           (Noch nicht!)
 
 
 DP-Zeile ("Dial Prefix")
@@ -623,9 +700,13 @@ typischerweise eine vorgestellte Null o.ä. sehen, die aber bei ankommenden
 Gesprächen nicht mit angezeigt wird.
 
 Die Zeichen sind immer "+" für internationale Verbindungen, "=" für 
-nationale Verbindungen, "-" für Ortsverbindungen und "." für Verbindungen
-innerhalb einer Nebenstellenanlage. Außerdem gibt es noch "/" für EAZs etc.,
-die bei externen Nummern verwendet werden können. Beispiel:
+nationale Verbindungen, "-" für Ortsverbindungen, "." oder "/" für
+Verbindungen innerhalb einer Nebenstellenanlage oder EAZs/MSNs etc. Der
+Unterschied ist, daß Nummern einer Nebenstellenanlage direkt angerufen
+werden können, während ich für eine Verbindung zu einer anderen MSN die
+Teilnehmernummer mitwählen muß.
+
+Beispiel: Eine Konfiguration
 D ... -1234/[456]
 DL... -23456
 DP... -
@@ -647,6 +728,10 @@ oder abgehenden Gesprächen aufgerufen wird. Ein Dialout zu einem System
 mit "R"-Zeile ist also direkt nicht möglich, da der Datenaustausch zum
 betreffenden Programm geht.
 
+Eine R-Zeile wird ignoriert, sobald das betreffende Programm einen Fehler
+gemeldet hat (Exitstatus != 0) oder bei der Verbindungssteuerung ein Fehler
+aufgetreten ist. 
+
 Im Environment dieses Programms werden folgende Variablen abgelegt:
 SITE      <Partner>
 PROTOCOL  <Art>
@@ -662,6 +747,7 @@ Mod:
    nach n Sekunden der Verbindungsaufbau wieder erlaubt. (Noch nicht 
    implementiert)
 $ Die Befehlszeile wird nicht direkt ausgeführt, sondern der Shell übergeben.
+E Beim Auftreten eines Fehlers wird dieses Programm deaktiviert.
 D /dev/ttyiXX wird angelegt und nach Programmende gelöscht.
 F Das Programm wird sofort gestartet, und die Verbindung wird aufgebaut.
   Interessant insbesondere bei Festverbindungen und SPVs.
@@ -678,7 +764,7 @@ f für Festverbindungen. "B" wird hier normalerweise ebenfalls angegeben.
 d für Wählverbindungen
 p für Verbindungsaufbau nach Bedarf ("reconn"-Modul nicht vergessen!);
   wird beim Programmstart automatisch mitgestartet. Die eigentliche
-  ISDN-Verbindung wird hierdurch _nicht_ aufgebaut, dafür ist "b" gedacht.
+  ISDN-Verbindung wird hierdurch _nicht_ aufgebaut, dafür ist "B" gedacht.
 
 
 CM-Zeile ("Card Mode")
@@ -737,6 +823,15 @@ Ueber das Limit hinausgehende Anrufe werden mit BUSY abgelehnt, es sei denn
 in der entsprechenden P-Zeile steht der entsprechende Parameter.
 
 
+LF-Zeile ("Load File")
+--------
+
+Form: LF <Karte> <Segmentgröße> <Dateiname>
+
+Lädt die Datei auf die (aktive) Karte. Mehrere LF-Zeilen können angegeben
+werden.
+
+
 RP-Zeile ("Run Program")
 --------
 Noch nicht implementiert.
@@ -758,11 +853,11 @@ Zusätzlich können für beide Richtungen Schwellwerte definiert werden,
 unterhalb derer keine Uebertragung zugelassen wird, um in Gesprächspausen
 die Rechnerlast zu senken.
 
-:ro 0-127   Ansprechschwelle beim Empfang. Null schaltet permanent auf
-            "Durchgang".
-:rx 0-127   Abschaltschwelle. Töne werden blockiert, wenn mehr als ..:
-:rc 1-32767 aufeinanderfolgende Samples unterhalb der :rx-Schwelle liegen.
-:xo :xx :xc wie :ro :rx :rc, aber für den Sendeteil.
+:ro 0-127    Ansprechschwelle beim Empfang. Null schaltet permanent auf
+             "Durchgang".
+:rx 0-127    Abschaltschwelle. Töne werden blockiert, wenn mehr als ..:
+:rc 1-32767  aufeinanderfolgende Samples unterhalb der :rx-Schwelle liegen.
+:xo :xx :xc  wie :ro :rx :rc, aber für den Sendeteil.
 
 
 Befehlsinterpreter "proto"
@@ -830,8 +925,13 @@ Alle Zeitangaben sind in Sekunden.
 :lo     dto, bei abgehenden Verbindungen
 :lb     dto, beide Verbindungsarten (Default).
 
-Vorsicht: Es macht keinen Sinn, den Timer unterhalb von übertragungssichernden
-Modulen wie x.75 oder gar Datenstrom-Modulen wie v110 anzuordnen.
+Vorsicht: Es macht absolut keinen Sinn, den Timer unterhalb von
+übertragungssichernden Modulen wie x.75 oder gar Datenstrom-Modulen wie
+v110 anzuordnen.
+
+Der Timeout sollte mindestens dreimal so groß sein wie die Zeit, die
+typischerweise zum Verbindungsaufbau benötigt wird, weil es sonst
+scheußliche Interaktionen mit den TCP-Retryalgorithmen gebenb kann.
 
 
 T.70 "t70"
@@ -855,9 +955,9 @@ Van-Jacobsen-Kompression "vanj"
 ------------------------
 Komprimiert TCP-IP-Header.
 Sollte nur auf einer gesicherten Verbindung verwendet werden.
-:ac   Aktiv komprimieren. (Default bei abgehenden Verbindungen.)
-:pa   Komprimieren nur, nachdem ein komprimiertes Paket ankam.
-      (Default bei ankommenden Verbindungen.)
+:ac               Aktiv komprimieren. (Default bei abgehenden Verbindungen.)
+:pa               Komprimieren nur, nachdem ein komprimiertes Paket ankam.
+                  (Default bei ankommenden Verbindungen.)
 
 
 X.75 "x75"
@@ -896,6 +996,12 @@ Interframezeichen etc.) wird von der Hardware auf der Karte erledigt.
             4    wenn der erste Datenblock zur Übertragung ansteht.
             8    gar nicht -- es werden UI-Frames verwendet.
 
+pr_on
+-----
+Spezialmodul, um die "Verbindung hergestellt"-Kennung auf einem Stream
+abzusenden, der nicht über ISDN arbeitet. Wird zB vom slipto-Programm
+verwendet.
+
 
 Verzeichnisstruktur der Sourcen
 ===================
@@ -913,8 +1019,8 @@ ip_mon/     TCP/IP-Monitorprogramm nebst Streamstreiber/Modul.
 isdn_2/     Schicht-2-Treiber für ISDN (D-Kanalsteuerung, B-Kanal-Routing).
 isdn_3/     Schicht-3-Treiber (1TR6 etc.).
 isdn_4/     Steuerprogramm (besagter wilder Hack).
-ksupport/   Supportkram für den Kernel, diverse Streamsmodule.
-strppp/     PPP-Supportmodul, unfertig
+ksupport/   Supportkram für den Kernel, diverse Streamsmodule,
+            Supportcode für die ISDN-Protokollhandler.
 reconnect/  Streamsmodul zum dynamischen Wiederaufbau einer Verbindung.
 strslip/    Streamsmodul für SLIP-Framing.
 str_if/     Streamsmodul für Anbindung an TCP/IP.
@@ -970,38 +1076,36 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 "slip"-Modul via ML-Zeile explizit eingesetzt werden.
 
 -d       eine "Default"-Route zur Gegenseite wird eingerichtet.
--L       Standleitungsbetrieb; protokolliert den Dialog zum Modem.
--l       Debugging; setzt qinfo-Modul ein.
--l       zusätzlich count-Modul.
--l       zusätzlich strlog-Modul.
--M       Standleitungsbetrieb; setzt IP-Monitor-Modul ein.
--S       Standleitungs/Dialupbetrieb auf synchroner Leitung: verwende kein
-         "slip"-Modul.
 -m mtu   setzt die MTU auf den angegebenen Wert. (Die MRU ist auf 4000 Bytes
          begrenzt.)
--o       Standleitungsbetrieb; schickt ATA zur Leitung und wartet auf CONNECT.
--p dev   Standleitungs- oder Dialupbetrieb; öffnet Device "dev". (/dev/tty
-         für stdin/out)
--v       schaltet Van-Jacobsen-Headerkompression ein.
--f       schaltet Cisco-HDLC-Header ein.
 -R ip    die IP-Nummer "ip" wird zur Gegenseite geroutet. (route -host)
 -r ip    Das IP-Netz "ip" wird zur Gegenseite geroutet. (route -net)
 -r ip:nm Das IP-Netz "ip" wird mit der Netmask "nm" zur Gegenseite geroutet.
-ip_loc   lokale IP-Nummer.
-         Es muß sich dabei nicht unbedingt um die IP-Nummer handeln, die
-         die Gegenstelle von uns erwartet; es reicht, wenn die Gegenseite
-         die verwendete Nummer zu uns routet und die dort konfigurierte Nummer
-         lokal erkannt wird. Um das zu erreichen, ist der Befehl
-            % ifconfig lo0 alias <Erwartete_IP_Nr>
-         (BSD), bzw.
-            % ifconfig dummyX <IP-Nr> ; route add <IP-Nr>
-         (Linux) sehr hilfreich.
-ip_rem   IP-Nummer der Gegenstelle
-         Es muß sich dabei nicht unbedingt um die IP-Nummer handeln, die 
-         die Gegenseite auf ihrem Interface konfiguriert hat; es reicht,
-         wenn es eine ist, die irgendwo am anderen Ende der Leitung existiert.
-         Solche 'wilden' Konfigurationen sollte man zwar vermeiden, aber...
 
+Die folgenden Optionen werden _nicht_ im ISDN-Betrieb verwendet, sondern im
+Standalonebetrieb mit anderen Streams-Treibern. Im ISDN-Betrieb müssen
+stattdessen die entsprechenden Module auf der ML-Konfigurationszeile
+eingetragen werden.
+
+-L       protokolliert den Dialog zum Modem.
+-l       Debugging: setzt qinfo-Modul ein.
+-ll       zusätzlich count-Modul.
+-lll       zusätzlich strlog-Modul.
+-M       setzt IP-Monitor-Modul ein.
+-S       Betrieb auf synchroner Leitung: verwende kein "slip"-Modul.
+-E       Autoenable; wenn slipto auf einer bestehenden Verbindung gestartet
+         wird.
+-o       schickt ATA zur Leitung und wartet auf CONNECT.
+-p dev   öffnet Device "dev". (Man verwende "/dev/tty" für stdin/out.)
+-v       verwende Van-Jacobsen-Headerkompression.
+-f       verwende Cisco-HDLC-Header.
+
+Die folgenden Parameter müssen immer angegeben werden:
+
+ip_loc   lokale IP-Nummer.
+         Kann auch auf anderen Interfaces (Ethernet) verwendet werden!
+ip_rem   IP-Nummer der Gegenstelle.
+         Die beiden Nummern muessen nicht im gleichen Netz sein!
 
 Hackers Corner
 ==============

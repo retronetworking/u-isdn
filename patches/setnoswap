@@ -2,6 +2,8 @@ Dieser "Hack"-Patch ermoeglicht es einem Prozess, sich im Speicher zu
 verewigen...
 
 Notwendig, wenn der ISDN-Server auch noch was anderes zu tun hat.
+Das Standardinterface fuer solche Faelle (mlockall() oder so) existiert
+leider noch nicht.
 
 diff -rub --unidir /pub/src/linux/kernel/linux/kernel/sys.c ./kernel/sys.c
 --- /pub/src/linux/kernel/linux/kernel/sys.c	Sat Mar  4 23:16:36 1995

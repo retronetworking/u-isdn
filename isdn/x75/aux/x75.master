@@ -1,3 +1,0 @@
-if isdn_2 include .
-if . include x75lib
-x	-	x75	-	1	1

@@ -13,12 +13,11 @@ Wem das nicht paßt, der lösche diesen Code. Jetzt.
 
 Ansonsten: Erst DOKU lesen (im isdn-Verzeichnis)!
 
-Dann die Patches auf den aktuellen Kernel (momentan 1.1.91) anwenden,
+Dann ggf. die Patches auf den aktuellen Kernel (momentan 1.2.11) anwenden,
 Kernel bauen, booten. Nachsehen ob das System noch funktioniert.
 
-Dann isdn/config/config.data und isdn/cards/dumb/Config.c ansehen und
-gegebenenfalls ändern (in config.data steht "gcc-elf", den hat nicht
-jeder; ersetze durch "gcc").
+Dann config/config.data und cards/dumb/Config.c ansehen und gegebenenfalls
+ändern.
 
 Dann nochmal make.isdn aufrufen.
 
@@ -31,7 +30,7 @@ folgendem Skript irgendwo in der Bootsequenz:
 >  )
 
 Vorher: In /lib/modules/KERNELVERSION: modules.isdn.all nach modules.isdn
-        kopieren und nicht benötigte Module aus dieser Datei rauswerfen.
+        kopieren; nicht benötigte Module ggf. aus dieser Datei rauswerfen.
 
 EOF
 touch .toldem
@@ -49,10 +48,10 @@ dir=/lib/modules/$VERSION/isdn
 if test ! -d $dir ; then mkdir -p $dir ; fi
 cp /dev/null $dir/modules.isdn.all
 if test ! -f .depend ; then make depend && touch .depend ; fi
-	PATH=$(pwd)/isdn/tools:$PATH make load
-	make -C isdn iprog
+	PATH=$(pwd)/tools:$PATH make load
+	make iprog
 else
 	if test ! -f .depend ; then make depend && touch .depend ; fi
 	make all
-	make -C isdn prog
+	make prog
 fi

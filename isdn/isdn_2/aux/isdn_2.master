@@ -1,6 +1,0 @@
-include .
-if . include streamlib
-if . include x75lib
-if . include smallq
-if . include proto
-mps		-	isdn2_ 	-	8	1

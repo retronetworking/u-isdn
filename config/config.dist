@@ -1,0 +1,79 @@
+##
+##  ISDN master configuration file.
+##  Note that if you leave a field blank, you must have the trailing tab!
+##
+
+
+##
+## System type. Selects which Makefiles to use for installation.
+#### =()<SYS	@<SYS>@>()=
+SYS	aux
+##
+## Name of the "KERNEL" flag in system include files (KERNEL, _KERNEL, INKERNEL)
+#### =()<KERNEL		@<KERNEL>@>()=
+KERNEL		KERNEL
+## Byte order. Motorola 4321, Intel 1234.
+#### =()<BYTEORDER	@<BYTEORDER>@>()=
+BYTEORDER	4321
+##
+## Card drivers to install. Subdirectories of SRC/cards.
+#### =()<CARDS	@<CARDS>@>()=
+CARDS	leonardo
+##
+## Defines for master program (L2 test version)
+#### =()<CARDDEFS	@<CARDDEFS>@>()=
+CARDDEFS	-DLEONARDO
+##
+## Level to include in master program.
+## Set to 3.(2 for semi-testing L2 in user mode. 4 is untested.)
+#### =()<MLEVEL		@<MLEVEL>@>()=
+MLEVEL		3
+
+##  If you have a parallel make, set this to "&"
+#### =()<P			@<P>@>()=
+P			
+##  C pre-processor flags
+#### =()<DEFS			@<DEFS>@>()=
+DEFS			-I../include
+##  C pre-processor flags, when compiling card support
+#### =()<DEFS2			@<DEFS2>@>()=
+DEFS2			-I../../include
+##  C compiler
+#### =()<CC			@<CC>@>()=
+CC			gcc.new
+##
+##  C compiler flags
+#### =()<CFLAGS			@<CFLAGS>@>()=
+CFLAGS			$(DEFS) -g -O2 -W -Wreturn-type -Wshadow -Wcomment 
+#CFLAGS			$(DEFS) -g -O -W -Wreturn-type -Wshadow -Wcomment 
+#CFLAGS			$(DEFS) -g -W -Wreturn-type -Wshadow -Wcomment -D_BSD_SOURCE -D_SYSV_SOURCE
+##  Flags for the "cc -o" line; e.g., -Bstatic on SunOS4.x while debugging.
+#### =()<LDFLAGS			@<LDFLAGS>@>()=
+LDFLAGS		
+##
+##  If you need to link in other libraries, add them here
+#### =()<LIBS		@<LIBS>@>()=
+LIBS		-lbsd -lc_s
+##
+## RANLIB
+#### =()<RANLIB		@<RANLIB>@>()=
+RANLIB		: ranlib
+##
+
+##
+## Name of sys/termio.h (or sys/termios.h)
+#### =()<TERMIO	@<TERMIO>@>()=
+TERMIO		termio
+##
+## Name of /usr/include/strings.h
+#### =()<STRINGS	@<STRINGS>@>()=
+STRINGS		strings
+
+##
+## What to call protocol stuff. M_EXPROTO or (M_PROTO+0x40)
+#### =()<MSG_PROTO	@<MSG_PROTO>@>()=
+MSG_PROTO	M_EXPROTO
+##
+## What to call hopefully-expedited data stuff.
+#### =()<MSG_DATA	@<MSG_DATA>@>()=
+MSG_DATA	M_EXDATA

@@ -1,3 +1,7 @@
+Ptch, um den seriellen Treiber nachladen zu können.
+
+Warnung: Seit einiger Zeit nicht mehr getestet.
+
 --- /pub/src/linux/kernel/linux-1.1/drivers/char/serial.c	Tue Jan 24 12:44:05 1995
 +++ drivers/char/serial.c	Sat Feb 11 07:12:10 1995
 @@ -17,6 +17,14 @@
