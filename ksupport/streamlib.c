@@ -240,35 +240,25 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 }
 
 
+
 #ifdef CONFIG_DEBUG_STREAMS
 void
-deb_putbqf (const char *deb_file,unsigned int deb_line, queue_t * q, mblk_t * mp)
+deb_putbqff(const char *deb_file,unsigned int deb_line, queue_t * q, mblk_t * mp)
 #else
 void
-putbqf (queue_t * q, mblk_t * mp)
+putbqff(queue_t * q, mblk_t * mp)
 #endif
 {
 	int qflag;
 
 	/*
-	 * putbq() schedules a queue when a priority packet is putbq()'d onto it.
-	 * We don't want that to happen.
-	 * 
-	 * Solution: Temporarily turn the flag on which says that this queue already
-	 * is scheduled, call the real putbq, then turn the flag off again. Then
-	 * turn on QWANTR which says that the queue wants to get scheduled if a new
-	 * packet arrives.
-	 * 
-	 * This exercise should work with all Streams versions.
+	 * like putbqf but is not an error...
 	 */
 	int ms = splstr ();
 
 	qflag = q->q_flag;
 	q->q_flag |= QENAB;
 #ifdef CONFIG_DEBUG_STREAMS
-	/* This is KERN_EMERG message because it just shouldn't happen --
-	   putbqf is for emergencies, putbq is for normal scheduling. */
-	printf("%sPutBQF %p:%p at %s:%d\n",KERN_EMERG,q,mp,deb_file,deb_line);
 	deb_putbq (deb_file,deb_line, q, mp);
 #else
 	putbq (q, mp);
@@ -281,6 +271,25 @@ putbqf (queue_t * q, mblk_t * mp)
 	splx (ms);
 }
 
+
+
+#ifdef CONFIG_DEBUG_STREAMS
+void
+deb_putbqf (const char *deb_file,unsigned int deb_line, queue_t * q, mblk_t * mp)
+#else
+void
+putbqf (queue_t * q, mblk_t * mp)
+#endif
+{
+#ifdef CONFIG_DEBUG_STREAMS
+	/* This is KERN_EMERG message because it just shouldn't happen --
+	   putbqf is for emergencies, putbq is for normal scheduling. */
+	printf("%sPutBQF %p:%p at %s:%d\n",KERN_EMERG,q,mp,deb_file,deb_line);
+	deb_putbqff(deb_file,deb_line, q,mp);
+#else
+	putbqff(q,mp);
+#endif
+}
 
 int
 #ifdef CONFIG_DEBUG_STREAMS

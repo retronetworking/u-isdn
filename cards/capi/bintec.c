@@ -352,6 +352,7 @@ reset_card(struct _bintec *bp)
 		untimeout(toss_unknown, bp);
 #endif
 	}
+
 	bp->sndoffset = -1;
 	bp->rcvoffset = -1;
 	bp->msgnr = 0;
@@ -1215,9 +1216,11 @@ toss_unknown (struct _bintec *bp)
 static void
 process_unknown (struct _bintec *bp)
 {
+	long s;
 	if(bp->q_unknown.nblocks == 0)
 		return;
 	
+	s = splstr();
 	if(bp->unknown_timer) {
 		bp->unknown_timer = 0;
 #ifdef NEW_TIMEOUT
@@ -1226,6 +1229,8 @@ process_unknown (struct _bintec *bp)
 		untimeout(toss_unknown, bp);
 #endif
 	}
+	splx(s);
+
 	{
 		struct _smallq sq = bp->q_unknown;
 		mblk_t *mb;

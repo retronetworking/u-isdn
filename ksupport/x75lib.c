@@ -573,7 +573,7 @@ x75_check_pending (x75 state, char fromLow)
 	 * send pending I frames because we're still waiting for an ack.
 	 */
 	if (state->status != S_up) {
-		if(state->I.first != NULL) 
+		if((state->I.first != NULL) && state->debug)
 			printf("%sx75.%d: State %d/%s, pending\n",KERN_DEBUG,state->debugnr,state->status,x75_sname[state->status]);
 		if ((state->status == S_await_up) && fromLow) {
 			stop_T(1,err);

@@ -2399,7 +2399,7 @@ do_runqueues(void *dummy)
 		if(!--cnt) {
 			if(!looping)
 				printf("%sStreams loop %c %s?\n",KERN_EMERG,(p_queue->q_flag & QREADR ? 'R':'W'), p_queue->q_qinfo->qi_minfo->mi_idname);
-			looping++; looping++;
+			/* looping++; looping++; */
 			break;
 		}
 	}
