@@ -5,6 +5,10 @@ include $(TOPDIR)/Make.rules
 
 all:: $(KERNELSRC)/include/linux/autoconf.h $(KERNELSRC)/include/linux/version.h
 
+depend::
+	rm -f symtables
+	cp /dev/null symtables
+
 $(KERNELSRC)/include/linux/autoconf.h $(KERNELSRC)/include/linux/version.h:
 	@echo "Die Kernelsourcen sind entweder irgendwo, nur nicht in "
 	@echo "$(KERNELSRC), oder jemand hat dort 'make mrproper' "

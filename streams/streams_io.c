@@ -47,8 +47,6 @@ static void stream_rput (queue_t *, mblk_t *);
 static void stream_wsrv (queue_t *);
 static void stream_rsrv (queue_t *);
 
-int fasync_helper(struct inode * inode, struct file * filp, int on, struct fasync_struct **fapp);
-
 static struct stream_header *first_stream = NULL;
 /**
  * streams_open
@@ -581,45 +579,6 @@ streams_read (struct inode *inode, struct file *file, char *buf, int count)
 		}
 	}
 	return bytes;
-}
-
-/*
- * Copied from tty_io.c...
- */
-int
-fasync_helper(struct inode * inode, struct file * filp, int on, struct fasync_struct **fapp)
-{
-    struct fasync_struct *fa, **fp;
-    unsigned long flags;
-
-    for (fp = fapp; (fa = *fp) != NULL; fp = &fa->fa_next) {
-        if (fa->fa_file == filp)
-            break;
-    }
-
-    if (on) {
-        if (fa)
-            return 0;
-        fa = (struct fasync_struct *)kmalloc(sizeof(struct fasync_struct), GFP_KERNEL);
-        if (!fa)
-            return -ENOMEM;
-        fa->magic = FASYNC_MAGIC;
-        fa->fa_file = filp;
-        save_flags(flags);
-        cli();
-        fa->fa_next = *fapp;
-        *fapp = fa;
-        restore_flags(flags);
-        return 1;
-    }
-    if (!fa)
-        return 0;
-    save_flags(flags);
-    cli();
-    *fp = fa->fa_next;
-    restore_flags(flags);
-    kfree(fa);
-    return 1;
 }
 
 

@@ -1346,6 +1346,46 @@ do_trace(void)
 	return 0;
 }
 
+/* PROTO_TELLME -- log what's happening... */
+int
+do_tellme(void)
+{
+	mblk_t xy;
+	struct datab db;
+	char ans[20];
+	int len = xx.b_wptr-xx.b_rptr;
+
+	xy.b_rptr = ans;
+	db.db_base = ans;
+	db.db_lim = ans + sizeof (ans);
+	xy.b_datap = &db;
+
+	if(subcard == 0)
+		return 0;
+
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+		struct iovec io[3];
+
+		chkone(conn);
+		if(conn->ignore < 4 || conn->minor == 0)
+			continue;
+
+		xy.b_wptr = ans;
+		m_putid (&xy, CMD_PROT);
+		m_putsx (&xy, ARG_FMINOR);
+		m_puti (&xy, conn->minor);
+		m_putdelim (&xy);
+		m_putid (&xy, PROTO_AT);
+		io[0].iov_base = xy.b_rptr;
+		io[0].iov_len = xy.b_wptr - xy.b_rptr;
+		io[1].iov_base = xx.b_rptr;
+		io[1].iov_len = len;
+		DUMPW (xy.b_rptr, io[0].iov_len);
+		(void) strwritev (xs_mon, io, 2, 1);
+	}
+	return 0;
+}
+
 
 /* IND_OPEN: a /dev/isdn/isdnXX device was openend. */
 int
@@ -1628,6 +1668,28 @@ do_atcmd(void)
 					return 1;
 				}
 				break;
+			case 's': case 'S':
+				if(m_geti(&xx,&minor) >= 0) {
+					mblk_t xy;
+					struct datab db;
+					char ans[20];
+
+					xy.b_rptr = ans;
+					db.db_base = ans;
+					db.db_lim = ans + sizeof (ans);
+					xy.b_datap = &db;
+					xy.b_wptr = ans;
+
+					m_putid (&xy, CMD_PROT);
+					m_putsx (&xy, ARG_FMINOR);
+					m_puti (&xy, minor);
+					m_putdelim (&xy);
+					m_putid (&xy, PROTO_TELLME);
+					DUMPW (xy.b_rptr, xy.b_wptr-xy.b_rptr);
+					(void) strwrite (xs_mon, (uchar_t *) xy.b_rptr, xy.b_wptr-xy.b_rptr, 1);
+				} else
+					minor = -1; /* flag */
+				goto enable_watch;
 			case 'r': /* AT/R */
 			case 'R': /* Reload database. */
 				if(user[fminor] != 0 && user[fminor] != rootuser) {
@@ -1727,6 +1789,8 @@ do_atcmd(void)
 				break;
 			case 'l': /* AT/L */
 			case 'L': /* List connections and state changes. */
+				minor = 0;
+			  enable_watch:
 				{
 					struct conninfo *fconn;
 					char buf[30];
@@ -1738,7 +1802,7 @@ do_atcmd(void)
 						return 1;
 					}
 					bzero(conn,sizeof(*conn));
-					{
+					if(!minor) {
 						streamchar *m1, *m2, m3;
 						m_getskip (&xx);
 						if (xx.b_rptr != xx.b_wptr) {
@@ -1760,22 +1824,28 @@ do_atcmd(void)
 							}
 						} else
 							conn->cardname = "*";
-					}
+					} else
+						conn->cardname = "*";
 					conn->seqnum = ++connseq;
 					conn->ignore = 3;
-					conn->minor = minor;
+					conn->minor = fminor;
 					conn->next = isdn4_conn; isdn4_conn = conn;
 
-					connreport("#:ref id site protocol class pid state/card cost total flags,remNr;locNr cause","*",minor);
-					for(fconn = isdn4_conn; fconn != NULL; fconn = fconn->next)  {
-						if(fconn->ignore >= 3) 
-							continue;
-						if((fconn->cg != NULL) && (fconn->cg->card != NULL))
-							if(!wildmatch(fconn->cg->card,conn->cardname))
+					if(!minor) {
+						connreport("#:ref id site protocol class pid state/card cost total flags,remNr;locNr cause","*",fminor);
+						for(fconn = isdn4_conn; fconn != NULL; fconn = fconn->next)  {
+							if(fconn->ignore >= 3) 
 								continue;
-						ReportOneConn(fconn,minor);
+							if((fconn->cg != NULL) && (fconn->cg->card != NULL))
+								if(!wildmatch(fconn->cg->card,conn->cardname))
+									continue;
+							ReportOneConn(fconn,fminor);
+						}
 					}
-					sprintf(buf,"# Waiting %s...", conn->cardname);
+					if(minor > 0)
+						sprintf(buf,"# Dump&Wait %ld...", minor);
+					else
+						sprintf(buf,"# Waiting %s...", conn->cardname);
 					resp = str_enter(buf);
 
 					return 1;
@@ -2335,6 +2405,7 @@ do_noerror(void)
 	case IND_CLOSE:            ret = do_close();         break;
 	case IND_OPEN:             ret = do_open();          break;
 	case IND_TRACE:            ret = do_trace();         break;
+	case PROTO_TELLME:         ret = do_tellme();        break;
 	case PROTO_HAS_CONNECTED:  ret = do_hasconnected();  break;
 	case PROTO_DISCONNECT:     ret = do_disconnect();    break;
 	case PROTO_HAS_DISCONNECT: ret = do_hasdisconnect(); break;

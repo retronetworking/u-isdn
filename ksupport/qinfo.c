@@ -56,81 +56,90 @@ struct _qinfo {
 	int timeout;
 };
 
-static void
-qinf (queue_t * q)
+static streamchar *
+qinf (streamchar *buf, queue_t * q)
 {
 	struct msgb *m = q->q_first;
 	long sum = 0;
 	unsigned short fl = q->q_flag;
-	char x[30];
-	char *p = x;
 
 	if (fl & QENAB)
-		*p++ = 'e';
+		*buf++ = 'e';
 	if (fl & QWANTR)
-		*p++ = 'r';
+		*buf++ = 'r';
 	if (fl & QWANTW)
-		*p++ = 'w';
+		*buf++ = 'w';
 	if (fl & QFULL)
-		*p++ = 'f';
+		*buf++ = 'f';
 	if (fl & QREADR)
-		*p++ = 'R';
+		*buf++ = 'R';
 #ifdef QUSE
 	if (fl & QUSE)
-		*p++ = 'u';
+		*buf++ = 'u';
 #endif
 	if (fl & QNOENB)
-		*p++ = 'n';
-	*p = '\0';
-	printf ("%s ", x);
+		*buf++ = 'n';
+	*buf++ = ' ';
 
 	while (m != NULL) {
 		int siz = dsize (m);
 
 		sum += siz + 1;
-		printf ("%d", siz);
+		buf += sprintf (buf,"%d", siz);
 		m = m->b_next;
 		if (m != NULL)
-			printf (",");
+			*buf++ = ',';
 	}
 	if (sum)
-		printf (": %ld", sum);
+		buf += sprintf (buf, ": %ld", sum);
 	if (q->q_count > 0) {
 		if ((sum == 0) && (q->q_count > 0)) {
-			printf (" * %d * ", q->q_count);
+			buf += sprintf (buf, " * %d * ", q->q_count);
 			q->q_count = 0;
 			q->q_flag &= ~QFULL;
-			qenable (q);
 		}
-		printf (" %d/%d/%d", q->q_lowat, q->q_count, q->q_hiwat);
+		qenable (q);
+		buf += sprintf (buf, " %d/%d/%d", q->q_lowat, q->q_count, q->q_hiwat);
 	}
+	return buf;
 }
 
 
 static void
 qinfo_log (struct _qinfo *qinfo)
 {
-	queue_t *q = qinfo->qptr;
+	mblk_t *mb;
 
-	while (q->q_next != NULL)
-		q = q->q_next;
+	mb = allocb(1024,BPRI_LO);
+	if(mb != NULL) {
+		streamchar *bufend;
+		queue_t *q = qinfo->qptr;
 
-	printf ("*** QInfo %d\n", qinfo->nr);
+		m_putid(mb,PROTO_TELLME);
+		m_putdelim(mb);
+		DATA_TYPE(mb) = MSG_PROTO;
+		bufend = mb->b_wptr;
 
-	while (q != NULL) {
-		printf ("%s: ", q->q_qinfo->qi_minfo->mi_idname);
-		qinf (q);
-		printf (" // ");
-		q = WR (q);
-		qinf (q);
-		printf ("\n");
-
-		q = q->q_next;
-		if (q != NULL)
-			q = RD (q);
+		while (q->q_next != NULL)
+			q = q->q_next;
+	
+		bufend += sprintf (bufend,"*** QInfo %d\n", qinfo->nr);
+	
+		while (q != NULL) {
+			bufend += sprintf (bufend,"%s: ", q->q_qinfo->qi_minfo->mi_idname);
+			bufend  = qinf (bufend, q);
+			bufend += sprintf (bufend," // ");
+			q = WR (q);
+			bufend  = qinf (bufend,q);
+			bufend += sprintf (bufend,"\n");
+	
+			q = q->q_next;
+			if (q != NULL)
+				q = RD (q);
+		}
+		mb->b_wptr = bufend;
+		putnext(WR(qinfo->qptr),mb);
 	}
-
-	printf ("\n");
 #ifdef NEW_TIMEOUT
 	qinfo->timer =
 #endif
@@ -157,7 +166,7 @@ qinfo_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	qinfo->qptr = q;
 	qinfo->nr = nr++;
 	printf ("QInfo driver %d opened.\n", qinfo->nr);
-	qinfo->timeout = 10*HZ;
+	qinfo->timeout = 60*HZ;
 #ifdef NEW_TIMEOUT
 	qinfo->timer =
 #endif
@@ -183,6 +192,14 @@ qinfo_prot (queue_t * q, mblk_t * mp)
 	switch (id) {
 	default:
         mp->b_rptr = origmp;
+		break;
+	case PROTO_TELLME:
+#ifdef NEW_TIMEOUT
+		untimeout (qinfo->timer);
+#else
+		untimeout ((void *)qinfo_log, qinfo);
+#endif
+		qinfo_log(qinfo);
 		break;
 	case PROTO_MODULE:
 		if (strnamecmp (q, mp)) {	/* Config information for me. */

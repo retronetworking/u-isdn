@@ -79,7 +79,7 @@ set_inval (unsigned long inv)
 }
 
 int tostr (char *bf, struct _monitor *mon);
-int tomon (char *bf, struct _monitor *mon);
+/* int tomon (char *bf, struct _monitor *mon); */
 
 int main (int argc, char *argv[])
 {
@@ -88,10 +88,16 @@ int main (int argc, char *argv[])
 	extern char *optarg;
 	int sock;
 	int dolog = 0;
+#if 0
 	int ignstdin = 1;
+#else
+#	define ignstdin 1
+#endif
 	char *progname;
 	fd_set fd, fd1;
+#if 0
 	char bf1[512];
+#endif
 	int b1;
 
 	setvbuf (stdout, NULL, _IOLBF, 512);
@@ -99,17 +105,19 @@ int main (int argc, char *argv[])
 		progname++;
 	else
 		progname = argv[0];
-	while ((c = getopt (argc, argv, "Iilabctmnh")) != EOF)
+	while ((c = getopt (argc, argv, "labctmnh")) != EOF)
 		switch (c) {
 		case '?':
 		default:
 			Usage (argv[0]);
+#if 0
 		case 'I':
 			ignstdin=0;
 			break;
 		case 'i':
 			ignstdin=1;
 			break;
+#endif
 		case 't':
 			logtime = 1;
 			break;
@@ -207,6 +215,7 @@ int main (int argc, char *argv[])
 			syslog (LOG_ERR, "Select: %m\n");
 			exit (1);
 		}
+#if 0
 		if (FD_ISSET (0, &fd1)) {
 			struct _monitor mon;
 			int i = read (0, bf1 + b1, sizeof (bf1) - b1 - 1);
@@ -240,6 +249,7 @@ int main (int argc, char *argv[])
 				}
 			}
 		}
+#endif
 		if (FD_ISSET (sock, &fd1)) {
 			struct _monitor mon;
 			int i = read (sock, &mon, sizeof (mon));
@@ -266,6 +276,7 @@ int main (int argc, char *argv[])
 	return 0;
 }
 
+#if 0
 int
 tomon (char *bf, struct _monitor *mon)
 {
@@ -278,7 +289,6 @@ tomon (char *bf, struct _monitor *mon)
 	if (sscanf (bf, "%s %s %d %d", a, b, &c, &d) != 4)
 		return -1;
 	bzero (mon, sizeof (mon));
-	mon->known = 1;
 	mon->cap_p = c;
 	mon->cap_b = d;
 
@@ -301,6 +311,7 @@ tomon (char *bf, struct _monitor *mon)
 	}
 	return 0;
 }
+#endif
 
 jmp_buf jp;
 void alju(int nix) { longjmp(jp,1); }
@@ -315,7 +326,7 @@ tostr (char *bf, struct _monitor *mon)
 	static char *bfx;
 	bfx = bf; /* to prevent longjmp clobber */
 
-	if (mon->sofar_p == 0 && mon->sofar_b == 0)
+	if (mon->packets == 0 && mon->bytes == 0)
 		return -1;
 
 	signal(SIGALRM,alju);
@@ -353,7 +364,7 @@ tostr (char *bf, struct _monitor *mon)
 		bfx += sprintf(bfx,"%ld:",thispri-lastpri);
 		lastpri=thispri;
 	}
-	bfx += sprintf (bfx, "%s %s %d %ld  ", a, b, mon->sofar_p, mon->sofar_b);
+	bfx += sprintf (bfx, "%s %s %d %ld  ", a, b, mon->packets, mon->bytes);
 	if(!notprotocol && (proto = getprotobynumber(mon->p_protocol)) != NULL) {
 		if((serv1 = getservbyport((mon->p_local), proto->p_name)) != NULL)
 			strcpy(a, serv1->s_name);
@@ -367,5 +378,6 @@ tostr (char *bf, struct _monitor *mon)
 	} else {
 		bfx += sprintf (bfx, "_%d _%u _%u", mon->p_protocol, ntohs(mon->p_local), ntohs(mon->p_remote));
 	}
+	bfx += sprintf (bfx," %ld %ld %c", mon->t_first,mon->t_last-mon->t_first, mon->dir ? '>' : '<');
 	return 0;
 }

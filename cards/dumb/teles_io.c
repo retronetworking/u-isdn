@@ -40,7 +40,8 @@ Init(struct _dumb * dumb) {
 		}
 		switch(dumb->info.irq) {
 		default: printk("irq %d not possible: ",dumb->info.irq); return -EINVAL;
-		case  2: cfval = 0x00; break;
+		case  2:
+		case  9: cfval = 0x00; break;
 		case  3: cfval = 0x02; break;
 		case  4: cfval = 0x04; break;
 		case  5: cfval = 0x06; break;
@@ -54,7 +55,7 @@ Init(struct _dumb * dumb) {
 		cfval |= ((dumb->info.memaddr >> 9) & 0xF0);
 		if(ByteIn(ioaddr+0) != 0x51) { return -EINVAL; }
 		if(ByteIn(ioaddr+1) != 0x93) { return -EINVAL; }
-		if((ByteIn(ioaddr+2) & 0xFE) != 0x1E) { return -EINVAL; }
+		if((ByteIn(ioaddr+2) & 0xFC) != 0x1C) { return -EINVAL; }
 
 		timout = jiffies+(HZ/10)+1;
 		ByteOut(ioaddr+4,cfval);

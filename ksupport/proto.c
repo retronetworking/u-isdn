@@ -177,6 +177,7 @@ proto_prot (queue_t * q, mblk_t * mp)
 		mp = NULL;
 		break;
 	case PROTO_TICK:
+	case PROTO_TELLME: /* TODO send OK to the monitor, if any */
 		freemsg(mp);
 		mp = NULL;
 		break;

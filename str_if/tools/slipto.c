@@ -41,6 +41,7 @@
 #include <compat.h>
 #endif
 #include <fcntl.h>
+#include <strings.h>
 
 #include "str_if.h"
 #include "sioctl.h"
@@ -169,17 +170,33 @@ enable (void)
 #endif
 
 		for(y = destaddr;y != destxaddr;y++) {
-			char *route = strchr(*y,':');
-			char *foo; char xbuf[40];
+			char *foo; char xbuf[50];
+			char *route;
+			
+			route = strchr(*y,':');
+			if(route == NULL)
+				route = strchr(*y,'/');
 			if(route) {
-				*route++ = '\0';
+				char rc = *route;
+				if(*route == '/') {
+					static char s[20];
+					unsigned long mask;
+
+					*route++ = '\0';
+					mask = (~0)<<(32-atoi(route));
+					foo = s;
+					sprintf(s,"%ld.%ld.%ld.%ld",(mask>>24)&0xFF,(mask>>16)&0xFF,(mask>>8)&0xFF,mask&0xFF);
+				} else {
+					*route++ = '\0';
+					foo = route;
+				}
 #ifdef SET_STEP
-				sprintf(xbuf, "%s netmask %s",*y,route);
+				sprintf(xbuf, "%s netmask %s",*y,foo);
 #else
-				sprintf(xbuf, "%s -netmask %s",*y,route);
+				sprintf(xbuf, "%s -netmask %s",*y,foo);
 #endif
+				*--route = rc;
 				foo = xbuf;
-				*--route = ':';
 			} else {
 				foo = *y;
 			}

@@ -542,6 +542,9 @@ statename(enum C_state status)
 	case C_await_up:
 		return "C_await_up";
 		break;
+	case C_await_back_up:
+		return "C_await_back_up";
+		break;
 	case C_await_down:
 		return "C_await_down";
 		break;
@@ -731,6 +734,11 @@ D_L1_up (isdn2_card card)
 	case C_wont_up:
 		return -EIO;
 	case C_await_down:
+	case C_await_back_up:
+		if(!(card->card->modes & CHM_INTELLIGENT)) {
+			set_card_status (card, C_await_back_up);
+			break;
+		} /* else FALL THRU */
 	case C_down:
 	case C_wont_down:
 		if(!(card->card->modes & CHM_INTELLIGENT)) {
@@ -769,6 +777,7 @@ D_L1_down (isdn2_card card)
 		printf ("%sD_L1_Down: State was %d\n",KERN_DEBUG, card->status);
 	switch (card->status) {
 	case C_await_down:
+	case C_await_back_up:
 	case C_down:
 	case C_wont_up:
 		(*card->card->ch_mode) (card->card, 0, M_OFF, 0);
@@ -1301,6 +1310,7 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 		case C_lock_up:
 			freemsg (mb);
 			return;
+		case C_await_back_up:
 		case C_await_down:
 			hdr->hdr_notify.ind = PH_DISCONNECT_IND;
 			set_card_status (ctl, C_down);
@@ -1329,6 +1339,12 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 		case C_down:
 			freemsg (mb);
 			return;
+		case C_await_back_up:
+			set_card_status (ctl, C_down);
+			if(D_L1_up(ctl) >= 0) {
+				freemsg (mb);
+				return;
+			} /* else FALL THRU */
 		case C_await_down:
 			hdr->hdr_notify.ind = PH_DEACTIVATE_CONF;
 			set_card_status (ctl, C_down);
@@ -1367,6 +1383,7 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 			if(ctl->offline && !isdn2_notsent)
 				isdn2_sendcard(ctl);
 			/* FALL THRU */
+		case C_await_back_up:
 		case C_await_down:		  /* Oops, bus doesn't want to go down.
 								   * Continue to listen for incoming frames. */
 			if(ctl->card->modes & CHM_INTELLIGENT)

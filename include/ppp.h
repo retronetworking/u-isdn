@@ -52,6 +52,7 @@
 #define DLLHEADERLEN	(sizeof (u_char) + sizeof (u_char) + sizeof (u_short))
 #define MTU		1500	/* Default MTU */
 
+
 /*
  * Important FCS values.
  */

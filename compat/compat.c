@@ -48,7 +48,8 @@ struct timing_old {
 };
 static struct timing_old *start = NULL;
 
-static void dotimer(void *arg)
+static void
+dotimer(void *arg)
 {
 	struct timing *tim = (struct timing *)arg;
 
@@ -66,7 +67,8 @@ static void dotimer(void *arg)
 #endif
 }
 
-static void droptimer_old(void (*func)(void *), void *arg, char del)
+static void
+droptimer_old(void (*func)(void *), void *arg, char del)
 {
 	struct timing_old *tim;
 	unsigned long flags;
@@ -100,7 +102,8 @@ static void droptimer_old(void (*func)(void *), void *arg, char del)
 	printk("Timer %p:%p not found\n", func,arg);
 }
 
-static void dotimer_old(void *arg)
+static void
+dotimer_old(void *arg)
 {
 	struct timing_old *tim = (struct timing_old *)arg;
 
@@ -116,10 +119,11 @@ static void dotimer_old(void *arg)
 
 }
 
+int
 #ifdef CONFIG_MALLOC_NAMES
-int deb_timeout(const char *deb_file, unsigned int deb_line, void (*func)(void *), void *arg, int expire)
+deb_timeout(const char *deb_file, unsigned int deb_line, void (*func)(void *), void *arg, int expire)
 #else
-int timeout(void (*func)(void *), void *arg, int expire)
+timeout(void (*func)(void *), void *arg, int expire)
 #endif
 {
 	typedef void (*fct)(unsigned long);
@@ -152,10 +156,11 @@ int timeout(void (*func)(void *), void *arg, int expire)
 	return (int)timer;
 }
 
+void
 #ifdef CONFIG_MALLOC_NAMES
-void deb_timeout_old(const char *deb_file, unsigned int deb_line, void (*func)(void *), void *arg, int expire)
+deb_timeout_old(const char *deb_file, unsigned int deb_line, void (*func)(void *), void *arg, int expire)
 #else
-void timeout_old(void (*func)(void *), void *arg, int expire)
+timeout_old(void (*func)(void *), void *arg, int expire)
 #endif
 {
 	typedef void (*fct)(unsigned long);
@@ -195,10 +200,11 @@ void timeout_old(void (*func)(void *), void *arg, int expire)
 
 }
 
+void
 #ifdef CONFIG_MALLOC_NAMES
-void deb_untimeout(const char *deb_file, unsigned int deb_line, int timer)
+deb_untimeout(const char *deb_file, unsigned int deb_line, int timer)
 #else
-void untimeout(int timer)
+untimeout(int timer)
 #endif
 {
 	if(!del_timer(&((struct timing *)timer)->tim)) {
@@ -217,10 +223,11 @@ void untimeout(int timer)
 #endif
 }
 
+void
 #ifdef CONFIG_MALLOC_NAMES
-void deb_untimeout_old(const char *deb_file, unsigned int deb_line, void (*func)(void *), void *arg)
+deb_untimeout_old(const char *deb_file, unsigned int deb_line, void (*func)(void *), void *arg)
 #else
-void untimeout_old(void (*func)(void *), void *arg)
+untimeout_old(void (*func)(void *), void *arg)
 #endif
 {
 	droptimer_old(func,arg,1);
@@ -432,18 +439,37 @@ void deb_kfree(void *fo, const char *deb_file, unsigned int deb_line)
 
 #ifdef MODULE
 
+static struct symbol_table compat_symbol_table = {
+#include <linux/symtab_begin.h>
+#ifdef CONFIG_MALLOC_NAMES
+	X(deb_timeout),
+	X(deb_untimeout),
+	X(deb_timeout_old),
+	X(deb_untimeout_old),
+#else
+	X(timeout),
+	X(untimeout),
+	X(timeout_old),
+	X(untimeout_old),
+#endif
+	X(loghdr),
+	X(sysdump),
+#ifdef DO_DEBUGGING
+	X(deb_kmalloc),
+	X(deb_kcheck),
+	X(deb_kfree),
+#endif
+	Xalias(do_i_sleep_on,interruptible_sleep_on),
+	Xalias(do_sleep_on,sleep_on),
+#include <linux/symtab_end.h>
+};
+
+
 static int do_init_module(void)
 {
-/* This should _really_ work... */
-	if(rename_module_symbol( "do_i_sleep_on", "interruptible_sleep_on") &&
-	   rename_module_symbol( "do_sleep_on", "sleep_on"))
-	    return 0;
-	if (rename_module_symbol("_do_i_sleep_on","_interruptible_sleep_on") &&
-	   rename_module_symbol("_do_sleep_on","_sleep_on")) {
-		printk("Ignore the two \"rename...\" errors above.\n");
-		return 0;
-	}
-	return -ENOENT;
+	/* Oh well, no more rename_module_symbol... */
+	register_symtab(&compat_symbol_table);
+	return 0;
 }
 
 static int do_exit_module(void)

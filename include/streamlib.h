@@ -110,6 +110,7 @@ void m_putx (mblk_t * mb, ulong_t id);
 void m_puthex (mblk_t *mb, uchar_t *data, int len);
 void m_getskip (mblk_t * mb);
 int m_getid (mblk_t * mb, ushort_t * id);
+int m_getip (mblk_t * mb, ulong_t * id);
 int m_getsx (mblk_t * mb, ushort_t * id);
 int m_getlx (mblk_t * mb, ulong_t * id);
 int m_geti (mblk_t * mb, long *id);

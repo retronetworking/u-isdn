@@ -240,7 +240,16 @@ depend::     Makefile $(REALSOURCE) $(HEADERS)
 	$(foreach SOURCE,$(SOURCES), $(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(REALSOURCE) -D_$(SOURCE:.c=)_ | sed -e s/$(REALSOURCE:.c=.o)/$(SOURCE:.c=.o)/ >> .depend ; )
 else
 depend::     Makefile $(SOURCES) $(HEADERS)
+
+ifneq ($(strip $(CONFIG_MODVERSIONS)),)
+ifneq ($(strip $(SYMTAB)),)
+	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -E -D__GENKSYMS__ $(SYMTAB) | /sbin/genksyms $(TOPDIR)/include
+	for i in $(SYMTAB:.c=.ver) ; do echo "#include \"$$i\"" ; done >> $(TOPDIR)/include/symtables
+endif
+endif
+
 	$(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(SOURCES) >> .depend
+
 endif
 endif
 

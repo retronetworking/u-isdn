@@ -49,7 +49,6 @@ struct streamtab ip_moninfo =
 struct streamtab ip_mon2info =
 {&ip_mon_rinit, &ip_mon_winit, NULL, NULL};
 
-#define NIP_MON 8
 #define NIP_INFO 50
 
 struct _ip_mon {
@@ -64,6 +63,7 @@ struct _ip_mon {
 #define ENCAP_NONE 0
 #define ENCAP_ETHER 1
 #define ENCAP_PPP 2
+    unsigned each:2;
 } ip_mon = {NULL};
 
 static mblk_t *ip_info[NIP_INFO];
@@ -72,7 +72,7 @@ static int last_index = -1;
 static int nexti = 0;
 
 static int
-ip_mon_index (unsigned long local, unsigned long remote, int protocol, int *dosend, ushort_t localp, ushort_t remotep)
+ip_mon_index (unsigned long local, unsigned long remote, int protocol, int *dosend, ushort_t localp, ushort_t remotep, char dir)
 {
 	mblk_t *mb;
 	int i;
@@ -80,10 +80,11 @@ ip_mon_index (unsigned long local, unsigned long remote, int protocol, int *dose
 #define CMP(_m) ( \
 		(_m)->local == local && \
 		(_m)->remote == remote && \
+		(_m)->dir == dir && \
 		(protocol == 0 || _m->p_protocol == 0 || \
-			(_m->p_protocol == protocol && \
-			(_m->p_local == localp || _m->p_local == 0 || localp == 0) && \
-			(_m->p_remote == remotep || _m->p_remote == 0 || remotep == 0)) \
+			((_m)->p_protocol == protocol && \
+			((_m)->p_local == localp  || (_m)->p_local == 0 || localp == 0) && \
+			((_m)->p_remote== remotep || (_m)->p_remote== 0 || remotep== 0)) \
 		) \
 	)
 	if (last_index >= 0) {
@@ -114,11 +115,9 @@ ip_mon_index (unsigned long local, unsigned long remote, int protocol, int *dose
 	mon->p_protocol = protocol;
 	mon->p_local = localp;
 	mon->p_remote = remotep;
-	mon->cap_b = ~0;
-	mon->cap_p = ~0;
 	if (ip_info[i = last_index = nexti] != NULL) {
 		struct _monitor *m2 = (struct _monitor *)(ip_info[i]->b_rptr);
-		if ((m2->sofar_b != 0 || m2->sofar_p != 0) && ip_mon.qptr != NULL && canput (ip_mon.qptr->q_next))
+		if ((m2->bytes != 0 || m2->packets != 0) && ip_mon.qptr != NULL && canput (ip_mon.qptr->q_next))
 			putnext (ip_mon.qptr, ip_info[i]);
 		else
 			freemsg (ip_info[i]);
@@ -142,7 +141,7 @@ ip_mon_sendup (int i)
 	if (ip_mon.qptr == NULL || !canput (ip_mon.qptr->q_next) || (mb = ip_info[i]) == NULL)
 		return;
 	m2 = (struct _monitor *)(mb->b_rptr);
-	if (m2->sofar_b == 0 && m2->sofar_p == 0)
+	if (m2->bytes == 0 && m2->packets == 0)
 		return;
 
 	mb2 = copyb (mb);
@@ -150,8 +149,10 @@ ip_mon_sendup (int i)
 		struct _monitor *m = (struct _monitor *) mb->b_rptr;
 
 		putnext (ip_mon.qptr, mb2);
-		m->sofar_b = 0;
-		m->sofar_p = 0;
+		m->bytes = 0;
+		m->packets = 0;
+		m->t_first = 0;
+		m->t_last = 0;
 	}
 }
 
@@ -199,6 +200,15 @@ ip_mon_proto (queue_t * q, mblk_t * mp, char senddown)
 					break;
 				case PROTO_TYPE_ETHER:
 					ipmon->encap = ENCAP_ETHER;
+					break;
+				case IP_MON_EACHPACKET:
+					ipmon->each = 2;
+					break;
+				case IP_MON_FIRSTPACKET:
+					ipmon->each = 1;
+					break;
+				case IP_MON_SUMMARY:
+					ipmon->each = 0;
 					break;
 				case IP_MON_TIMEOUT:
 					if ((error = m_geti (mp, &x)) != 0)
@@ -282,6 +292,7 @@ ip_mon_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	ipmon->qptr = q;
 
 	ipmon->timer = 10;
+	ipmon->each = 1;
 	if(do_timeout) {
 		ipmon->hastimer = 1;
 #ifdef NEW_TIMEOUT
@@ -403,24 +414,21 @@ static mblk_t *count_packet (struct _ip_mon *ipmon, mblk_t *mp, char doswap)
 	}
 
 	if(doswap)
-		i = ip_mon_index (ADR(ipp->ip_dst), ADR(ipp->ip_src), ipp->ip_p, &send,remotep,localp);
+		i = ip_mon_index (ADR(ipp->ip_dst), ADR(ipp->ip_src), ipp->ip_p, &send,remotep,localp,doswap);
 	else
-		i = ip_mon_index (ADR(ipp->ip_src), ADR(ipp->ip_dst), ipp->ip_p, &send,localp,remotep);
+		i = ip_mon_index (ADR(ipp->ip_src), ADR(ipp->ip_dst), ipp->ip_p, &send,localp,remotep,doswap);
 	if (i < 0) {
 		splx (ms);
 		return mq;
 	}
 	mon = (struct _monitor *) ip_info[i]->b_rptr;
-	mon->sofar_b += dsize (mq);
-	mon->sofar_p++;
-	if (mon->sofar_b > mon->cap_b || mon->sofar_p > mon->cap_p) {
-		splx (ms);
-		printf ("Drop packet %lx %lx\n", ntohl(ADR(ipp->ip_src)), ntohl(ADR(ipp->ip_dst)));
-		freemsg (mq);
-		return NULL;
-	}
+	mon->bytes += dsize (mq);
+	mon->packets++;
+	if(mon->t_first == 0)
+		mon->t_first = jiffies;
+	mon->t_last = jiffies;
 	splx (ms);
-	if (send)
+	if ((send && ipmon->each) || (ipmon->each > 1))
 		ip_mon_sendup (i);
 	return mq;
 }
@@ -432,30 +440,8 @@ ip_mon_wsrv (queue_t * q)
 	struct _ip_mon *ipmon = (struct _ip_mon *) q->q_ptr;
 
 	if (q == ip_mon.qptr) {
-		while ((mp = getq (q)) != NULL) {
-			struct _monitor *mon;
-			int i;
-			int ms = splstr ();
-
-			if (mp->b_rptr - mp->b_wptr != sizeof (struct _monitor)
-					|| mp->b_cont != NULL) {
-				freemsg (mp);
-				putctlerr (RD (q), -EIO);
-				flushq (q, FLUSHDATA);
-				splx (ms);
-				return;
-			}
-			mon = (struct _monitor *) mp->b_rptr;
-			i = ip_mon_index (mon->local, mon->remote, mon->p_protocol, NULL,mon->p_local,mon->p_remote);
-			if (i < 0)
-				freemsg (mp);
-			else {
-				if (ip_info[i] != NULL)
-					qreply (q, ip_info[i]);
-				ip_info[i] = mp;
-			}
-			splx (ms);
-		}
+		while ((mp = getq (q)) != NULL) 
+			freemsg(mp);
 	} else {
 		while ((mp = getq (q)) != NULL) {
 			switch (DATA_TYPE(mp)) {
