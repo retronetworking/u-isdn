@@ -116,65 +116,6 @@ InitHSCX_(struct _dumb * dumb, unsigned char hscx)
 }
 
 static int
-ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
-{
-	unsigned long ms = SetSPL(dumb->info.ipl);
-	
-	if(dumb->chan[0].m_in != NULL) {
-		freemsg(dumb->chan[0].m_in);
-		dumb->chan[0].m_in = dumb->chan[0].m_in_run = NULL;
-	}
-	if(dumb->chan[0].m_out != NULL) {
-		freemsg(dumb->chan[0].m_out);
-		dumb->chan[0].m_out = dumb->chan[0].m_out_run = NULL;
-	}
-	ByteOutISAC(dumb,CMDR,0x41);
-
-	switch(mode) {
-	case M_OFF:
-		printk("%sCIX0 0x3F\n",KERN_DEBUG );
-		ByteOutISAC(dumb,CIX0,0x3F);
-		if(dumb->polled==0) isdn2_new_state(&dumb->card,0);
-		dumb->chan[0].mode = mode;
-		break;
-	case M_STANDBY:
-		if(dumb->chan[0].mode != M_STANDBY) {
-			ByteOutISAC(dumb,MODE,0xCA);
-			printk("%sCIX0 0x03\n",KERN_DEBUG );
-			ByteOutISAC(dumb,CIX0,0x03);
-		}
-else printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
-		ByteOutISAC(dumb,MASK,0x00);
-		dumb->chan[0].mode = mode;
-		dumb->chan[0].listen = 1;
-		break;
-	case M_HDLC:
-		ByteOutISAC(dumb,MODE,0xCA);
-		ByteOutISAC(dumb,MASK,0x00);
-		if(dumb->chan[0].mode != M_HDLC) {
-			printk("%sCIX0 0x27\n",KERN_DEBUG );
-			ByteOutISAC(dumb,CIX0,0x27);
-		} else {
-printk("%sNoCIX0 %d\n",KERN_DEBUG ,dumb->chan[0].mode);
-			if(dumb->polled==0) isdn2_new_state(&dumb->card,1);
-		}
-#if 0
-		ByteOutISAC(dumb,TIMR,0x11);
-		ByteOutISAC(dumb,CMDR,0x10);
-#endif
-		dumb->chan[0].mode = mode;
-		dumb->chan[0].listen = 0;
-		break;
-	default:
-		printf("ISAC unknown mode %x\n",mode);
-		splx(ms);
-		return -EIO;
-	}
-	splx(ms);
-	return 0;
-}
-
-static int
 HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte listen)
 {
 	unsigned long ms = SetSPL(dumb->info.ipl);

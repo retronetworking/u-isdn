@@ -67,7 +67,6 @@ deadkid (void)
 		do_run_now++;
 		timeout(run_now,NULL,3*HZ);
 	}
-	signal (SIGCHLD, (sigfunc__t) deadkid);
 }
 
 
@@ -416,9 +415,11 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	m_putsx (&yy, ARG_DELAY);
 	m_puti (&yy, cg->delay);
 	if(cg->flags & F_OUTGOING) {
-		m_putsx(&yy,ARG_NOCONN);
-		setconnref(conn,isdn4_connref);
-		isdn4_connref += 2;
+		/* if((conn->connref == 0) || !(cg->flags & F_LEASED)) */ {
+			m_putsx(&yy,ARG_NOCONN);
+			setconnref(conn,isdn4_connref);
+			isdn4_connref += 2;
+		}
 	} else if(connref != 0) {
 		if(conn->connref != 0 && conn->state == c_up) {
 			*ret = "COLLISION 2";
@@ -474,8 +475,11 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 			m_putsz (&yy, s);
 		}
 	}
-	if (cg->protocol != NULL
-			&& strchr (cg->protocol, '*') == NULL) {
+	if (cg->site != NULL && strchr (cg->site, '*') == NULL) {
+		m_putsx (&yy, ARG_SITE);
+		m_putsz (&yy, cg->site);
+	}
+	if (cg->protocol != NULL && strchr (cg->protocol, '*') == NULL) {
 		m_putsx (&yy, ARG_STACK);
 		m_putsz (&yy, cg->protocol);
 	}
@@ -534,7 +538,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
  * - if foo is NULL (and conn isn't), start a subprogram.
  */
 char *
-runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
+runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 {
 	int pid = 0;
 	int pip[2];
@@ -676,12 +680,12 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 		conn->minor = dev;
 	}
 	backrun(-1,0); backrun(-1,0);
-    signal (SIGCHLD, SIG_DFL);
 	switch ((pid = fork ())) {
 	case -1:
-		close(pip[0]);
-		close(pip[1]);
-		if(0)callout_async ();
+		if(foo != NULL) {
+			close(pip[0]);
+			close(pip[1]);
+		}
 		return "CANNOT FORK";
 	case 0:
 		{					  /* child. Go to some lengths to detach us. */
@@ -693,7 +697,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			zzconn = conn;
 			alarm(15);
 			signal(SIGALRM,(void *)dropdead);
-			if (cfr != NULL && cg != NULL) {
+			if (foo != NULL) {
 				close (pip[0]);
 				fcntl (pip[1], F_SETFD, 1);		/* close-on-exec */
 			}
@@ -786,7 +790,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 						syslog(LOG_ERR,"No free devices2 for ISDN");
 						_exit(1);
 					}
-					write (pip[1], &dev, sizeof (dev));
+					if(foo != NULL)
+						write (pip[1], &dev, sizeof (dev));
 					if ((devfd = open (devname(dev2), O_RDWR
 #ifdef O_NOCTTY
 											| O_NOCTTY
@@ -846,7 +851,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 						}
 					}
 				}
-				write (pip[1], &dev, sizeof (dev));
+				if(foo != NULL) 
+					write (pip[1], &dev, sizeof (dev));
 			}
 			setregid (cfr->num2, cfr->num2);
 			setreuid (cfr->num, cfr->num);
@@ -865,6 +871,12 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 					static char coststr[20];
 					sprintf(coststr,"%ld",conn->ccharge);
 					putenv2 ("CCOST", coststr);
+				}
+				if(what != 0) {
+					static char whatstr[2];
+					whatstr[0]=what;
+					whatstr[1]='\0';
+					putenv2 ("REASON", whatstr);
 				}
 				if(conn->charge != 0) {
 					static char coststr[20];
@@ -904,7 +916,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			alarm(0);
 			execvp (ap, arg);
 			syslog (LOG_ERR, "Could not execute %s for %s/%s: %m", *arg,cg->site,cg->protocol);
-			if (cfr != NULL && cg != NULL)
+			if (foo != NULL)
 				write (pip[1], "EXEC", 4);
 			_exit (2);
 		}
@@ -927,7 +939,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 		}
 	}
 	backrun(-1,0); backrun(-1,0);
-	if (cfr != NULL) {
+	if (cfr != NULL && foo != NULL) {
 		int ac=-1, devin;
 
 		close (pip[1]);
@@ -935,11 +947,10 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				|| ((strchr (cfr->type, 'C') != NULL)
 					&& ((ac=read (pip[0], &dev2, sizeof (dev2))) != sizeof (dev2)))) {
 			syslog (LOG_ERR, "%s: not opened 1: %d %m", cfr->args, ac);
-			if(0)callout_async ();
 			conn->minor = 0;
 			if (conn->pid == 0)
 				dropconn (conn);
-			deadkid(); return "OPEN ERR";
+			return "OPEN ERR";
 		}
 		backrun(pip[0],5);
 		if ((ac=read (pip[0], &devin, sizeof (devin))) != sizeof (dev)) {
@@ -947,11 +958,9 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				syslog (LOG_ERR, "%s: not opened 2: %d %m", cfr->args,ac);
 			else
 				syslog (LOG_ERR, "%s: not opened 2: %d", cfr->args,ac);
-			if(0)callout_async ();
 			conn->minor = 0;
 			if (conn->pid == 0)
 				dropconn (conn);
-			deadkid();
 			return "OPEN ERR";
 		}
 		if(devin != dev)
@@ -963,8 +972,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			msg[ylen] = '\0';
 			close (pip[0]);
 			syslog (LOG_ERR, "%s: not executed", cfr->args);
-			if(0)callout_async ();
-			deadkid(); return msg;
+			return msg;
 		}
 #endif
 		close (pip[0]);
@@ -1036,7 +1044,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				yy.b_wptr = yy.b_rptr;
 			}
 
-			if((cg != NULL) && ((cg->flags & F_LEASED) || !(cg->flags & (F_INCOMING|F_OUTGOING)))) {
+			if((cg != NULL) /* && ((cg->flags & (F_LEASED) || !(cg->flags & (F_INCOMING|F_OUTGOING))) */ ) {
 				int err = pushprot (conn->cg, conn->minor, conn->connref, PUSH_AFTER);
 				if(err != 0) {
 					if(log_34 & 2)
@@ -1058,7 +1066,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				cg->card = str_enter("*"); /* cosmetic */
 				setconnstate(conn,c_down);
 			}
-			if((cg != NULL) && (cg->flags & (F_INCOMING|F_OUTGOING))) {
+			if((cg != NULL) && (cg->flags & (F_INCOMING|F_OUTGOING)) && !(cg->flags & F_NOSTART)) {
 				char *msg = NULL;
 
 				cg->refs++;
@@ -1081,8 +1089,6 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			}
 		}
 	}
-	deadkid();
-	if(0)callout_async ();
 	if(rconn != NULL)
 		*rconn = conn;
 	return NULL;
@@ -1172,7 +1178,7 @@ run_rp(struct conninfo *conn, char what)
 			break;
 		}
 		if(pr == NULL) {
-			runprog (cfr, &conn, NULL);
+			runprog (cfr, &conn, NULL, what);
 		}
 	}
 }
@@ -1237,7 +1243,10 @@ run_now(void *nix)
 					cg->flags |= F_LEASED;
 				if (strchr(what->type,'B') != NULL)
 					cg->flags |= F_OUTGOING;
-				err = runprog(what,&conn,&cg);
+				else
+					cg->flags |= F_NOSTART;
+				err = runprog(what,&conn,&cg,'B');
+				cg->flags &=~ F_NOSTART;
 				if(conn != NULL) {
 					conn->cardname = what->card;
 					conn->classname = what->cclass;

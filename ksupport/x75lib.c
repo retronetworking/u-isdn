@@ -1809,11 +1809,22 @@ x75_changestate (x75 state, uchar_t ind, char isabort)
 		default:;
 		}
 		break;
+
+	case PH_DISCONNECT_IND:
+	case MDL_REMOVE_REQ:
+		switch (state->status) {
+		case S_await_up:
+		case S_down:
+		case S_up:
+		case S_recover:
+			err = kill_me (state, ind);
+			break;
+		case S_await_down:
+		case S_free:;
+		}
 	case DL_RELEASE_CONF:
 	case PH_DEACTIVATE_IND:
 	case PH_DEACTIVATE_CONF:
-	case PH_DISCONNECT_IND:
-	case MDL_REMOVE_REQ:
 	  doabort:					  /* Just disconnect. The other side will
 								   * either also realize that L1 is down, or
 								   * time out eventually. */

@@ -170,6 +170,10 @@ conn_info (isdn3_conn conn, mblk_t * mb)
 		m_putsx (mb, ARG_STACK);
 		m_putsz (mb, conn->stack);
 	}
+	if (conn->site[0] != 0) {
+		m_putsx (mb, ARG_SITE);
+		m_putsz (mb, conn->site);
+	}
 	if (conn->talk != NULL) {
 		m_putsx (mb, ARG_PROTOCOL);
 		m_puti (mb, conn->talk->hndl->SAPI);
@@ -592,6 +596,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 	 */
 	if ((conn->minor != 0)
 			&& (conn->stack[0] != 0)
+			&& (conn->site[0] != 0)
 			&& !(conn->minorstate & (MS_INITPROTO_SENT | MS_DETACHED))
 			&& (minorflags[conn->minor] & MINOR_OPEN)
 			&& (conn->minorstate & MS_WANTCONN)
@@ -617,6 +622,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			printf ("WantConn not set; ");
 		if (!(conn->minorstate & MS_BCHAN))
 			printf ("No B channel; ");
+		if(conn->site[0] == 0)
+			printf ("Site zero; ");
 		if(conn->stack[0] == 0)
 			printf ("Stack zero; ");
 		if (!(conn->minorstate & MS_SETUP_MASK))
@@ -1258,6 +1265,7 @@ scan_at (SUBDEV fminor, mblk_t * mx)
 	long call_ref = 0;
 	long modes = -1;
 	char stack[STACK_LEN] = "";
+	char site[STACK_LEN] = "";
 	long delay = 0;
 	char force = 0;
 	int conn_id = 0;
@@ -1432,6 +1440,14 @@ printf(" Grab SP %ld; ",subprotocol);
 			{
 				if ((err = m_getstr (mx, stack, sizeof(stack)-1)) < 0) {
 					printf("ErrOut Stack\n");
+					goto err_out;
+				}
+			}
+			break;
+		case ARG_SITE:
+			{
+				if ((err = m_getstr (mx, site, sizeof(site)-1)) < 0) {
+					printf("ErrOut Site\n");
 					goto err_out;
 				}
 			}
@@ -2162,6 +2178,8 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 			}
 		}
 #endif
+		if(conn != NULL)
+			conn->id = 0;
 #if 0
 		if ((conn != NULL) && ((conn->minorstate & MS_CONN_MASK) == MS_CONN) && !force) {
 			isdn3_killconn (conn, 0);
@@ -2222,6 +2240,8 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 		}
 		if (conn->call_ref == 0)
 			conn->call_ref = ((call_ref != 0) ? call_ref : isdn3_new_callref (talk));
+		if (conn->site[0] == 0)
+			memcpy(conn->site,site,sizeof(conn->site));
 		if (conn->stack[0] == 0)
 			memcpy(conn->stack,stack,sizeof(conn->stack));
 		if(do_int != 0) {

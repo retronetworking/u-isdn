@@ -3,7 +3,9 @@ KERNELSRC=${1:-${KERNELSRC:-/usr/src/linux}}
 if test -f ${KERNELSRC}/include/linux/version.h ; then
 	grep UTS_REL ${KERNELSRC}/include/linux/version.h | sed -e 's/.*"\([0-9]*\.[0-9]*\.\([0-9a-z]*\)\)"/\1/'
 else
-	echo "${KERNELSRC}/include/linux not found; using uname" >&2
+	if test -f ${TOPDIR}/.diddepend ; then
+		echo "${KERNELSRC}/include/linux not found; using uname" >&2
+	fi
 	uname -r
 fi
 # \2 statt \1 für die letzte Ziffer

@@ -320,7 +320,8 @@ typedef struct conninfo {
 #define F_CHANBUSY    0x20000 /* busy if no free channel */
 #define F_NOREJECT    0x40000 /* don't cause "temp unavailable" messages */
 #define F_BACKCALL    0x80000 /* callback on B if incoming call on A busy */
-#define F_FOOBAR     0x100000 /* dummy flag to return non-FALSE passing flags */
+#define F_NOSTART    0x100000 /* Do not start the call */
+#define F_FOOBAR     0x200000 /* dummy flag to return non-FALSE passing flags */
 
 #define F_MASKFLAGS (F_LEASED|F_PERMANENT|F_DIALUP|F_MULTIDIALUP)
 #define F_DIALFLAGS (F_MULTIDIALUP|F_DIALUP|F_PERMANENT)
@@ -486,7 +487,7 @@ void panic(const char *x, ...);
 struct conninfo * startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg);
 EXTERN struct conninfo *zzconn INIT(NULL);
 void dropdead(void);
-char * runprog (cf cfr, struct conninfo **rconn, conngrab *foo);
+char * runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what);
 void run_rp(struct conninfo *conn, char what);
 void kill_rp(struct conninfo *conn, char whatnot);
 void retime(struct conninfo *conn);

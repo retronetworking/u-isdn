@@ -1942,14 +1942,14 @@ send_disc (isdn3_conn conn, char release, mblk_t * data)
 		if ((err = phone_sendback (conn, MT_ET_DISC, data)) == 0)
 			data = NULL;
 		setstate (conn, 11);
-		break; /* NO FALL THRU */
+		break;
 	case 6:
 	common_off_noconn:
 		if(release > 1)
 			goto common_off; /* XXX experimental */
 		if ((err = phone_sendback (conn, MT_ET_REL_COM, data)) != 0 && data != NULL)
 			freemsg(data);
-		setstate (conn, 0);
+		setstate (conn, 99);
 		break;
 	case 19:
 	case 99:
@@ -2399,9 +2399,12 @@ killconn (isdn3_conn conn, char force)
 		untimer (ET_T322, conn);
 		untimer (ET_TALERT, conn);
 		untimer (ET_TCONN, conn);
+		untimer (ET_TFOO, conn);
 	}
 	if(conn->state != 0) {
-		if(force)
+		if(conn->state == 99)
+			conn->state = 0;
+		else if(force)
 			(void) phone_sendback (conn, MT_ET_REL, NULL);
 		else
 			(void) send_disc (conn, 1, NULL);

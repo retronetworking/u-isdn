@@ -165,8 +165,8 @@ extern int log_34;
 										 * "65" for calls according to 1TR6,
 										 * "0" for Q.931. */
 #define ARG_DELAY    CHAR2 ('d','l')	/* Answer delay */
-#define ARG_STACK    CHAR2 ('s','t')	/* uchar Protocol stack to establish,
-										 * as defined by L4 config files. */
+#define ARG_STACK    CHAR2 ('s','t')	/* uchar Protocol stack */
+#define ARG_SITE     CHAR2 ('s','y')	/* uchar site we talk to */
 #define ARG_FLAGS    CHAR2('f','l')		/* Flags, with open() */
 #define ARG_UID      CHAR2('u','i')		/* uid of whoever opened the device */
 #define ARG_GID      CHAR2('g','i')		/* gid of whoever opened the device */

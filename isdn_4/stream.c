@@ -161,7 +161,7 @@ backrun (int fd, int timeo)
 		struct timeval now = {0, 0};
 		rdx = rd;
 
-		runqueues (); runqueues ();
+		runqueues (); deadkid(); runqueues ();
 		if(fd >= 0) FD_SET(fd,&rdx);
 		err = select (FD_SETSIZE, &rdx, NULL, NULL, &now);
 		if (err == 0 || (err < 0 && errno == EINTR)) {

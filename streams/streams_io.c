@@ -258,7 +258,7 @@ xstreams_open (struct inode *inode, struct file *file, struct stream_header **pp
 		kfree_s (p_stream, sizeof (*p_stream));
 
 #ifdef CONFIG_DEBUG_STREAMS
-		printk("XOpen RetErrR %d\n",err);
+		if(0)printk("XOpen RetErrR %d\n",err);
 #endif
 		if(p_stream->next != NULL)
 			p_stream->next->prev = p_stream->prev;
@@ -1055,8 +1055,10 @@ stream_wsrv (queue_t * p_queue)
 	struct tty_struct *tty = p_stream->tty;
 	mblk_t *p_msg;
 
-	while(canput(p_queue->q_next) && (p_msg = getq(p_queue)) != NULL) {
-		putnext(p_queue,p_msg);
+	if(p_queue->q_next != NULL) {
+		while(canput(p_queue->q_next) && (p_msg = getq(p_queue)) != NULL) {
+			putnext(p_queue,p_msg);
+		}
 	}
 	if(canput(p_queue)) {
 		if(tty != NULL) {
