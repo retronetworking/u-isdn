@@ -146,7 +146,7 @@ t70_proto (queue_t * q, mblk_t * mp, char down)
 				case T70_MTU:
 					if ((error = m_geti (mp, &z)) != 0)
 						goto err;
-					if (z < 4 || z >= 4090)
+					if ((z != 0) && (z < 4 || z >= 4090))
 						goto err;
 					t_70->mtu = z;
 					break;
@@ -219,7 +219,7 @@ t70_wsrv (queue_t * q)
 					return;
 				}
 				DATA_TYPE(mh) = DATA_TYPE(mp);
-				if (dsize (mp) > t_70->mtu) {
+				if ((t_70->mtu != 0) && (dsize (mp) > t_70->mtu)) {
 					int ml = t_70->mtu;
 					mblk_t *mr = dupmsg (mp);
 					mblk_t *mz = mp;

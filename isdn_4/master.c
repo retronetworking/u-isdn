@@ -28,6 +28,15 @@ main (int argc, char *argv[])
 	mcheck(NULL);
 	mmtrace();
 #endif
+	{
+		struct passwd *pw;
+
+		if ((pw = getpwnam (ROOTUSER)) != NULL) {
+			rootuser  = pw->pw_uid;
+			/* rootgroup = pw->pw_gid; */
+		}
+	}
+
 	chkall();
 	setlinebuf(stdout); setlinebuf(stderr); /* no(t much) buffering */
 

@@ -22,10 +22,12 @@
 #define PROTO_HAS_CONNECTED CHAR2('h','c')		/* down */
 #define PROTO_LISTEN CHAR2('l','i')		/* Conn partially established (up) */
 #define PROTO_HAS_LISTEN CHAR2('h','l')	/* down */
+#define PROTO_SETUP CHAR2('s','e')	/* stack establiched (up) */
+#define PROTO_HAS_SETUP CHAR2('h','s')	/* down */
 
-#define PROTO_INTERRUPT CHAR2('i','s')	/* Temporarily gone. (up/down) */
+#define PROTO_WILL_INTERRUPT CHAR2('w','i')	/* Temporarily gone. (up/down) */
+#define PROTO_INTERRUPT CHAR2('i','i')	/* Temporarily gone. (up/down) */
 #define PROTO_DISCONNECT CHAR2('d','i')	/* Gone. (up/down) */
-#define PROTO_WILL_INTERRUPT CHAR2('w','i')
 #define PROTO_WILL_DISCONNECT CHAR2('w','d')	/* Please shutdown. (up) */
 #define PROTO_HAS_INTERRUPT CHAR2('h','i')
 #define PROTO_HAS_DISCONNECT CHAR2('h','d')		/* Did shutdown. (down) */
@@ -46,7 +48,6 @@
 #define PROTO_AT CHAR2('a','t')	  /* Command. "*at ATD9612521". */
 #define PROTO_MODULE CHAR2('m','s')		/* Setup for a protocol */
 #define PROTO_MODLIST CHAR2('m','l')	/* list of modules to be pushed */
-#define PROTO_UPDATEMODLIST CHAR2('m','L')	/* informational: list of modules */
 #define PROTO_ERROR CHAR2('e','r')/* Error. */
 #define PROTO_NOERROR CHAR2('o','k')	/* Error. */
 /*

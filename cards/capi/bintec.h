@@ -41,6 +41,7 @@ typedef struct _bintec {
 	long timer, timer_toss_unknown;
 #endif
 	unsigned unknown_timer:1;
+	unsigned registered:1;
 	struct _smallq q_unknown;
 
 	signed char polled; char lastout; int maxoffset;

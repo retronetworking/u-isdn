@@ -22,8 +22,6 @@
 #define X75_CONCAT CHAR2('c','d')
 #define X75_CONNMODE CHAR2('c','m')
 #define X75_DEBUG CHAR2('d','e')
-#define X75_SENDINTR CHAR2('i','I')
-#define X75_SENDDISC CHAR2('i','D')
 
 /* When to establish the connection. Zero means to assume established. */
 #define X75CONN_OUT  01			  /* Establish when dialling out */

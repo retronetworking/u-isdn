@@ -17,7 +17,7 @@ Achtung:
 =======
 
 Es gibt eine Mailingliste zum Thema: linux-isdn@uranus.central.de.
-"Bitte trag mich ein"-Requests bitte _nicht_ drothin, sondern an
+"Bitte trag mich ein"-Requests bitte _nicht_ dorthin, sondern an
 linux-isdn-request@uranus.central.de.
 
 
@@ -162,6 +162,22 @@ Das modutils-1.2.8-Paket wird in jedem Fall benötigt, um Parameter an die
 einzelnen Module zu übergeben.
 
 
+Sonstiges
+---------
+
+In /etc/syslog.conf steht meistens sowas wie
+	*.=debug ....
+Das ist Unsinn. Ersetzen durch
+	*.debug  ....
+sonst debuggt er nur die Haelfte.
+
+Der syslogd macht fsync() oder sync() nach dem Schreiben jeder Zeile.
+Das ist ebenfalls Unsinn. Sourcen holen, den [f]sync()-Aufruf rauswerfen. 
+
+Leute mit 1.3.xx-Kernel brauchen neueste Netprogramme; insbesondere ein route,
+das "del ... netmask" versteht.
+
+
 Grundstruktur
 =============
 
@@ -242,7 +258,7 @@ done
 make.isdn
 # Wenn er nun über config.new und config.data meckert:
 #   Siehe unten Probleme.
-#   mv config/config.new config/config.data
+#   mv config/config.new config/config.data ## nicht "cp" !!
 #   vi config/config.data
 #   #  Insbesondere: Zeilen "PROTOCOLS" und "SUBPROTOCOLS" ansehen.
 #   #                Siehe unten "DL-Zeile".
@@ -251,7 +267,8 @@ make.isdn
 # Nun als Superuser:
 make.isdn
 # oder einfach "make install".
-Editiere /lib/modules/modules.isdn:
+### Editiere /lib/modules/modules.isdn (die automatisch erzeugte Version
+### steht in /lib/modules/modules.isdn.all:
     -o Tel0 isdn/teles.o name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
   anstatt
     isdn/teles.o
@@ -746,7 +763,7 @@ ML-Zeile ("Modulliste")
 --------
 
 Form:
-ML <Art> <Partner> <Key> <Karte> <Mod> <Modus> <Module...>
+ML <Art> <Partner> <Key> <Karte> <Mod> <Module...>
 
 Beispiel:
 ML login * * * - frame x75 t70
@@ -754,8 +771,8 @@ ML login * * * - frame x75 t70
 Hiermit wird angegeben, wie die Karte eingestellt und welche Streams-Module
 für einen B-Kanal verwendet werden müssen, um zwischen diesem und einer
 Anwendung zu vermitteln. Die Beschreibung der verfügbaren Module folgt
-weiter unten; der Modus wird über "CM"-Zeilen (auch unten) in eine Zahl
-übersetzt, die der Kartentreiber verstehen muß.
+weiter unten; als erstes "Modul" wird der Modus angegeben, in den der
+B-Kanal beim Verbindungsaufbau geschaltet werden soll.
 
 Konzeptuell sind diese Module gestapelt; "unten" ist die Karte, "oben" das
 Anwendungsprogramm. Zwischen diesem und dem letzten Modul in der obigen
@@ -773,8 +790,35 @@ p für Verbindungsaufbau nach Bedarf
 ,#  Verzögerung bei Verbindungsende, in Sekunden, für sauberes
     Herunterfahren des B-Kanalprotokolls.
 
-Die Modulliste ist nach dem Start eines Programms festgelegt und wird durch
-AT/R nicht veraendert.
+Modi:
+
+trans       volltransparente Verbindung. Es wird ständig ein synchroner 
+            64-kBit-Datenstrom übertragen. Wenn nichts gesendet wird,
+            werden 1-Bits übertragen. (Der Zustand "wenn nichts empfangen
+            wird" kann nicht vorkommen!)
+transalaw   wie oben, aber statt Einsen wird 0xAA gesendet ("Ruhepegel" bei
+            A-Law-Sprachkodierung). Das Senden von Rauschen, wie auf
+            gemultiplexten Satellitenleitungen, habe ich mir erspart...
+transv110   wie oben, aber statt Einsen werden leere V.110-Frames (38.4 kBaud)
+            gesendet.
+frame       Standardmodus für Datenübertragung; die Karte interpretiert den
+            B-Kanal als HDLC-Datenstrom, inkl. 0-Bit-Einschieben nach 5
+            1-Bits, Prüfsumme, etc.
+frame16     16-bit breite Datenübertragung auf entsprechenden
+            Festverbindungen. Funktioniert nur auf dem ersten B-Kanal
+            (der Modus greift sich einfach beide Kanäle) und (unter anderem
+            wegen möglichen Laufzeitunterschieden) nicht bei zwei
+            Wählverbindungen zur gleichen Zielstation.
+/* die folgenden Modi sind noch nicht implementiert, bzw. nicht getestet */
+frame0      Wie 'frame', aber zusätzlich wird 1-Bit-Einschieben nach 7 0-Bits
+            aktiviert. Für Leitungen in manche Ecken der USA, die keine
+            Nulloktetts auf der Leitung zulassen (weil sie keinen externen
+            Takt verwenden).
+framehi     wie 'frame', nur werden nur die oberen 7 Bits verwendet.
+framelo     ... oder die unteren Bits. Sinnvoll dann, wenn jemand den Daten-
+            strom auf eine 56-kBaud-Leitung umsetzt.
+ppp         PPP. Momentan (leider) nur für aktive Karten, die PPP on-board
+            können.
 
 
 MP-Zeile ("Modulparameter")
@@ -1052,50 +1096,6 @@ p für Verbindungsaufbau nach Bedarf ("reconn"-Modul nicht vergessen!);
   ISDN-Verbindung wird hierdurch _nicht_ aufgebaut, dafür ist "B" gedacht.
 
 
-CM-Zeile ("Card Mode")
---------
-
-Form:
-CM <Karte> <Zahl> <Modus>
-
-Beispiel:
-CM Tel? 2 transalaw
-CM Tel? 3 transv110
-CM Tel? 4 trans
-CM Tel? 10 frame
-CM Tel? 14 frame16
-
-Assoziiert einen Modus einer Karte mit einem Schlüsselwort in der "ML"-Zeile.
-Die Nummern sind im Kartentreiber fest eingebaut.
-Momentan gibt es folgende Modi:
-
-trans       volltransparente Verbindung. Es wird ständig ein synchroner 
-            64-kBit-Datenstrom übertragen. Wenn nichts gesendet wird,
-            werden 1-Bits übertragen. (Der Zustand "wenn nichts empfangen
-            wird" kann nicht vorkommen!)
-transalaw   wie oben, aber statt Einsen wird 0xAA gesendet ("Ruhepegel" bei
-            A-Law-Sprachkodierung). Das Senden von Rauschen, wie auf
-            gemultiplexten Satellitenleitungen, habe ich mir erspart...
-transv110   wie oben, aber statt Einsen werden leere V.110-Frames (38.4 kBaud)
-            gesendet.
-frame       Standardmodus für Datenübertragung; die Karte interpretiert den
-            B-Kanal als HDLC-Datenstrom, inkl. 0-Bit-Einschieben nach 5
-            1-Bits, Prüfsumme, etc.
-frame16     16-bit breite Datenübertragung auf entsprechenden
-            Festverbindungen. Funktioniert nur auf dem ersten B-Kanal
-            (der Modus greift sich einfach beide Kanäle) und (unter anderem
-            wegen möglichen Laufzeitunterschieden) nicht bei zwei
-            Wählverbindungen zur gleichen Zielstation.
-/* die folgenden Modi sind noch nicht implementiert, bzw. nicht getestet */
-frame0      Wie 'frame', aber zusätzlich wird 1-Bit-Einschieben nach 7 0-Bits
-            aktiviert. Für Leitungen in manche Ecken der USA, die keine
-            Nulloktetts auf der Leitung zulassen (weil sie keinen externen
-            Takt verwenden).
-framehi     wie 'frame', nur werden nur die oberen 7 Bits verwendet.
-framelo     ... oder die unteren Bits. Sinnvoll dann, wenn jemand den Daten-
-            strom auf eine 56-kBaud-Leitung umsetzt.
-
-
 CL-Zeile ("Connection Limit")
 --------
 
@@ -1285,11 +1285,6 @@ Alle Zeitangaben sind in Sekunden.
 :tw  0  wenn zum Meßzeitpunkt soviele Sekunden nichts gesendet wurde,
         wird die Verbindung abgebrochen
 :tr  0  dto., gelesen; eine der beiden Bedingungen reicht aus.
-:tI     die Verbindung wird unterbrochen. Dazu muß über dem timer-Modul
-        ein reconn-Modul sitzen und die Verbindung muß mit ":dI" markiert
-        sein. (Ja ich weiß, das sollte das Programm selber managen...
-        kommt alles noch.)
-:tD     die Verbindung wird beendet.
 :li     unterbrochen wird nur bei ankommenden Verbindungen.
 :lo     dto, bei abgehenden Verbindungen
 :lb     dto, beide Verbindungsarten (Default).
@@ -1309,15 +1304,16 @@ Implementiert das T-70-Minimalprotokoll -- spaltet abgehende Dateneinheiten
 auf, wenn sie zu groß sind, und faßt ankommende zusammen, wenn das ent-
 sprechende Bit im T70-Header gesetzt ist.
 
-:mt  1-4096 1024 Maximale Datenblockgröße.
+:mt  0,4-4096 256 Maximale Datenblockgröße (exklusive T70-Header (2 Bytes)).
+                  ":mt 0": Maximum "unendlich".
 
 
 V.110 "v110"
 -----
-Implementiert V.110 im 38400-Baud-Modus. Ungetestete Experimentierversion.
-Warnung: Exzessive Kernelbelastung durch Bitschieberei etc. Für ernsthafte
-Anwendungen braucht es einen entsprechenden Wandler in Hardware auf der Karte.
-In der jetztigen Version ungetestet.
+Implementiert V.110 im 38400-Baud-Modus. Mehr oder weniger ungetestete
+Experimentierversion. Warnung: Exzessive Kernelbelastung durch
+Bitschieberei etc. Für ernsthafte Anwendungen braucht es einen
+entsprechenden Wandler in Firmware / Hardware auf der Karte.
 
 
 Datenrate "rate" (ungetestet!)

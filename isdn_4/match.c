@@ -822,21 +822,10 @@ findit (conngrab *foo, int ignbusy)
 
 		cgc->card = c->name;
 		if ((errstrx = findsite (&cgc,ignbusy)) == NULL) { /* Found it */
-			cf crd;
 			cgc->flags |= F_OUTCOMPLETE;
-			if(c->cap & CHM_INTELLIGENT) {
-				dropgrab(*foo); dropgrab(cg);
-				*foo = cgc;
-				return NULL;
-			}
-			for (crd = cf_CM; crd != NULL; crd = crd->next) {
-				if (!wildmatch (c->name, crd->card))
-					continue;
-				dropgrab(*foo); dropgrab(cg);
-				*foo = cgc;
-				return NULL;
-			}
-			errstrx = "0CM line missing";
+			dropgrab(*foo); dropgrab(cg);
+			*foo = cgc;
+			return NULL;
 		}
 		if(*errstrx < *errstr) {
 			errstr = errstrx;

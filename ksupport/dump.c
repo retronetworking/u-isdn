@@ -194,7 +194,10 @@ dump_one_hdr (isdn23_hdr hdr)
 		printf ("ATcmd from %d", hdr->hdr_atcmd.minor);
 		break;
 	case HDR_PROTOCMD:
-		printf ("ProtocolCmd from %d", hdr->hdr_atcmd.minor);
+		if(hdr->hdr_protocmd.minor != 0)
+			printf ("ProtocolCmd from minor %d", hdr->hdr_protocmd.minor);
+		else
+			printf ("ProtocolCmd from card %d chan %d", hdr->hdr_protocmd.card, hdr->hdr_protocmd.channel);
 		break;
 	case HDR_XDATA:
 		printf ("XData from %d", hdr->hdr_xdata.minor);
@@ -221,14 +224,14 @@ dump_one_hdr (isdn23_hdr hdr)
 		printf ("Close port %d, errno %d", hdr->hdr_close.minor, hdr->hdr_close.error);
 		break;
 	case HDR_ATTACH:
-		printf ("Attach chan %d/%d to port %d, mode %d, %s%s",
-				hdr->hdr_attach.card, hdr->hdr_attach.chan, hdr->hdr_attach.minor,
-				hdr->hdr_attach.mode, (hdr->hdr_attach.listen & 1) ? "listen" : "talk",
-									  (hdr->hdr_attach.listen & 2) ? " force" : "");
+		printf ("Attach id %ld chan %d/%d to port %d, %s%s",
+				hdr->hdr_attach.connref, hdr->hdr_attach.card, hdr->hdr_attach.chan, hdr->hdr_attach.minor,
+				(hdr->hdr_attach.listen & 2) ? "setup" : ((hdr->hdr_attach.listen & 1) ? "listen" : "talk"),
+				(hdr->hdr_attach.listen & 4) ? " force" : "");
 		break;
 	case HDR_DETACH:
-		printf ("Detach chan %d/%d from port %d, errno %d, force %d",
-				hdr->hdr_detach.card, hdr->hdr_detach.chan, hdr->hdr_detach.minor, 
+		printf ("Detach id %ld from port %d, errno %d, force %d",
+				hdr->hdr_detach.connref, hdr->hdr_detach.minor, 
 				hdr->hdr_detach.error,hdr->hdr_detach.perm);
 		break;
 	case HDR_CARD:

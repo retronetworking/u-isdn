@@ -174,7 +174,6 @@ rate_proto (queue_t * q, mblk_t * mp, char down)
 		}
 		break;
 	case PROTO_DISCONNECT:
-	case PROTO_INTERRUPT:
 		if(rat->flags & RATE_TIMER) {
 			rat->flags &=~ RATE_TIMER;
 #ifdef NEW_TIMEOUT

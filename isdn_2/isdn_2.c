@@ -159,9 +159,9 @@ static void D_L1_re_up (isdn2_card card);
 static void D_checkactive (isdn2_card card);
 static void D_takedown (isdn2_card card);
 
-static void poplist (queue_t * q, char initial);
+static void poplist (queue_t * q, char flags);
 static int isdn2_disconnect (isdn2_chan ch, uchar_t error);
-
+static int pushlist (queue_t * q, mblk_t * mp, char flags);
 
 #ifdef NEW_TIMEOUT
 static int timer_sendcards;
@@ -734,7 +734,7 @@ D_L1_up (isdn2_card card)
 #else
 			set_card_status (card, C_await_up);
 #endif
-			(*card->card->ch_mode) (card->card, 0, M_HDLC, 0);
+			(*card->card->ch_mode) (card->card, 0, M_ON, 0);
 		}
 		break;
 	}
@@ -844,9 +844,6 @@ D_canrecv (isdn2_state state)
 
 /*
  * Send data upstream. Called from X75.
- *
- * If used for an intelligent card, state is NULL and isUI denotes the
- * card.
  */
 static int
 D_recv (isdn2_state state, char isUI, mblk_t * mb)
@@ -1145,7 +1142,7 @@ isdn2_register (struct _isdn1_card *card, long id)
 
 	if (isdn2_debug & 0x10)
 		printf ("%sisdn2_register %p %lx\n",KERN_DEBUG, card, id);
-	nr = 0;
+	nr = 1;
 	do {
 		nr++;
 		found_nr = 0;
@@ -1336,7 +1333,7 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 			break;
 		case C_await_up:
 			set_card_status (ctl, C_up);
-			(*card->ch_mode) (card, 0, M_HDLC, 0);
+			(*card->ch_mode) (card, 0, M_ON, 0);
 			hdr->hdr_notify.ind = PH_ACTIVATE_CONF;
 			if(ctl->offline && !isdn2_notsent)
 				isdn2_sendcard(ctl);
@@ -1355,7 +1352,7 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 				set_card_status (ctl, C_up);
 			else
 				set_card_status (ctl, C_wont_down);
-			/* (*card->ch_mode) (card, 0, M_HDLC, 1); */
+			/* (*card->ch_mode) (card, 0, M_ON, 1); */
 			hdr->hdr_notify.ind = PH_ACTIVATE_NOTE;
 			break;
 		case C_wont_up:
@@ -1387,6 +1384,8 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 static int
 do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 {
+	int err = 0;
+
 	if (isdn2_debug & 0x10)
 		printf ("%sdo_chprot %d %d 0%o\n",KERN_DEBUG, ctl ? ctl->nr : -1, channel, flags);
 	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL))
@@ -1396,7 +1395,19 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 		if((ctl->card != NULL) && (ctl->card->ch_prot != NULL))
 			return (*ctl->card->ch_prot)(ctl->card,channel,proto,flags);
 	}
-	if(flags & CHP_FROMSTACK) { /* to the master */
+	if(flags & CHP_MODLIST) {
+		isdn2_chan ch = ctl->chan[channel];
+
+		if (ch == NULL || ch->qptr == NULL)
+			return -ENXIO;
+		if((flags & (PUSH_BEFORE|PUSH_UPDATE)) == PUSH_BEFORE)
+			poplist (ch->qptr, PUSH_BEFORE);
+		if(!(flags & PUSH_UPDATE))
+			err = pushlist (ch->qptr, proto, flags);
+		if(err == 0)
+			freemsg(proto);
+		return err;
+	} else if(flags & CHP_FROMSTACK) { /* to the master */
 		isdn23_hdr hdr;
 		mblk_t *mb;
 
@@ -1427,13 +1438,14 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 		linkb (mb, proto);
 		if (isdn_chan.qptr != NULL) {
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-			if(canput(isdn_chan.qptr->q_next))
+			if(canput(isdn_chan.qptr->q_next)) {
 				putnext (isdn_chan.qptr, mb);
-			else
-				freemsg(mb);
-		} else
-			freemsg (mb);
-		return 0;
+				err = 0;
+			} else 
+				err = -ENXIO;
+		} else 
+			err = -EAGAIN;
+		return err;
 	} else { /* to the stack */
 		isdn2_chan ch = ctl->chan[channel];
 
@@ -1785,7 +1797,7 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	if (ch->qptr == NULL) {		  /* /dev/isdn -- somebody wants to open a
 								   * connection. */
 		if (dev > 0) {
-			poplist (q, 1);
+			poplist (q, 0);
 			if (isdn_chan.qptr != NULL) {
 				isdn23_hdr hdr;
 				mblk_t *mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
@@ -1927,9 +1939,8 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 					hdr = ((isdn23_hdr) mb->b_wptr)++;
 					hdr->key = HDR_DETACH;
 					hdr->seqnum = hdrseq; hdrseq += 2;
+					hdr->hdr_detach.connref = ch->connref;
 					hdr->hdr_detach.minor = ch->dev;
-					hdr->hdr_detach.card = 0;
-					hdr->hdr_detach.chan = 0;
 					hdr->hdr_detach.error = error;
 					hdr->hdr_detach.perm = 0;
 					if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
@@ -1972,6 +1983,7 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 		break;
 	default:;
 	}
+	ch->connref = 0;
 	ch->status = M_free;
 	splx (ms);
 	return 0;
@@ -2110,7 +2122,7 @@ c_qattach (struct streamtab *qinfo, queue_t * qp, int flag)
  */
 
 static int
-pushlist (queue_t * q, mblk_t * mp)
+pushlist (queue_t * q, mblk_t * mp, char flags)
 {
 	int ms = splstr ();
 	queue_t *xq;
@@ -2120,62 +2132,75 @@ pushlist (queue_t * q, mblk_t * mp)
 	if(msgdsize(mp) < 0)
 		return 0;
 #endif
-	if (isdn2_debug & 0x100)
-		printf ("%spushlist %p %p\n",KERN_DEBUG, q, mp);
+	if (isdn2_debug & 0x20)
+		printf ("%sQ Push %p %p 0%o: ",KERN_DEBUG, q, mp, flags);
 
 	xq = q->q_next;				  /* for qattach */
 
-	if(0)printf ("Q Push");
 	while (mp->b_rptr < mp->b_wptr) {
-		int i;
 
-		if(0)printf (" ");
-		while (mp->b_rptr < mp->b_wptr)
+		if(isdn2_debug & 0x20)printf (" ");
+
+		while (mp->b_rptr < mp->b_wptr) {
 			if (*mp->b_rptr <= ' ')
 				mp->b_rptr++;
 			else
 				break;
+		}
 		if (mp->b_rptr < mp->b_wptr) {
-			streamchar *ch = mp->b_rptr;
+			streamchar chx, *ch1 = mp->b_rptr, *ch2 = ch1;
 			struct fmodsw *fm;
+
+			while(ch2 < mp->b_wptr && *ch2 > ' ')
+				ch2++;
+			chx = *ch2; *ch2 = '\0';
+			if(flags & PUSH_AFTER) {
+				if(!strcmp(ch1,"reconn")) {
+					if(isdn2_debug & 0x20) printf(" <skip head>");
+					flags &=~ PUSH_AFTER;
+				} else
+					goto nx;
+			} else if(flags & PUSH_BEFORE) {
+				if(!strcmp(ch1,"reconn"))  {
+					*ch2 = chx;
+					if(isdn2_debug & 0x20) printf(" <skip rest>");
+					goto fin;
+				}
+			}
 
 			for (fm = fmod_sw; fm < &fmod_sw[fmodcnt]; fm++) {
 				if (fm->f_str == NULL)
 					continue;
-				for (i = 0; i < FMNAMESZ && ch+i < mp->b_wptr; i++) {
-					if (ch + i >= mp->b_wptr || ch[i] != (streamchar)fm->f_name[i])
-						break;
-				}
-				if (fm->f_name[i] != '\0')
-					continue;
-				if (ch + i == mp->b_wptr || ch[i] <= ' ')
+				if(!strcmp(ch1,fm->f_name))
 					goto found;
 			}
-			splx (ms);
-			if (mp->b_wptr < DATA_END(mp))
-				*mp->b_wptr = '\0';
-			printf ("%sQ_Push: %s -- not found\n", KERN_ERR,mp->b_rptr);
+			printf ("%sQ_Push: %s -- not found\n", KERN_ERR,ch1);
+			*ch2 = chx;
 			return -ENOENT;
 		  found:
-			if(0)printf (" %s", fm->f_name);
+			if(isdn2_debug & 0x20)printf (" %s", fm->f_name);
 			if ((err = c_qattach (fm->f_str, xq, 0)) < 0) {
+				*ch2 = chx;
 				splx (ms);
 				printf ("%sQ_Push: %s -- can't attach\n", KERN_WARNING,fm->f_name);
 				return err;
 			}
-			mp->b_rptr += i + 1;
+		  nx:
+			*ch2 = chx; 
+			mp->b_rptr = ch2;
 		}
 	}
+  fin:
 	splx (ms);
-	if(0)printf ("\n");
+	if(flags & PUSH_AFTER) if(isdn2_debug & 0x20) printf(" <skipped all>");
+	if(isdn2_debug & 0x20)printf ("\n");
 	return 0;
 }
 
-static void
-poplist (queue_t * q, char initial)
-{
-	mblk_t *mb;
 
+static void
+poplist (queue_t * q, char flags)
+{
 	if (q == NULL || q->q_next == NULL) {
 		printf ("%sErr PopList NULL! %p\n",KERN_DEBUG, q);
 		return;
@@ -2183,52 +2208,30 @@ poplist (queue_t * q, char initial)
 	while (q->q_next->q_next) {
 		char *n = q->q_next->q_qinfo->qi_minfo->mi_idname;
 
-#if 1
-		if ((n[0] == 'p') && (n[1] == 'r') && (n[2] == 'o') &&
-				(n[3] == 't') && (n[4] == 'o') && (n[5] == '\0'))
+		if(flags & PUSH_BEFORE) 
+			if (!strcmp(n,"reconn"))
+				break;
+		if (!strcmp(n,"proto"))
 			break;
-#endif
 		qdetach (q->q_next, 1, 0);
 	}
 
-	if ((mb = allocb (32, BPRI_MED)) != NULL) {
-		if (initial) {
-			if (isdn2_log & 4) {
-				*mb->b_wptr++ = 's';
-				*mb->b_wptr++ = 't';
-				*mb->b_wptr++ = 'r';
-				*mb->b_wptr++ = 'l';
-				*mb->b_wptr++ = 'o';
-				*mb->b_wptr++ = 'g';
-				*mb->b_wptr++ = ' ';
-			}
-			*mb->b_wptr++ = 'p';
-			*mb->b_wptr++ = 'r';
-			*mb->b_wptr++ = 'o';
-			*mb->b_wptr++ = 't';
-			*mb->b_wptr++ = 'o';
-			if (isdn2_log & 1) {
-				*mb->b_wptr++ = ' ';
-				*mb->b_wptr++ = 's';
-				*mb->b_wptr++ = 't';
-				*mb->b_wptr++ = 'r';
-				*mb->b_wptr++ = 'l';
-				*mb->b_wptr++ = 'o';
-				*mb->b_wptr++ = 'g';
-			}
-			if (isdn2_log & 2) {
-				*mb->b_wptr++ = ' ';
-				*mb->b_wptr++ = 'q';
-				*mb->b_wptr++ = 'i';
-				*mb->b_wptr++ = 'n';
-				*mb->b_wptr++ = 'f';
-				*mb->b_wptr++ = 'o';
-			}
+	if (!(flags & PUSH_BEFORE)) {
+		mblk_t *mb;
+
+		if ((mb = allocb (32, BPRI_MED)) != NULL) {
+			if (isdn2_log & 4)
+				m_putsz(mb,"strlog");
+			m_putsz(mb,"proto");
+			if (isdn2_log & 1)
+				m_putsz(mb,"strlog");
+			if (isdn2_log & 2) 
+				m_putsz(mb,"qinfo");
+			pushlist (q, mb, flags);
+			freeb (mb);
 		}
-		pushlist (q, mb);
-		freeb (mb);
-	}
 else printf("%sPOPLIST: could not alloc\n",KERN_DEBUG);
+	}
 }
 
 /* Streams code to write data. */
@@ -2410,7 +2413,6 @@ isdn2_wsrv (queue_t *q)
 				if (*mp->b_rptr == PROTO_SYS) 
 				{
 					switch (*(ushort_t *) (mp->b_rptr + 1)) {
-					case PROTO_INTERRUPT:
 					case PROTO_DISCONNECT:
 						{
 							mblk_t *mz = copymsg (mp);
@@ -2431,13 +2433,14 @@ isdn2_wsrv (queue_t *q)
 						}
 					} else {
 						mblk_t *mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
-						if(isdn2_debug & 0x10)printf("%sMsgProt NoCard %d isdn_2.c %d\n",KERN_DEBUG,chan->dev,__LINE__);
-
 						if (mb == NULL) {
 							printf("%sNoMemHdr isdn_2.c %d\n",KERN_DEBUG,__LINE__);
 							putbqf (q, mp);
 							return;
 						}
+						if(isdn2_debug & 0x10)
+							printf("%sMsgProt NoCard %d isdn_2.c %d\n",KERN_DEBUG,chan->dev,__LINE__);
+
 						hdr2 = ((isdn23_hdr) mb->b_wptr)++;
 						hdr2->key = HDR_PROTOCMD;
 						hdr2->seqnum = hdrseq; hdrseq += 2;
@@ -2469,10 +2472,10 @@ isdn2_wsrv (queue_t *q)
 		case CASE_DATA:
 			{
 				mp = pullupm (mp, 0);
-				DATA_TYPE(mp) = M_DATA;
 				if (mp != NULL) {
 					SUBDEV minor;
 
+					DATA_TYPE(mp) = M_DATA;
 					switch (chan->status) {
 					default:
 						{
@@ -2547,67 +2550,68 @@ isdn2_wsrv (queue_t *q)
 							case HDR_PROTOCMD:
 								{
 									streamchar *oldhd;
-									ushort_t id;
+									ushort_t id, xid;
 									int minor;
+									long ismodlist;
 									LENHDR (protocmd);
+
+									oldhd = mp->b_rptr;
+									if ((err = m_getid(mp,&id)) != 0) {
+										h_reply (q, &hdr, err);
+										break;
+									}
+									ismodlist = (id == PROTO_MODLIST);
 									minor = hdr.hdr_protocmd.minor;
+
 									if ((minor != 0) && (isdnchan[minor] != NULL) && (isdnchan[minor]->card != NULL)) {
 										/* This is a temporary kludge */
 										hdr.hdr_protocmd.card = isdnchan[minor]->card->nr;
 										hdr.hdr_protocmd.channel = isdnchan[minor]->channel;
 										hdr.hdr_protocmd.minor = 0;
 									}
+									if(ismodlist) {
+										if((err = m_geti(mp,&ismodlist)) != 0) {
+											h_reply (q, &hdr, err);
+											break;
+										}
+										ismodlist |= CHP_MODLIST;
+										while(m_getsx(mp,&xid) == 0) ;
+									} else
+										mp->b_rptr = oldhd;
+
 									if (hdr.hdr_protocmd.minor == 0) {
 										CARD (protocmd);
-										err = -EIO;
 										if (hdr.hdr_protocmd.channel > crd->card->nr_chans) {
 											printf ("%s -- bad channel\n",KERN_DEBUG);
 											hdr.hdr_protocmd.minor = minor;
 											h_reply (q, &hdr, -EINVAL);
 											break;
 										}
-										if((err = do_chprot(crd,hdr.hdr_protocmd.channel,mp,CHP_TOCARD)) < 0) {
+										if((err = do_chprot(crd,hdr.hdr_protocmd.channel,mp,CHP_TOCARD|ismodlist)) < 0) {
 											printf ("%s -- Err SetMode %d\n",KERN_DEBUG,err);
 											hdr.hdr_protocmd.minor = minor;
-											h_reply (q, &hdr, err);
 										} else 
 											mp = NULL;
+										h_reply (q, &hdr, err);
 										break;
 									}
 									xMINOR (protocmd);
-									oldhd = mp->b_rptr;
-									DATA_TYPE(mp) = MSG_PROTO;
-									if ((m_getid(mp,&id) != 0) || (id != PROTO_MODLIST)) {
-										struct _isdn1_card *crd1;
-										mp->b_rptr = oldhd;
-
-										if(id == PROTO_UPDATEMODLIST) {
-											if (isdn2_debug & 0x10)
-												printf ("%sUpdatePushlist to %p, minor %d\n",KERN_DEBUG, chan->qptr, minor);
-											h_reply(q,&hdr,0);
-											break;
-										}
-										if (chan->card != NULL) {
-											crd1 = chan->card->card;
-											err = do_chprot(chan->card,chan->channel,mp,CHP_TOCARD);
-										} else {
-											crd1 = NULL;
-											if(canput(chan->qptr->q_next)) {
-												putnext(chan->qptr,mp);
-												err = 0;
-											} else
-												err = -ENOSPC;
-										}
-										if(err >= 0)
-											mp = NULL;
+									if(ismodlist) {
+										if(!(ismodlist & PUSH_UPDATE))
+											err = pushlist(chan->qptr,mp,ismodlist);
+										else
+											err = 0;
 									} else {
-										while(m_getsx(mp,&id) == 0) ;
-										if (isdn2_debug & 0x10)
-											printf ("%sPushlist to %p, minor %d\n",KERN_DEBUG, chan->qptr, minor);
-										poplist (chan->qptr, 0);
-										h_reply (q, &hdr, pushlist (chan->qptr, mp));
-										/* pushlist doesn't free */
+										oldhd = mp->b_rptr;
+										DATA_TYPE(mp) = MSG_PROTO;
+										if(canput(chan->qptr->q_next)) {
+											putnext(chan->qptr,mp);
+											mp = NULL;
+											err = 0;
+										} else
+											err = -ENOSPC;
 									}
+									h_reply (q, &hdr, err);
 								}
 								break;
 							case HDR_XDATA:
@@ -2719,17 +2723,15 @@ isdn2_wsrv (queue_t *q)
 									CARD (attach);
 
 									if (isdn2_debug & 0x10)
-										printf ("%sAttach card %d channel %d to minor %d mode %d %s%s\n",KERN_DEBUG, hdr.hdr_attach.card, hdr.hdr_attach.chan, minor, hdr.hdr_attach.mode, hdr.hdr_attach.listen & 1 ? "listen" : "talk", hdr.hdr_attach.listen & 2 ? " force" : "");
+										printf ("%sAttach card %d channel %d to minor %d connref %ld %s%s\n",KERN_DEBUG,
+											hdr.hdr_attach.card, hdr.hdr_attach.chan, minor, hdr.hdr_attach.connref,
+											(hdr.hdr_attach.listen & 2) ? "setup" : ((hdr.hdr_attach.listen & 1) ? "listen" : "talk"),
+											(hdr.hdr_attach.listen & 4) ? " force" : "");
 
 									ms = splstr ();
 									if (chan->card != NULL && chan->card != crd) {
 										printf ("%s -- minor not free\n",KERN_DEBUG);
 										h_reply (q, &hdr, EBUSY);
-										splx (ms);
-										break;
-									} else if (hdr.hdr_attach.mode == 0) {
-										printf ("%s -- mode zero\n",KERN_DEBUG);
-										h_reply (q, &hdr, EINVAL);
 										splx (ms);
 										break;
 									} else if (hdr.hdr_attach.chan > crd->card->nr_chans) {
@@ -2738,10 +2740,10 @@ isdn2_wsrv (queue_t *q)
 										splx (ms);
 										break;
 									}
-									if (crd->status != C_up) {
+									if ((crd->status != C_up) && !(hdr.hdr_attach.listen & 2)) {
 										printf("%s -- card down 3",KERN_DEBUG);
-										if(hdr.hdr_attach.listen & 2) 
-											err = (*crd->card->ch_mode) (crd->card, 0, M_HDLC, 0);
+										if(hdr.hdr_attach.listen & 4) 
+											err = (*crd->card->ch_mode) (crd->card, 0, M_ON, 0);
 										else
 											err = -ENXIO;
 										if(err != 0) {
@@ -2752,7 +2754,7 @@ isdn2_wsrv (queue_t *q)
 									}
 									if (hdr.hdr_attach.chan > 0) {		/* B channel */
 										if (crd->chan[hdr.hdr_attach.chan] != NULL && crd->chan[hdr.hdr_attach.chan] != chan) {
-#if 0
+#if 1
 											printf ("%s -- Err Chan busy\n",KERN_DEBUG);
 											h_reply (q, &hdr, EBUSY);
 											splx (ms);
@@ -2761,7 +2763,17 @@ isdn2_wsrv (queue_t *q)
 											isdn2_disconnect (chan, 0xFF);
 #endif
 										}
-										if ((err = (*crd->card->ch_mode) (crd->card, hdr.hdr_attach.chan, hdr.hdr_attach.mode, hdr.hdr_attach.listen & 1)) != 0) {
+										if (hdr.hdr_attach.connref != 0 && chan->connref != 0 && chan->connref != hdr.hdr_attach.connref) {
+#if 1
+											printf ("%s -- Err Chan attached %ld\n",KERN_DEBUG,chan->connref);
+											h_reply (q, &hdr, EBUSY);
+											splx (ms);
+											break;
+#else
+											isdn2_disconnect (chan, 0xFF);
+#endif
+										}
+										if ((err = (*crd->card->ch_mode) (crd->card, hdr.hdr_attach.chan, M_ON, hdr.hdr_attach.listen & 3)) != 0) {
 											printf ("%s -- Err SetMode\n",KERN_DEBUG);
 											h_reply (q, &hdr, EIO);
 											splx (ms);
@@ -2771,11 +2783,8 @@ isdn2_wsrv (queue_t *q)
 										chan->status = M_B_conn;
 										chan->card = crd;
 										chan->channel = hdr.hdr_attach.chan;
-										/* putproto (minor, PROTO_CONNECTED); */
-#if 0
-										if (isdn2_debug & 0x10)
-											printf ("%s -- Conn B\n",KERN_DEBUG);
-#endif
+										if(hdr.hdr_attach.connref != 0)
+											chan->connref = hdr.hdr_attach.connref;
 									} else {	/* D channel */
 										int i;
 
@@ -2793,10 +2802,12 @@ isdn2_wsrv (queue_t *q)
 										chan->status = M_D_conn;
 										chan->card = crd;
 										chan->channel = i;
+										chan->connref = hdr.hdr_attach.connref;
 										/* putproto (minor, PROTO_CONNECTED); */
 										if (isdn2_debug & 0x10)
 											printf ("%s -- Conn D\n",KERN_DEBUG);
 									}
+									h_reply(q,&hdr,0);
 									splx (ms);
 								}
 								break;
@@ -2805,30 +2816,17 @@ isdn2_wsrv (queue_t *q)
 									NOLENHDR ();
 									xMINOR (detach);
 									if (isdn2_debug & 0x10)
-										printf ("%sDetach card %d channel %d to minor %d%s\n",KERN_DEBUG, hdr.hdr_detach.card, hdr.hdr_detach.chan, minor, hdr.hdr_detach.perm ? " force" : "");
-									if(hdr.hdr_detach.card != 0) {
-										CARD (attach);
-
-										if (chan->card != crd) {
-											printf ("%s -- bad card\n",KERN_DEBUG);
-											h_reply (q, &hdr, EBUSY);
-											break;
-										
-										}
-										if (hdr.hdr_detach.chan > crd->card->nr_chans) {
-											printf ("%s -- bad channel (%d > %d)\n",KERN_DEBUG, hdr.hdr_detach.chan, crd->card->nr_chans);
-											h_reply (q, &hdr, EINVAL);
-										}
-										if (crd->chan[hdr.hdr_detach.chan] != NULL && crd->chan[hdr.hdr_detach.chan] != chan) {
-											printf ("%s -- bad channel (%d)\n",KERN_DEBUG,hdr.hdr_detach.chan);
-											h_reply (q, &hdr, EBUSY);
-											break;
-										}
+										printf ("%sDetach minor %d connref %ld%s\n",KERN_DEBUG,
+											minor, hdr.hdr_detach.connref, hdr.hdr_detach.perm ? " force" : "");
+									if ((hdr.hdr_detach.connref != 0) && (chan->connref != 0) && (chan->connref != hdr.hdr_detach.connref)) {
+										printf ("%s -- bad connref\n",KERN_DEBUG);
+										h_reply (q, &hdr, EBUSY);
+										break;
 									}
 									if (hdr.hdr_detach.perm)
-										poplist (chan->qptr, 0);
+										poplist (chan->qptr, PUSH_BEFORE);
 									isdn2_disconnect (chan, hdr.hdr_detach.error);
-								
+									h_reply(q,&hdr,0);
 								}
 								break;
 							case HDR_LOAD:

@@ -224,8 +224,8 @@ do_h (queue_t * q)
 	if (err < 0) {
 		errno = -err;
 		syslog (LOG_ERR, "Read H: %m");
-	} else
-		q->q_flag |= QWANTR;
+	}
+	q->q_flag |= QWANTR;
 }
 
 
@@ -289,8 +289,8 @@ do_l (queue_t * q)
 		struct iovec io[3];
 		int iovlen = 1;
 
-		if ((err = strread (xs_mon, (streamchar *) &h, sizeof (struct _isdn23_hdr), 0)) == sizeof (struct _isdn23_hdr)) ;
-
+		if ((err = strread (xs_mon, (streamchar *) &h, sizeof (struct _isdn23_hdr), 0)) == sizeof (struct _isdn23_hdr))
+			;
 		else
 			break;
 
@@ -311,7 +311,7 @@ do_l (queue_t * q)
 			io[iovlen].iov_len = h.hdr_atcmd.len;
 			if ((err = strread (xs_mon, (streamchar *) data, h.hdr_atcmd.len, 0)) != h.hdr_atcmd.len) {
 				syslog (LOG_ERR, "do_l: Fault, %d, %m", err);
-				return;
+				goto exhopp;
 			}
 			io[iovlen].iov_base = (caddr_t) data;
 			io[iovlen].iov_len = err;
@@ -322,7 +322,7 @@ do_l (queue_t * q)
 			io[iovlen].iov_len = sizeof (struct _isdn23_hdr);
 			if ((err = strread (xs_mon, (streamchar *) data, sizeof (struct _isdn23_hdr), 0)) != sizeof (struct _isdn23_hdr)) {
 				syslog (LOG_ERR, "do_l: Fault, %m");
-				return;
+				goto exhopp;
 			}
 			iovlen++;
 			break;
@@ -340,9 +340,10 @@ do_l (queue_t * q)
 			err = xwritev (fd_mon, io, iovlen);
 		}
 	}
-	if (err != 0) {
+	if (err < 0) {
 		errno = -err;
 		syslog (LOG_ERR, "Read L: %m");
-	} else
-		q->q_flag |= QWANTR;
+	}
+  exhopp:
+	q->q_flag |= QWANTR;
 }

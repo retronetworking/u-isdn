@@ -245,16 +245,6 @@ proto_prot (queue_t * q, mblk_t * mp)
 			break;
 		}
 		break;
-	case PROTO_INTERRUPT:
-		mp->b_rptr = origmp;
-		*(ushort_t *) (mp->b_rptr) = PROTO_HAS_INTERRUPT;
-#if 0
-		goto conn_intr;
-#else
-		qreply(q,mp);
-		mp = NULL;
-		break;
-#endif
 	case PROTO_CONNECTED:
 		mp->b_rptr = origmp;
 		*(ushort_t *) (mp->b_rptr) = PROTO_HAS_CONNECTED;
@@ -269,6 +259,13 @@ proto_prot (queue_t * q, mblk_t * mp)
 		if (proto->cCarrier == 2)
 			proto->cCarrier |= 1;
 		break;
+	case PROTO_SETUP:
+		mp->b_rptr = origmp;
+		*(ushort_t *) (mp->b_rptr) = PROTO_HAS_SETUP;
+		qreply (q, mp);
+		setmode(proto, P_NONE);
+		mp = NULL;
+		break;
 	case PROTO_LISTEN:
 		mp->b_rptr = origmp;
 		*(ushort_t *) (mp->b_rptr) = PROTO_HAS_LISTEN;
@@ -276,7 +273,7 @@ proto_prot (queue_t * q, mblk_t * mp)
 		setmode(proto, P_LISTEN);
 		mp = NULL;
 		break;
-	case PROTO_UPDATEMODLIST:
+	case PROTO_MODLIST:
 		mp->b_rptr = origmp;
 		mm_reply(proto,q,mp,0);
 		mp = NULL;
@@ -330,12 +327,6 @@ proto_prot (queue_t * q, mblk_t * mp)
 			}
 			splx (ms);
 		}
-		break;
-	case PROTO_WILL_INTERRUPT:
-		mp->b_rptr = origmp;
-		*(ushort_t *) (mp->b_rptr) = PROTO_INTERRUPT;
-		qreply (q, mp);
-		mp = NULL;
 		break;
 	case PROTO_MODULE:
 		if (strnamecmp (q, mp)) {	/* Config information for me. */

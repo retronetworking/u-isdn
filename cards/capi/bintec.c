@@ -244,8 +244,8 @@ bd_msgout( struct _bintec *bp )
 			printf("%c", c);  /*  display byte  */
 		}
 		if(++count > 1000) {
-			printf("\n%sBINTEC: The board seems to be in an infinite loop.\n",KERN_ERR);
-			if(bp->waitmsg == 0)
+			printf("%sBINTEC: The board seems to be in an infinite loop.\n",KERN_ERR);
+			if(bp->registered)
 				isdn2_new_state(&bp->card,2);
 			CTRL_RESET(bp);
 			return -EIO;
@@ -255,7 +255,7 @@ bd_msgout( struct _bintec *bp )
     if (*bp->state & 0x80) {      /*  board failed  */
 		CTRL_RESET(bp);           /*  reset board  */
 		printf("%sBINTEC: msgout: board failed???\n",KERN_WARNING);
-		if(bp->waitmsg == 0)
+		if(bp->registered)
 			isdn2_new_state(&bp->card,2);
 		return -EIO;
     }
@@ -614,7 +614,6 @@ init1 (struct _bintec *bp)
 	err = bd_check(bp);
 	if(err < 0)
 		return err;
-	bp->waitmsg = 999;
 	return 0;
 }
 
@@ -785,7 +784,7 @@ bintec_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
     struct _bintec * bp = (struct _bintec *)card;
     streamchar *origmp = mp->b_rptr;
     ushort_t id;
-    int err = 0;
+    int err = -ERESTART;
 	hdlc_buf chan = &bp->chan[channel];
 
     DEBUG(info) printf("%sBintecProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
@@ -846,7 +845,7 @@ bintec_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 					mblk_t *mz = make_reply(err);
 					if(mz != NULL) {
     					mp->b_rptr = origmp;
-						mp->b_datap->db_type = mz->b_datap->db_type;
+						DATA_TYPE(mp) = DATA_TYPE(mz);
 						linkb(mz,mp);
 						if((err = isdn2_chprot(card,channel,mz,flags|CHP_FROMSTACK)) < 0)
 							freeb(mz);
@@ -1022,7 +1021,7 @@ pushone(struct _bintec *bp, int thechan)
 	mb = S_dequeue(&chan->q_in);
 	if(mb == NULL) {
 		DEBUG(info) if(thechan == 0) printf("%sBINTEC: upqueue cleared\n",KERN_INFO);
-		return 0;
+		return -ENOENT;
 	}
 	if(mb->b_cont == NULL) {
 		freeb(mb);
@@ -1035,9 +1034,9 @@ pushone(struct _bintec *bp, int thechan)
 		mblk_t *mr = allocb(sizeof(*capi)+sizeof(*cr),BPRI_HI);
 		if(mr != NULL) {
 			capi  = ((typeof(capi ))mb->b_rptr);
+			ci =  (typeof(ci))(capi+1);
 			capi2 = ((typeof(capi2))mr->b_wptr)++;
 			cr = ((typeof(cr))mr->b_wptr)++;
-			ci =  (typeof(ci))(capi+1);
 			capi2->len = mr->b_wptr-mr->b_rptr;
 			capi2->appl = capi->appl;
 			capi2->PRIM_type = CAPI_DATAB3_RESP;
@@ -1073,7 +1072,6 @@ pushone(struct _bintec *bp, int thechan)
 			}
 		} else {
 			S_requeue(&chan->q_in, mb);
-			freemsg(mb);
 			err = -ENOMEM;
 		}
 	}
@@ -1130,6 +1128,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 				freemsg(mb);
 				/* TODO: Throw the connection away. Right now we kill the
 				   card instead. */
+				printf("%sBINTEC error: Incoming queue overflow, killed!\n",KERN_ERR);
 				isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
 			}
 			pushone(bp,ch);
@@ -1139,7 +1138,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 		{
 			struct _hdlc_buf *chan = &bp->chan[1];
 			if(ch == 0) {
-				struct CAPI_datab3_ind *c2;
+				struct CAPI_datab3_conf *c2;
 				int i;
 
 				ch = -1;
@@ -1159,6 +1158,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 				return -ERESTART;
 			if(chan->waitflow) 
 				chan->waitflow--;
+			freemsg(mb);
 			sendone(bp,ch);
 		}
 		break;
@@ -1166,7 +1166,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 	def:
 		if(!isdn2_canrecv(&bp->card,0)) 
 			return -EAGAIN;
-		else if((err = isdn2_recv(&bp->card,0,mb)) != 0) {
+		else if((err = isdn2_recv(&bp->card,0,mb)) < 0) {
 			printf("%sBINTEC read error: err %d\n",KERN_WARNING,err);
 			return err;
 		}
@@ -1307,7 +1307,7 @@ DoIRQ(struct _bintec *bp)
 							}
 							if(offset < 0) {
 								ch = -1;
-								offset = bp->maxoffset; /* Not yet */
+								offset = bp->maxoffset; /* Not yet set */
 							}
 						}
 						break;
@@ -1320,6 +1320,7 @@ DoIRQ(struct _bintec *bp)
 						if(m2 == NULL) {
 							getflush(bp,len-capilen);
 							printf("%sBINTEC error: No memory for %d bytes\n",KERN_ERR,len-capilen);
+							err = -ENOMEM;
 						} else {
 							m2->b_rptr += offset;
 							m2->b_wptr += offset;
@@ -1349,7 +1350,6 @@ DoIRQ(struct _bintec *bp)
 							if(prcnt < 3) {
 								DEBUG(info)printf("BINTEC:read: 'unknown data' queue full\n");
 							}
-							freemsg(mb);
 						} else {
 							S_enqueue(&bp->q_unknown,mb);
 							err = 0;
@@ -1385,9 +1385,10 @@ DoIRQ(struct _bintec *bp)
 		}
 	}
 
-	for(lastpos=0; lastpos <= bp->card.nr_chans; lastpos++) {
+	recvone(bp,0);
+	for(lastpos=1; lastpos <= bp->card.nr_chans; lastpos++) {
 		do {
-			err = recvone(bp,lastpos);
+			err = pushone(bp,lastpos);
 		} while(err == 0);
 	}
  
@@ -1409,11 +1410,14 @@ DoIRQ(struct _bintec *bp)
 #ifdef linux
 static void
 bintecintr(int irq, struct pt_regs *regs)
+#else
+void NAME(REALNAME,intr)(int x)
+#endif
 {
 	struct _bintec *bp;
 	
 	for(bp=bintecmap[irq];bp != NULL; bp = bp->next) {
-		if(bp->info.irq == irq) {
+		if(bp->polled) {
 			bp->polled --;
 			DoIRQ(bp);
 			bp->polled ++;
@@ -1422,20 +1426,6 @@ bintecintr(int irq, struct pt_regs *regs)
 }
 
 
-#else
-void NAME(REALNAME,intr)(int x)
-{
-	struct _bintec *bp;
-
-	for(bp=bintecmap[x];bp != NULL; bp = bp->next) {
-		if(bp->info.irq == x) {
-			bp->polled --;
-			DoIRQ(bp);
-			bp->polled ++;
-		}
-	}
-}
-#endif
 
 #ifdef linux
 void NAME(REALNAME,poll)(struct _bintec *bp)
@@ -1447,18 +1437,22 @@ void NAME(REALNAME,poll)(void *nix)
 	struct _bintec *bp;
 	for(i=bintec_num-1;i>=0;--i)
 #endif
-        {
+    {
 		unsigned long ms;
 #ifndef linux
 		bp = &bintecdata[i];
 #endif
-		ms = SetSPL(bp->ipl);
-		DoIRQ(bp);
-		splx(ms);
+		if(bp->polled > 0) {
+			bp->polled--;
+			ms = SetSPL(bp->ipl);
+			DoIRQ(bp);
+			splx(ms);
 #if 0 /* def linux */
-		if(bp->info.irq != 0)
-			unblock_irq(bp->info.irq);
+			if(bp->info.irq != 0)
+				unblock_irq(bp->info.irq);
 #endif
+			bp->polled++;
+		}
 	}
 }
 
@@ -1499,14 +1493,16 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 	bp->card.boot = boot;
 	bp->polled = -1;
 	bp->lastout = 1;
+	bp->registered = 0;
 	printf("ISDN: " STRING(REALNAME) " at mem 0x%lx irq %d: ",bp->info.memaddr,bp->info.irq);
+	bp->waitmsg = 999;
 	if((err = init1(bp)) < 0) {
 		printf("Card not initializable.\n");
 		kfree(bp);
 		return err;
 	}
 #ifdef linux
-	if((bp->info.irq != 0) && (bintecmap[bp->info.irq] == NULL) && request_irq(bp->info.irq,bintecintr,SA_INTERRUPT,"Bintec")) {
+	if((bp->info.irq != 0) && (bintecmap[bp->info.irq] == NULL) && request_irq(bp->info.irq,bintecintr,SA_INTERRUPT,STRING(REALNAME))) {
 		printf("IRQ not available.\n");
 		kfree(bp);
 		return -EIO;
@@ -1520,6 +1516,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 	}
 
 	bp->polled = 1;
+	bp->registered = 1;
 #ifdef linux
 	if(bp->info.irq == 0) {
 		printf("polling; ");

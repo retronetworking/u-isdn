@@ -27,9 +27,7 @@ enum M_state {
 typedef struct _isdn2_chan {
 	queue_t *qptr;				  /* read queue (i.e. going up) for Streams */
 	struct _isdn2_card *card;	  /* NULL if not assigned to a card */
-#if 0
-	struct _isdn_chan *chan;		  /* B channel: data buffer */
-#endif
+	ulong_t connref;              /* if attached: refnum of attachment */
 	mblk_t *bufx;
 #ifdef NEW_TIMEOUT
 	int timer_unblock;

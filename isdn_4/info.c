@@ -331,6 +331,19 @@ init_vars (void)
 	return 0;
 }
 
+void do_updown(CState state)
+{
+	if(conn->charge > 0 || (++conn->retries > ((conn->cg && conn->cg->retries) ? conn->cg->retries : (conn->retiming ? 5 : ((conn->flags & F_FASTREDIAL) ? 20 : 10))))) {
+		if(conn->cg != NULL)
+			syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
+		else
+			syslog(LOG_ERR,"OFF ??? %s",CauseInfo(conn->cause, conn->causeInfo));
+		setconnstate(conn,c_off);
+	} else
+		setconnstate(conn,has_force ? c_off : state);
+}
+
+
 /* Incoming IND_CARD -- a new ISDN card is recognized, or somebody put the
    ISDN cable back in. */
 int
@@ -582,6 +595,7 @@ do_cardproto(void)
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
 			if(log_34 & 2)printf("Dis10 ");
+			*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_OFF);
 			if(minor > 0) {
 				m_putsx (&xx, ARG_MINOR);
@@ -606,7 +620,7 @@ do_cardproto(void)
 
 			return 2;
 		}
-		if (pushcardprot (cg, minor, connref) == 0) {
+		if (pushprot (cg, minor, connref, PUSH_BEFORE) == 0) {
 			dropgrab(cg);
 			/* Success */
 			return 0;
@@ -622,6 +636,7 @@ do_cardproto(void)
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
 			if(log_34 & 2)printf("Dis11 ");
+			*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_OFF);
 			if(minor > 0) {
 				m_putsx (&xx, ARG_MINOR);
@@ -652,82 +667,6 @@ do_cardproto(void)
 	return 0;
 }
 
-/* IND_PROTO: Request to set the connection information. 
-   Maps to a call of pushprot(). */
-int
-do_proto(void)
-{
-	if (connref == 0 || minor == 0) {
-		printf ("\n*** NoProto: Card %p, callref %ld, minor %ld\n", crd, callref, minor);
-		return 2;
-	}
-	if (conn == NULL) {
-		printf ("\n*** Warn NoConnProto: Card %p, callref %ld, minor %ld\n", crd, callref, minor);
-	}
-	{
-		conngrab cg = newgrab(conn ? conn->cg : NULL);
-		if(cg == NULL) {
-			resp = "NoMemErrErr";
-			return 1;
-		}
-		cg->protocol = str_enter(prot);
-		if(cg->par_in != NULL)
-			freemsg(cg->par_in);
-		cg->par_in = copymsg(&xx);
-
-		if (crd[0] != '\0')
-			cg->card = str_enter(crd);
-
-		if ((resp = findsite (&cg,1)) != NULL) {
-			dropgrab(cg);
-			syslog (LOG_ERR, "ISDN NoProtocol3 %ld %s", minor, data);
-
-			xx.b_rptr = xx.b_wptr = ans;
-			db.db_base = ans;
-			db.db_lim = ans + sizeof (ans);
-			m_putid (&xx, CMD_CLOSE);
-			m_putsx (&xx, ARG_MINOR);
-			m_puti (&xx, minor);
-			if(conn != NULL && conn->minor == minor) {
-				conn->minor = 0;
-				if(conn->pid == 0)
-					dropconn(conn);
-				else
-					kill(conn->pid,SIGHUP);
-			}
-
-			xlen = xx.b_wptr - xx.b_rptr;
-			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, xlen, 1);
-			return 2;
-		}
-		if (pushprot (cg, minor, conn ? conn->connref : 0, ind == IND_PROTO_AGAIN) == 0) {
-			/* Success */
-			if(conn != NULL)
-				conn->sentsetup = 1;
-			dropgrab(cg);
-			return 0;
-		} else {
-			dropgrab(cg);
-			syslog (LOG_ERR, "ISDN NoProtocol4 %ld %s", minor, data);
-
-			xx.b_rptr = xx.b_wptr = ans;
-			db.db_base = ans;
-			db.db_lim = ans + sizeof (ans);
-			m_putid (&xx, CMD_CLOSE);
-			m_putsx (&xx, ARG_MINOR);
-			m_puti (&xx, minor);
-
-			xlen = xx.b_wptr - xx.b_rptr;
-			DUMPW (ans, xlen);
-			(void) strwrite (xs_mon, ans, xlen, 1);
-
-			resp = "ERROR";
-			return 1;
-		}
-	}
-	return 0;
-}
 
 /* IND_INCOMING: Incoming call processing. */
 int
@@ -809,9 +748,10 @@ do_incoming(void)
 
 		mz = allocb(40,BPRI_HI); if(mz == NULL) goto cont;
 
-		if(*resp != '-') {
+		if(*resp != '+') {
 			/* Throw away the incoming call */
 			if(log_34 & 2)printf("Dis1 ");
+			*mz->b_wptr++ = PREF_NOERR;
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ARG_FORCE);
@@ -861,6 +801,7 @@ do_incoming(void)
 			resp = NULL;
 		} else { /* Throw away the outgoing call */
 			if(log_34 & 2)printf("Dis2 ");
+			*mz->b_wptr++ = PREF_NOERR;
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ARG_FORCE);
@@ -946,6 +887,7 @@ do_incoming(void)
 			db.db_lim = ans + sizeof (ans);
 
 			if(log_34 & 2)printf("Dis3 ");
+			*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_OFF);
 			if(connref != 0) {
 				m_putsx (&xx, ARG_CONNREF);
@@ -1091,101 +1033,41 @@ do_hasdisable(void)
 	return 0;
 }
 
-/* IND_DISC: Connection broken. */
 int
-do_disc(void)
+do_discrun(CState state)
 {
-	if (conn != NULL) {
-		conn->got_id = 1;
-		if(conn->cg->nr != NULL)
-			conn->cg->oldnr = conn->cg->nr;
-		if(conn->cg->lnr != NULL)
-			conn->cg->oldlnr = conn->cg->lnr;
-		if(!conn->want_fast_reconn) {
-			conn->cg->nr = NULL;
-			conn->cg->flags &=~ F_NRCOMPLETE;
-		}
-		conn->cg->lnr = NULL;
-		conn->cg->flags &=~ F_LNRCOMPLETE;
-		conn->fminor = 0;
-		if(conn->got_hd || (conn->flags & F_LEASED)) { /* Protocol stack is down also */
-			switch(conn->state) {
-			case c_offdown:
-			case c_off:
-			  conn_off:
-				{
-					if(conn->state >= c_down) {
-						if(conn->cg != NULL)
-							syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
-						else
-							syslog(LOG_ERR,"OFF ??? %s",CauseInfo(conn->cause, conn->causeInfo));
-					}
-					setconnstate(conn,c_off);
+	if(conn != NULL) {
+		switch(conn->state) {
+		case c_going_up:
+			do_updown(state);
+			if((conn->flags & F_INCOMING) && !(conn->flags & F_PERMANENT)) {
+				xx.b_rptr = xx.b_wptr = ans;
+				db.db_base = ans;
+				db.db_lim = ans + sizeof (ans);
+				if(log_34 & 2)printf("Dis4d ");
+				m_putid (&xx, CMD_CLOSE);
+				m_putsx (&xx, ARG_MINOR);
+				m_puti (&xx, minor);
+				m_putsx (&xx, ARG_NOCONN);
+				xlen = xx.b_wptr - xx.b_rptr;
+				DUMPW (xx.b_rptr, xlen);
+				(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
+				if(conn->minor == minor) {
+					conn->minor = 0;
+					if(conn->pid == 0)
+						dropconn(conn);
+					else
+						kill(conn->pid,SIGHUP);
 				}
-				break;
-			case c_going_up:
-				/* If the connect cost us anything, or if the limit was
-				   reached, punt. */
-				if(conn->charge > 0 || (++conn->retries > ((conn->cg && conn->cg->retries) ? conn->cg->retries : ((conn->flags & F_FASTREDIAL) ? 20 : 10))))
-					goto conn_off;
-				/* else FALL THRU */
-			case c_up:
-			case c_going_down:
-#if 0
-				if(conn->got_id == 1)
-					setconnstate(conn,c_going_down);
-				else
-#endif
-				hitme:
-				setconnstate(conn,has_force ? c_off : c_down);
-				break;
-			case c_down:
-				setconnstate(conn,c_down);
-				break;
-			default:;
-			}
-		} else  { /* protocol stack isn't yet down */
-			switch(conn->state) {
-			case c_going_up:
-				if((conn->flags & F_INCOMING) && !(conn->flags & F_PERMANENT)) {
-					xx.b_rptr = xx.b_wptr = ans;
-					db.db_base = ans;
-					db.db_lim = ans + sizeof (ans);
-					if(log_34 & 2)printf("Dis4d ");
-					m_putid (&xx, CMD_CLOSE);
-					m_putsx (&xx, ARG_MINOR);
-					m_puti (&xx, minor);
-					m_putsx (&xx, ARG_NOCONN);
-					xlen = xx.b_wptr - xx.b_rptr;
-					DUMPW (xx.b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
-					if(conn->minor == minor) {
-						conn->minor = 0;
-						if(conn->pid == 0)
-							dropconn(conn);
-						else
-							kill(conn->pid,SIGHUP);
-					}
-
-				}					
-				if(conn->charge > 0 || (++conn->retries > ((conn->cg && conn->cg->retries) ? conn->cg->retries : ((conn->flags & F_FASTREDIAL) ? 10 : 5))))
-					goto conn_off; /* Disable, temporarily. */
-				else
-					goto hitme; /* Reenable -- will get another WANT_CONN
-					               if the data are still there. */
-				break;
-			case c_up:
-				setconnstate(conn,c_going_down);
-				break;
-			case c_down:
-				setconnstate(conn,c_down);
-				break;
-			default:;
-			}
-			if(conn->cg != NULL)
-				syslog(LOG_INFO,"DOWN %s:%s",conn->cg->site,conn->cg->protocol);
-			else
-				syslog(LOG_INFO,"DOWN ???");
+			}					
+			break;
+		case c_up:
+			setconnstate(conn,state);
+			break;
+		case c_down:
+			setconnstate(conn,c_down);
+			break;
+		default:;
 		} 
 		if (conn->pid == 0)
 			dropconn (conn);
@@ -1223,6 +1105,7 @@ do_disc(void)
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
 		if(log_34 & 2)printf("Dis4 ");
+		*xx.b_wptr++ = PREF_NOERR;
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
@@ -1231,8 +1114,56 @@ do_disc(void)
 		(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
 	}
 #endif
+	return 0;
+}
+
+/* IND_DISC: Connection broken. */
+int
+do_disc(void)
+{
+	if (conn != NULL) {
+		if(conn->cg->nr != NULL)
+			conn->cg->oldnr = conn->cg->nr;
+		if(conn->cg->lnr != NULL)
+			conn->cg->oldlnr = conn->cg->lnr;
+		if(!conn->want_fast_reconn) {
+			conn->cg->nr = NULL;
+			conn->cg->flags &=~ F_NRCOMPLETE;
+		}
+		conn->cg->lnr = NULL;
+		conn->cg->flags &=~ F_LNRCOMPLETE;
+		conn->fminor = 0;
+
+		if(conn->cg != NULL)
+			syslog(LOG_INFO,"DOWN %s:%s",conn->cg->site,conn->cg->protocol);
+		else
+			syslog(LOG_INFO,"DOWN ???");
+
+		switch(conn->state) {
+		case c_offdown:
+			setconnstate(conn,c_down);
+			break;
+		case c_off:
+			break;
+		case c_going_up:
+			/* If the connect cost us anything, or if the limit was
+				reached, punt. */
+			(void)do_discrun(c_down);
+			break;
+		case c_up:
+			(void)do_discrun(c_down);
+			break;
+		case c_going_down:
+			setconnstate(conn,has_force ? c_off : c_down);
+			break;
+		case c_down:
+			setconnstate(conn,c_down);
+			break;
+		default:;
+		}
+	}
 #if 1
-	if(conn != NULL && conn->sentsetup && conn->state <= c_going_down && ind == IND_DISC) {
+	if(conn != NULL && conn->sentsetup && conn->state <= c_going_down) {
 		resp = "NO CARRIER";
 		return 1;
 	}
@@ -1457,19 +1388,18 @@ do_hasconnected(void)
 int
 do_disconnect(void)
 {
+#if 0
 	if (conn != NULL)
 		if(conn->state > c_down) {
-			if(conn->state == c_going_up && conn->charge > 0)
-				setconnstate(conn, c_offdown);
-			else
-				setconnstate(conn, c_going_down);
+			if(conn->state == c_going_up)
+				do_updown();
 		}
 
-#if 0
 	xx.b_rptr = xx.b_wptr = ans;
 	db.db_base = ans;
 	db.db_lim = ans + sizeof (ans);
 	if(log_34 & 2)printf("Dis5 ");
+	*xx.b_wptr++ = PREF_NOERR;
 	m_putid (&xx, CMD_OFF);
 	m_putsx (&xx, ARG_MINOR);
 	m_puti (&xx, minor);
@@ -1508,6 +1438,7 @@ do_hasdisconnect(void)
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
 		if(log_34 & 2)printf("Dis6 ");
+		*xx.b_wptr++ = PREF_NOERR;
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
@@ -1521,34 +1452,16 @@ do_hasdisconnect(void)
 	}
 #endif
 	if(conn != NULL) {
-		conn->got_hd = 1;
-		if(conn->got_id) { /* really down */
-			switch(conn->state) {
-			case c_offdown:
-				setconnstate(conn,c_off);
-				break;
-			case c_up:
-			case c_going_up:
-			case c_going_down:
-#if 0
-				if(conn->got_id == 1)
-					setconnstate(conn,c_going_down);
-				else
-#endif
-					setconnstate(conn,c_down);
-				break;
-			default:;
-			}
-		} else  { /* not wholly down yet */
-			syslog(LOG_INFO,"DOWN %s:%s",conn->cg->site,conn->cg->protocol);
+		syslog(LOG_INFO,"DOWN %s:%s",conn->cg->site,conn->cg->protocol);
 
-			switch(conn->state) {
-			case c_up:
-			case c_going_up:
-				setconnstate(conn,c_going_down);
-				break;
-			default:;
-			}
+		switch(conn->state) {
+		case c_going_up:
+			do_updown(c_going_down);
+			break;
+		case c_up:
+			setconnstate(conn,c_going_down);
+			break;
+		default:;
 		}
 	}
 #if 0
@@ -1566,7 +1479,6 @@ do_wantconnect(void)
 		if(conn->state < c_going_up) {
 			if(conn->state == c_off)
 				setconnstate(conn,c_down);
-			conn->got_hd = 0;
 			setconnref(conn,0);
 			try_reconn(conn);
 		}
@@ -1576,6 +1488,7 @@ do_wantconnect(void)
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
 			if(log_34 & 2)printf("Dis7 ");
+			*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_OFF);
 			m_putsx (&xx, ARG_MINOR);
 			m_puti (&xx, minor);
@@ -1627,7 +1540,7 @@ do_atcmd(void)
 				return 3;
 			case 'k': /* AT/K#, kill one program; AT/K, kill all programs */
 			case 'K': /* Restart in half a minute. */
-				if(user[fminor] != 0) {
+				if(user[fminor] != 0 && user[fminor] != rootuser) {
 					resp = "NO PERMISSION";
 					return 1;
 				}
@@ -1651,7 +1564,7 @@ do_atcmd(void)
 				break;
 			case 'r': /* AT/R */
 			case 'R': /* Reload database. */
-				if(user[fminor] != 0) {
+				if(user[fminor] != 0 && user[fminor] != rootuser) {
 					resp = "NO PERMISSION";
 					return 1;
 				}
@@ -1661,7 +1574,7 @@ do_atcmd(void)
 				break;
 			case 'q': /* AT/Q */
 			case 'Q': /* Shutdown the ISDN system. */
-				if(user[fminor] != 0) {
+				if(user[fminor] != 0 && user[fminor] != rootuser) {
 					resp = "NO PERMISSION";
 					return 1;
 				}
@@ -1700,7 +1613,7 @@ do_atcmd(void)
 			case 'x': /* AT#X# */
 			case 'X': /* Drop a connection, i.e. state = DOWN */
 				{
-					if(user[fminor] != 0) {
+					if(user[fminor] != 0 && user[fminor] != rootuser) {
 						resp = "NO PERMISSION";
 						return 1;
 					}
@@ -1726,6 +1639,7 @@ do_atcmd(void)
 							if(mb != NULL) {
 
 {
+								*mb->b_wptr++ = PREF_NOERR;
 								m_putid (mb, CMD_OFF);
 								m_putsx (mb, ARG_MINOR);
 								m_puti (mb, minor);
@@ -1972,6 +1886,7 @@ do_atcmd(void)
 				dbb.db_base = ans;
 				dbb.db_lim = ans + sizeof (ans);
 				if(log_34 & 2)printf("Dis9 ");
+				*yy.b_wptr++ = PREF_NOERR;
 				m_putid (&yy, CMD_OFF);
 				m_putsx (&yy, ARG_MINOR);
 				m_puti (&yy, minor);
@@ -2241,8 +2156,8 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
 
-		*xx.b_wptr++ = PREF_NOERR;
 		if(log_34 & 2)printf("DisA ");
+		*xx.b_wptr++ = PREF_NOERR;
 		m_putid (&xx, CMD_OFF);
 		m_putsx(&xx,ARG_FORCE);
 		if(minor > 0) {
@@ -2338,17 +2253,14 @@ do_noerror(void)
 	case IND_OFFCARD:          ret = do_offcard();       break;
 	case IND_NOCARD:           ret = do_nocard();        break;
 	case IND_CARDPROTO:        ret = do_cardproto();     break;
-	case IND_PROTO:
-	case IND_PROTO_AGAIN:      ret = do_proto();         break;
 	case IND_INCOMING:         ret = do_incoming();      break;
 	case IND_CONN:             ret = do_conn();          break;
 	case PROTO_HAS_ENABLE:     ret = do_hasenable();     break;
 	case PROTO_HAS_DISABLE:    ret = do_hasdisable();    break;
 	case ID_N1_INFO:           ret = do_getinfo();       break;
 	case ID_ET_FAC:            ret = do_getinfo();       break;
-		/* for now */
-	case ID_N1_REL:
-	case IND_DISC:             ret = do_disc();          break;
+	case IND_DISCONNECT:       ret = do_disc();          break;
+	case IND_DISCONNECTING:    ret = do_discrun(c_going_down); break;
 	case IND_CLOSE:            ret = do_close();         break;
 	case IND_OPEN:             ret = do_open();          break;
 	case IND_TRACE:            ret = do_trace();         break;

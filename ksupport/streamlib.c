@@ -195,7 +195,7 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 	if (length == 0 || p_msg->b_cont == NULL) 
 		return p_msg;
 	if(length < 0)
-		length = xmsgsize(p_msg);
+		length = msgsize(p_msg);
 	if (p_msg->b_wptr - p_msg->b_rptr >= length)
 		return p_msg;
 
@@ -204,10 +204,6 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 	}
 	
 	DATA_TYPE(p_newmsg) = DATA_TYPE(p_msg);
-	if(msgdsize(p_msg) < 0)
-		return NULL;
-	if(msgdsize(p_newmsg) < 0)
-		return NULL;
 
 	/*
 	 * Copy the data.

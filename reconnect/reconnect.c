@@ -231,12 +231,6 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 			break;
 		} else
 			goto doit;
-	case PROTO_HAS_INTERRUPT:
-		if(down)
-			goto drop;
-		reco->flags &=~ RECONN_LOWER_WANTED;
-		id = PROTO_HAS_DISCONNECT;
-		goto doit;
 	case PROTO_INTERRUPT:
 		if(!down)
 			goto drop;
@@ -245,7 +239,6 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 		q = OTHERQ(q);
 		goto doit;
 	case PROTO_WILL_DISCONNECT:
-	case PROTO_WILL_INTERRUPT:
 		q = OTHERQ(q);
 		id = PROTO_DISCONNECT;
 		reco->lowerstate = r_going_down;

@@ -10,7 +10,7 @@
 #include <linux/major.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
-#if 0 /* not yet */
+#if LINUX_VERSION_CODE >= 66348 /* 1.3.44 -- EXPERIMENTAL */
 #include <linux/skbuff.h>
 #define SK_STREAM
 #endif
@@ -40,8 +40,8 @@
 #ifdef SK_STREAM
 #define DATA_BLOCK(m) ((m)->b_skb)
 #define DATA_START(m) ((m)->b_skb->head)
-#define DATA_END(m) ((m)->b_skb->tail)
-#define DATA_REFS(m) ((m)->b_skb->users)
+#define DATA_END(m) ((m)->b_skb->end)
+#define DATA_REFS(m) ((m)->b_skb->count)
 #define DATA_TYPE(m) ((m)->b_skb->pkt_type)
 #else
 #define DATA_BLOCK(m) ((m)->b_datap)
@@ -433,6 +433,10 @@ extern void deb_freemsg(const char *, unsigned int, mblk_t *);
 #define freemsg(a) deb_freemsg(__FILE__,__LINE__,a)
 extern mblk_t *deb_dupb(const char *, unsigned int, mblk_t *);
 #define dupb(a) deb_dupb(__FILE__,__LINE__,a)
+#ifdef SK_STREAM
+extern mblk_t *deb_dupskb(const char *, unsigned int, struct sk_buff *);
+#define dupskb(a) deb_dupskb(__FILE__,__LINE__,a)
+#endif
 extern mblk_t *deb_dupmsg(const char *, unsigned int, mblk_t *);
 #define dupmsg(a) deb_dupmsg(__FILE__,__LINE__,a)
 extern mblk_t *deb_copyb(const char *, unsigned int, mblk_t *);
@@ -449,6 +453,8 @@ extern int deb_adjmsg(const char *, unsigned int, mblk_t *, short);
 #define adjmsg(a,b) deb_adjmsg(__FILE__,__LINE__,a,b)
 extern int deb_msgdsize(const char *, unsigned int, mblk_t *);
 #define msgdsize(a) deb_msgdsize(__FILE__,__LINE__,a)
+extern int deb_msgsize(const char *, unsigned int, mblk_t *);
+#define msgsize(a) deb_msgsize(__FILE__,__LINE__,a)
 extern int deb_xmsgsize(const char *, unsigned int, mblk_t *);
 #define xmsgsize(a) deb_xmsgsize(__FILE__,__LINE__,a)
 extern mblk_t *deb_getq(const char *, unsigned int, queue_t *);
@@ -506,6 +512,9 @@ extern int testb(ushort,ushort);		/* Check if a message can be allocated */
 extern void freeb(mblk_t *);			/* Free a message block */
 extern void freemsg(mblk_t *);			/* Free a message list */
 extern mblk_t *dupb(mblk_t *);			/* Duplicate a message block */
+#ifdef SK_STREAM
+extern mblk_t *dupskb(struct sk_buff *); /* the mblk refers to the skbuff */
+#endif
 extern mblk_t *dupmsg(mblk_t *);		/* Duplicate a message */
 extern mblk_t *copyb(mblk_t *);			/* Copy a message block */
 extern mblk_t *copymsg(mblk_t *);		/* Copy a message */
@@ -515,6 +524,7 @@ extern int pullupmsg(mblk_t *, short);		/* Pull up the first N bytes */
 extern int adjmsg(mblk_t *, short);		/* Trim first/last(N<0) bytes */
 extern int msgdsize(mblk_t *);			/* # data bytes */
 extern int xmsgsize(mblk_t *);			/* # bytes of first msg block type */
+extern int msgsize(mblk_t *);			/* # bytes of the whole message */
 extern mblk_t *getq(queue_t *);			/* Remove first msg from queue */
 extern void rmvq(queue_t *, mblk_t *);		/* Remove this msg from queue */
 extern void flushq(queue_t *, int);		/* Flush messages */

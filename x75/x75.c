@@ -62,7 +62,6 @@ struct x75_ {
 #define X75_ADRWARN 04
 #define X75_DISC 010
 #define X75_CONNECT 020			  /* channel connected? */
-#define X75_INTR 040			  /* interrupt instead of disconnect */
 	char connmode;
 	queue_t *q;
 	int nr;
@@ -90,7 +89,8 @@ x75__state (struct x75_ *x_75, uchar_t ind, ushort_t add)
 	printf ("%sx75__state %d: Ind %d/%o\n",KERN_DEBUG , x_75 ->nr, ind, add);
 	switch (ind) {
 	case DL_ESTABLISH_IND:
-	case DL_ESTABLISH_CONF:{
+	case DL_ESTABLISH_CONF:
+		{
 			mblk_t *mb;
 
 			if (!(x_75->flags & X75_CONN)) {
@@ -102,9 +102,11 @@ x75__state (struct x75_ *x_75, uchar_t ind, ushort_t add)
 					putnext (x_75->q, mb);
 				}
 			}
-		} break;
+		}
+		break;
 	case DL_RELEASE_IND:
-	case DL_RELEASE_CONF:{
+	case DL_RELEASE_CONF:
+		{
 			mblk_t *mb;
 
 			x_75->flags &= ~X75_CONN;
@@ -112,12 +114,13 @@ x75__state (struct x75_ *x_75, uchar_t ind, ushort_t add)
 				x_75->flags |= X75_DISC;
 
 				if ((mb = allocb (3, BPRI_HI)) != NULL) {
-					*((ushort_t *) mb->b_wptr)++ = (x_75->flags & X75_INTR) ?  PROTO_INTERRUPT : PROTO_DISCONNECT;
+					*((ushort_t *) mb->b_wptr)++ = PROTO_DISCONNECT;
 					DATA_TYPE(mb) = MSG_PROTO;
 					putnext (WR (x_75->q), mb);
 				}
 			}
-		} break;
+		}
+		break;
 	}
 	return 0;
 }
@@ -164,7 +167,7 @@ x75__send (struct x75_ *x_75, char iscmd, mblk_t * mb2)
 	if(x_75->wide) {
 		if (/* XXX */ 0 || DATA_START(mb2)+2 > mb2->b_rptr
 			    || DATA_REFS(mb2) > 2 ) { /* Compromise... */
-			mb = allocb (x_75->offset, BPRI_HI);
+			mb = allocb (x_75->offset + 2, BPRI_HI);
 			if (mb == NULL)
 				return -ENOMEM;
 			mb->b_rptr += x_75->offset + 2;
@@ -177,9 +180,10 @@ x75__send (struct x75_ *x_75, char iscmd, mblk_t * mb2)
 	} else {
 		if (/* XXX */ 0 || DATA_START(mb2)+1 > mb2->b_rptr
 			    || DATA_REFS(mb2) > 2 ) { /* Compromise... */
-			mb = allocb (x_75->offset, BPRI_HI);
+			mb = allocb (x_75->offset + 1, BPRI_HI);
 			if (mb == NULL)
 				return -ENOMEM;
+			mb->b_rptr += x_75->offset + 1;
 			mb->b_wptr += x_75->offset + 1;
 			linkb (mb, mb2);
 		} else
@@ -323,7 +327,7 @@ x75_proto (queue_t * q, mblk_t * mp, char down)
 				goto err;
 			if(!down) {
 				x_75->offset = z;
-				z += 4;
+				z += 2;
 
 				x_75->x75.offset = z;
 				z += 2;
@@ -436,12 +440,6 @@ x75_proto (queue_t * q, mblk_t * mp, char down)
 					error = -EINVAL;
 					goto err;
 				case PROTO_MODULE:
-					break;
-				case X75_SENDINTR:
-					x_75->flags |= X75_INTR;
-					break;
-				case X75_SENDDISC:
-					x_75->flags &= ~X75_INTR;
 					break;
 				case X75_IGNORESABM:
 					x_75->x75.ignoresabm = 1;

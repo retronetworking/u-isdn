@@ -54,12 +54,6 @@ typedef void (*P_hndl_init) (void);
 typedef void (*P_hndl_newcard) (struct _isdn3_card * card);
 
 /*
- * Find out which mode flags would work for this. The protocol values depend on
- * the handler.
- */
-typedef ulong_t (*P_hndl_modeflags) (long protocol);
-
-/*
  * Incoming data. isUI != zero if this was an UI frame. Bit 1 of isUI is set if
  * this is a broadcast packet.
  */
@@ -116,7 +110,6 @@ typedef struct _isdn3_hndl {
 
 	P_hndl_init init;
 	P_hndl_newcard newcard;		  /* New card shows up */
-	P_hndl_modeflags modeflags;	  /* Correct mode? */
 	P_hndl_chstate chstate;		  /* L2 goes up or down */
 	P_hndl_report report;		  /* Report settings */
 	P_hndl_recv recv;			  /* Data from L2 */
@@ -155,6 +148,7 @@ typedef struct _isdn3_talk {		  /* one per card's D channel connection */
 #define STACK_LEN 10
 #define NICONN 18
 #define NSCONN 3
+#define NBCONN 2
 
 typedef struct _isdn3_conn {
 	struct _isdn3_card *card;	  /* Card this call is running on */
@@ -171,6 +165,7 @@ typedef struct _isdn3_conn {
 	int delay;					  /* don't get at it right away */
 	long conni[NICONN]; /* additional variables, handler dependent */
 	void *conns[NSCONN];
+	mblk_t *connb[NBCONN];
 #ifdef NEW_TIMEOUT				  /* Grumble */
 	int start_timer;
 	int delay_timer;
@@ -180,7 +175,6 @@ typedef struct _isdn3_conn {
 	uchar_t state;				  /* Protocol dependent. Zero means
 								   * free&unassigned. */
 	uchar_t lockit;				  /* Lock against inadvertent free */
-	uchar_t mode;				  /* mode of attached B channel */
 	uchar_t bchan;				  /* number of B channel. Zero if none or
 								   * through D. */
 	SUBDEV minor;				  /* minor number for data. Zero if none yet. */
@@ -201,10 +195,9 @@ typedef struct _isdn3_conn {
 #define MS_OUTGOING 04			  /* This is an outgoing connection */
 
 #define MS_CONN_NONE 00
-#define MS_CONN_LISTEN 010		  /* B channel connected, but connection not
-								   * established */
-#define MS_CONN 020				  /* B channel connected */
-#define MS_CONN_INTERRUPT 030	  /* B channel temporarily disconnected */
+#define MS_CONN_SETUP 010		  /* B channel associated, but no data transfer yet */
+#define MS_CONN_LISTEN 020		  /* B channel connected, but connection not fully established */
+#define MS_CONN 030				  /* B channel connected */
 #define MS_CONN_MASK 030
 
 #define MS_CONN_TIMER 040		  /* Supervisory timer running. The connection
@@ -213,14 +206,16 @@ typedef struct _isdn3_conn {
 #define MS_BCHAN 0100			  /* The B channel is known and set up. (if
 								   * zero, it's connected through the D channel */
 #define MS_WANTCONN 0200		  /* Set on CMD_DIAL/ANSWER, clear on CMD_OFF. */
-#define MS_DETACHED 0400		  /* The call is (temporarily?) not connected. */
+#define MS_DETACHED 0400          /* temporarily not connected */
 /* Actions */
 #define MS_DIR_SENT 01000		  /* The directional info is sent to the
 								   * device. */
-#define MS_SETUP_SENT 02000		  /* The connection is attached to the B
-								   * channel. */
-#define MS_TERM_SENT 04000	  /* L4 has been told that the connection is to
-								   * be terminated */
+#define MS_SETUP_MASK   06000     /* what attach has been sent */
+#define MS_SETUP_NONE   00000
+#define MS_SETUP_ATTACH 02000
+#define MS_SETUP_LISTEN 04000
+#define MS_SETUP_CONN   06000
+
 #define MS_END_TIMER 010000		  /* The delay timer to end the connection
 								   * cleanly is running */
 #define MS_SENTINFO 020000		  /* Sent pertinent data up */
@@ -229,8 +224,7 @@ typedef struct _isdn3_conn {
 #define MS_INITPROTO_SENT 0200000 /* asked for setup */
 #define MS_NOMINOR 0400000
 /*
- * if set and ms->delay == zero, we got killconn. This is a hack but there are
- * no more bits free.
+ * if set and ms->delay == zero, we got killconn. This is a hack...
  */
 #define MS_CONNDELAY_TIMER 02000000		/* Delay sending PROTO_CONN because the
 										 * back channel may get delayed */
@@ -345,17 +339,12 @@ int Xisdn3_setup_conn (isdn3_conn conn, char established, const char*,unsigned);
 #define isdn3_setup_conn(a,b) Xisdn3_setup_conn((a),(b),__FILE__,__LINE__)
 
 #define EST_DISCONNECT 0		  /* The connection is not established. */
-#define EST_INTERRUPT 1			  /* The connection is interrupted. */
 #define EST_NO_REAL_CHANGE 2	  /* Marker value. Do not use */
-#define EST_WILL_DISCONNECT 3	  /* The connection will be disconnected
-								   * shortly. */
-#define EST_WILL_INTERRUPT 4	  /* The connection will be interrupted
-								   * shortly. */
-#define EST_NO_CHANGE 5			  /* Something else happened (minorstate!)
-								   * which may trigger action */
-#define EST_LISTEN 6			  /* eg when dialling out, dial tone is
-								   * attached */
-#define EST_CONNECT 7			  /* End-to-end connection is established */
+#define EST_WILL_DISCONNECT 4	  /* The connection will be disconnected shortly. */
+#define EST_NO_CHANGE 6			  /* Something else happened (minorstate!) */
+#define EST_SETUP 8				  /* Associate with card channel */
+#define EST_LISTEN 9			  /* half-way communications, backwards */
+#define EST_CONNECT 10			  /* End-to-end connection is established */
 
 /*
  * Get a free call reference number.

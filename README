@@ -4,6 +4,44 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-11-28
+
+Release 22. Vernünftigeres Beartbeiten des Verbindungsauf/abbaus eingebaut.
+Unter Kernel 1.3.44: Experimenteller Code, der sk_buff-Blöcke zur
+Datenspeicherung verwendet, wird aktiviert. Wenn das Probleme macht ->
+meckern (abschaltbar in streams/stream.h, ganz oben).
+
+In obskuren Faellen ist es vorgekommen, dass der Rechner stehenbleibt.
+Meistens wacht er nach einer Minute oder so wieder auf; ich wuerde ganz
+gerne wissen wo er stehenbleibt... AltGR-ScrollLock druecken, nach einer
+Minute oder so sollten drei sehr kryptische Zeilen erscheinen. Die Zahl in
+[<>] gibt die Stelle im Kernel an, an der die Interrupts wieder freigegeben
+wurden; nachsehen (in /usr/src/linux/Symbols.map bzw. /lib/modules/VERSION/
+/symbols), mir mailen.
+
+Es kann sein, dass "echo at/BLA >/dev/isdn/isdnXX" nicht mehr funktioniert.
+Timingabhaengigkeit im Kernel, sorry. Abhilfe: cu verwenden.
+
+Wenn es einen User "isdnmaster" gibt, darf dieser mit dem ISDN-Programm
+alles, was root auch darf. "isdnmaster" ist konfigurierbar.
+
+WICHTIG: Im D-Kanal-Handling hat sich was geändert. Wenn Anrufe von manchen
+Leuten funktionieren, Anrufe mit identischen Dienstkennungen von anderen
+Leuten mit längerer / kürzerer / ohne Nummer (also analog) jedoch nicht,
+in cards/dumb/shell.c den #if 0...TELL ME (Zeile 1175) in #if 1 ändern;
+wenn es nach dieser Änderung (und bitte NUR diese Änderung!) wieder
+funktioniert, bitte bei mir melden.
+
+Die CM-Zeilen sind weggefallen; die Treiber erkennen nun "frame" etc direkt.
+Dies als Vorbereitung auf das Erkennen von "frame x75 t70" und Handling
+desselben auf der Karte, wenn intelligente Karte.
+
+Das Handling der Treibermodule hat sich geändert: Module vor "reconn"
+werden jetzt erst beim Verbindungsaufbau geladen; sinnvoll, wenn eine
+Gegenstelle mehr als eine Nummer hat und dort unterschiedliche Protokolle
+fährt. (Soll es ja geben...)
+
+
 *** 1995-11-15
 
 Release 21. Ditto Bugfixes. Callback funktioniert wieder in beide

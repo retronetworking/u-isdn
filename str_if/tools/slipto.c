@@ -352,6 +352,7 @@ enable (void)
 	islinked = 1;
 	if(fork() == 0) {
 		signal(SIGCHLD,SIG_DFL);
+		fprintf(stderr,"<<%s>>\n",makeroute);
 		execl("/bin/sh","sh","-c",makeroute,NULL);
 		/* system (makeroute); */
 	}
@@ -366,6 +367,7 @@ disable (void)
 	syslog(LOG_DEBUG,"Taking down IF %s",ifname);
 	if(fork() == 0) {
 		signal(SIGCHLD,SIG_DFL);
+		fprintf(stderr,"<<%s>>\n",unmakeroute);
 		execl("/bin/sh","sh","-c",unmakeroute,NULL);
 	}
 	{

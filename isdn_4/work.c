@@ -64,6 +64,7 @@ deadkid (void)
 	}
 	if(has_dead) {
 		in_boot=1;
+		connreport("# Blocking connections","*",0);
 		do_run_now++;
 		timeout(run_now,NULL,3*HZ);
 	}
@@ -77,6 +78,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 {
 	cf prot;
 	char *mods = NULL;
+	char oupdate = update;
 
 	for (prot = cf_ML; prot != NULL; prot = prot->next) {
 		if (!matchflag (cg->flags,prot->type)) continue;
@@ -89,7 +91,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 	}
 	if (prot == NULL)
 		return -ENOENT;
-	if(update) 
+	if(update & PUSH_UPDATE) 
 		cg->flags = (cg->flags & ~F_SETINITIAL) | F_SETLATER;
 	else
 		cg->flags = (cg->flags & ~F_SETLATER) | F_SETINITIAL;
@@ -105,10 +107,8 @@ pushprot (conngrab cg, int minor, int connref, char update)
 		m_putsx (mj, ARG_MINOR);
 		m_puti (mj, minor);
 		m_putdelim (mj);
-		if(update)
-			m_putid (mj, PROTO_UPDATEMODLIST);
-		else
-			m_putid (mj, PROTO_MODLIST);
+		m_putid (mj, PROTO_MODLIST);
+		m_puti(mj,update);
 		if(cg != NULL && cg->card != NULL && strcmp(cg->card,"*") != 0) {
 			m_putsx(mj,ARG_CARD);
 			m_putsz(mj,cg->card);
@@ -117,8 +117,6 @@ pushprot (conngrab cg, int minor, int connref, char update)
 			m_putsx (mj, ARG_CONNREF);
 			m_puti(mj,connref);
 		}
-		m_putsx (mj, ARG_MODE); /* set card mode */
-		m_putsz (mj, prot->arg);
 		m_putdelim (mj);
 		m_putsz(mj, mods);
 		len = mj->b_wptr - mj->b_rptr;
@@ -131,10 +129,6 @@ pushprot (conngrab cg, int minor, int connref, char update)
 			return -ENOMEM;
 		sprintf (sx, " %s %s", prot->args, PROTO_NAME);
 		sp1 = sx;
-		while (*sp1 != '\0' && !isspace (*sp1))
-			sp1++;
-		while (*sp1 != '\0' && isspace (*sp1))
-			sp1++;
 		for (sp2 = sp1; *sp1 != '\0'; sp1 = sp2) {
 			cf cm;
 			mblk_t *mi;
@@ -143,6 +137,15 @@ pushprot (conngrab cg, int minor, int connref, char update)
 				sp2++;
 			if(*sp2 != '\0')
 				*sp2++ = '\0';
+			if(update & PUSH_AFTER) {
+				if(!strcmp(sp1,"reconn"))
+					update &=~ PUSH_AFTER;
+				else
+					continue;
+			} else if(update & PUSH_BEFORE) {
+				if(!strcmp(sp1,"reconn"))
+					break;
+			}
 			if ((mi = allocb (256, BPRI_MED)) == NULL) {
 				free (sx);
 				return -ENOMEM;
@@ -222,15 +225,23 @@ pushprot (conngrab cg, int minor, int connref, char update)
 			freeb (mi);
 		}
 		free (sx);
-		if(!update) {
-			mblk_t *mj = allocb (32, BPRI_LO);
+		if(!(oupdate & (PUSH_AFTER|PUSH_UPDATE))) {
+			mblk_t *mj = allocb (64, BPRI_LO);
 			int len;
 
 			if (mj == NULL)
 				return -ENOMEM;
-			m_putid (mj, CMD_PROT);
+			m_putid (mj, CMD_CARDSETUP);
 			m_putsx (mj, ARG_MINOR);
 			m_puti (mj, minor);
+			if(cg != NULL && cg->card != NULL && strcmp(cg->card,"*") != 0) {
+				m_putsx(mj,ARG_CARD);
+				m_putsz(mj,cg->card);
+			}
+			if(connref != 0) {
+				m_putsx (mj, ARG_CONNREF);
+				m_puti (mj, connref);
+			}
 			m_putdelim (mj);
 			m_putc (mj, PROTO_MODE);
 			len = mj->b_wptr - mj->b_rptr;
@@ -238,102 +249,6 @@ pushprot (conngrab cg, int minor, int connref, char update)
 			(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
 			freeb (mj);
 		}
-
-	}
-	return 0;
-}
-
-
-/* Set ISDN card mode */
-int
-pushcardprot (conngrab cg, int minor, int connref)
-{
-	cf prot;
-	cf cmod = NULL;
-	int num = 0; /* Grrr, GCC */
-	struct isdncard *card;
-
-	for(card = isdn4_card; card != NULL; card = card->next) {
-		if(wildmatch(cg->card,card->name))
-			break;
-	}
-	if(card == NULL)
-		return -ENOENT;
-	for (prot = cf_ML; prot != NULL; prot = prot->next) {
-		if (!matchflag (cg->flags,prot->type)) continue;
-		if (!wildmatch (cg->site, prot->site)) continue;
-		if (!wildmatch (cg->protocol, prot->protocol)) continue;
-		if (!wildmatch (cg->card, prot->card)) continue;
-		if (!maskmatch (cg->mask, prot->mask)) continue;
-		if (!classmatch (cg->cclass, prot->cclass)) continue;
-
-		if(card->cap & CHM_INTELLIGENT) {
-			num = 1;
-		} else {
-			for (cmod = cf_CM; cmod != NULL; cmod = cmod->next) {
-				if (!wildmatch (cg->card, cmod->card)) continue;
-				if (!maskmatch (cg->mask, cmod->mask)) continue;
-				if (!wildmatch(prot->arg,cmod->arg)) continue;
-				break;
-			}
-			if (cmod == NULL) {
-				struct conninfo *xconn = xmalloc(sizeof(*xconn));
-				if(xconn != NULL) {
-					bzero(xconn,sizeof(*xconn));
-					xconn->seqnum = ++connseq;
-					xconn->cause = ID_priv_Print;
-					xconn->causeInfo = "No CM entry found";
-					cg->refs++;
-					xconn->cg = cg;
-					xconn->next = isdn4_conn; isdn4_conn = xconn;
-					dropconn(xconn);
-				}
-				return -ENOENT;
-			}
-			num = cmod->num;
-		}
-		break;
-	}
-	if (prot == NULL) {
-		struct conninfo *xconn = xmalloc(sizeof(*xconn));
-		if(xconn != NULL) {
-			bzero(xconn,sizeof(*xconn));
-			xconn->seqnum = ++connseq;
-			xconn->cause = ID_priv_Print;
-			xconn->causeInfo = "No ML entry found";
-			cg->refs++;
-			xconn->cg = cg;
-			xconn->next = isdn4_conn; isdn4_conn = xconn;
-			dropconn(xconn);
-		}
-		return -ENOENT;
-	}
-	
-	if (minor != 0) {
-		mblk_t *mj = allocb (64, BPRI_LO);
-		int len;
-
-		if (mj == NULL)
-			return -ENOMEM;
-		m_putid (mj, CMD_CARDSETUP);
-		m_putsx (mj, ARG_MINOR);
-		m_puti (mj, minor);
-		if(cg != NULL && cg->card != NULL && strcmp(cg->card,"*") != 0) {
-			m_putsx(mj,ARG_CARD);
-			m_putsz(mj,cg->card);
-		}
-		if(connref != 0) {
-			m_putsx (mj, ARG_CONNREF);
-			m_puti (mj, connref);
-		}
-		m_putdelim (mj);
-		m_putc (mj, PROTO_MODE);
-		m_puti (mj, num);
-		m_puti (mj, prot->num);
-		len = mj->b_wptr - mj->b_rptr;
-		DUMPW (mj->b_rptr, len);
-		(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
-		freeb (mj);
 	}
 	return 0;
 }
@@ -438,17 +353,28 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 		*ret = "+COLLISION 1b";
 		return conn;
 	}
-	if(conn->state > c_going_down) {
-		*ret = "-COLLISION 1b";
-		if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
-			**ret = '+';
-		if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
-			**ret = '+';
+	if((cg->flags & F_FORCEOUT) && (cg->flags & F_INCOMING)) {
+		*ret = "=CALLBACK";
 		dropgrab(cg);
 		return conn;
 	}
-	if((cg->flags & F_FORCEOUT) && (cg->flags & F_INCOMING)) {
-		*ret = "=CALLBACK";
+	if(conn->state > c_going_down) {
+		*ret = "-COLLISION 1c";
+		if(conn->flags & cg->flags & (F_INCOMING|F_OUTGOING))
+			**ret = '+'; /* the two beasts are going in the same direction */
+		if(cg->flags & F_INCOMING) {
+			**ret = '+';
+			if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
+				**ret = '-';
+			if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
+				**ret = '-';
+		} else {
+			printf("Collision in startconn out, should not happen!\n");
+			if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
+				**ret = '+';
+			if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
+				**ret = '+';
+		}
 		dropgrab(cg);
 		return conn;
 	}
@@ -681,7 +607,6 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				conn->seqnum = ++connseq;
 				conn->state = c_down;
 				conn->cause = 999999;
-				conn->got_hd = 1;
 				conn->next = isdn4_conn; isdn4_conn = conn;
 			}
 			cg->refs++;
@@ -1100,7 +1025,28 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				yy.b_wptr = yy.b_rptr;
 			}
 
-			if(cg != NULL && (cg->flags & (F_INCOMING|F_OUTGOING))) {
+			if((cg != NULL) && ((cg->flags & F_LEASED) || !(cg->flags & (F_INCOMING|F_OUTGOING)))) {
+				int err = pushprot (conn->cg, conn->minor, conn->connref, PUSH_AFTER);
+				if(err != 0) {
+printf("NoProtoEnable NotPushprot\n");
+					m_putid (&yy, CMD_CLOSE);
+					m_putsx (&yy, ARG_MINOR);
+					m_puti (&yy, conn->minor);
+					xlen = yy.b_wptr - yy.b_rptr;
+					DUMPW (yy.b_rptr, xlen);
+					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
+					conn->minor = 0;
+					if(conn->pid == 0)
+						dropconn(conn);
+					else
+						kill(conn->pid,SIGHUP);
+					return "CANT PUSHPROT";
+				}
+				conn->sentsetup = 1;
+				cg->card = str_enter("*"); /* cosmetic */
+				setconnstate(conn,c_down);
+			}
+			if((cg != NULL) && (cg->flags & (F_INCOMING|F_OUTGOING))) {
 				char *msg = NULL;
 
 				cg->refs++;
@@ -1120,26 +1066,6 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 					conn->cg = NULL;
 					chkone(conn);
 				}
-			} else {
-				int err = pushprot (conn->cg, conn->minor, conn->connref, 0);
-				if(err != 0) {
-printf("NoProtoEnable NotPushprot\n");
-					m_putid (&yy, CMD_CLOSE);
-					m_putsx (&yy, ARG_MINOR);
-					m_puti (&yy, conn->minor);
-					xlen = yy.b_wptr - yy.b_rptr;
-					DUMPW (yy.b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
-					conn->minor = 0;
-					if(conn->pid == 0)
-						dropconn(conn);
-					else
-						kill(conn->pid,SIGHUP);
-					return "CANT PUSHPROT";
-				}
-				conn->sentsetup = 1;
-				cg->card = str_enter("*"); /* cosmetic */
-				setconnstate(conn,c_down);
 			}
 		}
 	}
@@ -1329,8 +1255,11 @@ printf("FAIL %s\n",err);
 				}
 			} else {
 printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
-				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0 && conn->state > c_down) { /* the c_down test is here to reduce load */
-					pushprot(conn->cg,conn->minor,conn->connref,1);
+				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0) {
+					if(conn->state >= c_going_up)
+						pushprot(conn->cg,conn->minor,conn->connref,PUSH_UPDATE);
+					else
+						pushprot(conn->cg,conn->minor,conn->connref,PUSH_AFTER|PUSH_UPDATE);
 					progidx = spos;
 					timeout(run_now,NULL,HZ/3);
 					return;
@@ -1338,7 +1267,10 @@ printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 			}
 		}
 	}
-	in_boot = 0;
+	if(in_boot) {
+		connreport("# Accepting connections","*",0);
+		in_boot = 0;
+	}
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
     	signal (SIGHUP, (sigfunc__t) read_args_run);
 	progidx = 0;
@@ -1369,8 +1301,10 @@ void
 kill_progs(struct conninfo *xconn)
 {
 	struct conninfo *conn, *nconn;
-	if(!quitnow)
+	if(!quitnow) {
 		in_boot = 1;
+		connreport("# Blocking connections","*",0);
+	}
 	for(conn = isdn4_conn; conn != NULL; conn = nconn) {
 		nconn = conn->next;
 		if(conn->ignore)

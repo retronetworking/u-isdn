@@ -266,12 +266,12 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 			untimeout(dumb_fail_up,dumb);
 #endif
 		}
-		ISAC_mode(dumb,mode,listen);
+		ISAC_mode(dumb,(mode == M_ON) ? M_HDLC : mode, listen);
 		if(mode == M_OFF) {
 			int j;
 			for(j=1;j <= dumb->numHSCX;j++)
 				HSCX_mode(dumb,j,M_OFF,0);
-		} else {
+		} else if (mode == M_ON) {
 			dumb->do_uptimer = 1;
 #ifdef NEW_TIMEOUT
 			dumb->uptimer =
@@ -281,16 +281,22 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 		break;
 	default:
 		if(channel > 0 && channel <= dumb->numHSCX) {
-			DEBUG(info) printf("%sISDN HSCX%d %s<%d>%s\n",KERN_INFO ,channel,mode?"up":"down",mode,listen?" listen":"");
-			err = HSCX_mode(dumb,channel,mode,listen);
-			if (err < 0) {
-				printf("%sISDN err %d %d\n",KERN_WARNING ,channel, err);
-				splx(ms);
-				return err;
-			}
+			DEBUG(info) printf("%sISDN HSCX%d %s<%d>%s\n",KERN_INFO ,channel,mode?"up":"down",mode,(listen&2)?"setup":((listen&1)?" listen":""));
+			if(listen & 2) {
+				err = HSCX_mode(dumb,channel,M_OFF,0);
+			} else {
+				if((mode > M_STANDBY) && (dumb->chan[channel].mode <= M_STANDBY))
+					return -EAGAIN;
+				err = HSCX_mode(dumb,channel,(mode != M_ON) ? mode : dumb->chan[channel].mode,listen);
+				if (err < 0) {
+					printf("%sISDN err %d %d\n",KERN_WARNING ,channel, err);
+					splx(ms);
+					return err;
+				}
 
-			dumb->chan[channel].nblk = 0;
-			dumb->chan[channel].maxblk = 10;
+				dumb->chan[channel].nblk = 0;
+				dumb->chan[channel].maxblk = 10;
+			}
 			break;
 		} else {
 			printf("%sISDN badChan %d\n",KERN_WARNING ,channel);
@@ -313,7 +319,45 @@ dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 
 	DEBUG(info)printf("%sDumbProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
 
-	if(!(flags & ~CHP_FROMSTACK)) {
+#define isspace(x) (((x)==' ') || ((x)=='\t'))
+	if(flags & CHP_MODLIST) {
+		if(!(flags & PUSH_AFTER)) {
+			streamchar *s1,*s2,sx;
+
+			s1 = mp->b_rptr;
+			while(s1 < mp->b_wptr && isspace(*s1))
+				s1++;
+			s2 = s1;
+			while(s2 < mp->b_wptr && !isspace(*s2))
+				s2++;
+			sx = *s2; *s2 = '\0';
+			DEBUG(info) printf("Find <%s> ",s1);
+			if(!strcmp(s1,"trans"))
+				dumb->chan[channel].mode = M_TRANSPARENT;
+			else if(!strcmp(s1,"trans_alaw"))
+				dumb->chan[channel].mode = M_TRANS_ALAW;
+			else if(!strcmp(s1,"trans_V110"))
+				dumb->chan[channel].mode = M_TRANS_V110;
+			else if(!strcmp(s1,"trans_frame"))
+				dumb->chan[channel].mode = M_TRANS_HDLC;
+			else if(!strcmp(s1,"frame"))
+				dumb->chan[channel].mode = M_HDLC;
+			else if(!strcmp(s1,"frame_low"))
+				dumb->chan[channel].mode = M_HDLC_7L;
+			else if(!strcmp(s1,"frame_high"))
+				dumb->chan[channel].mode = M_HDLC_7H;
+			else if(!strcmp(s1,"frame_zero"))
+				dumb->chan[channel].mode = M_HDLC_N0;
+			else if(!strcmp(s1,"frame_16"))
+				dumb->chan[channel].mode = M_HDLC_16;
+			else {
+				mp->b_rptr = origmp;
+				return -ENOENT;
+			}
+			origmp = s2+1;
+		}
+		err = -ERESTART;
+	} else if(!(flags & ~CHP_FROMSTACK)) {
 		if ((err = m_getid (mp, &id)) != 0)
 			goto err;
 		switch (id) {
@@ -353,7 +397,10 @@ static int
 dumb_candata (struct _isdn1_card * card, short channel)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
-	return (dumb->chan[channel].q_out.nblocks < 4);
+	int ret = (dumb->chan[channel].q_out.nblocks < 4);
+	if(channel == 0) { DEBUG(isac) printf("%sCQ D %d...",KERN_DEBUG,ret); }
+	else { DEBUG(hscxout) printf("%sCQ %d %d...",KERN_DEBUG,channel,ret); }
+	return ret;
 }
 
 /*
@@ -363,6 +410,8 @@ static int
 dumb_data (struct _isdn1_card * card, short channel, mblk_t * data)
 {
 	struct _dumb * dumb = (struct _dumb *)card;
+	if(channel == 0) { DEBUG(isac) printf("%sQ D %d...",KERN_DEBUG,msgdsize(data)); }
+	else { DEBUG(hscxout) printf("%sQ %d %d...",KERN_DEBUG,channel,msgdsize(data)); }
 	S_enqueue(&dumb->chan[channel].q_out, data);
 	NAME(REALNAME,poll)((struct _dumb *) card);
 	return 0;
@@ -435,8 +484,8 @@ static void ISAC_kick(struct _dumb * dumb)
 		return;
 	}
 
-	if(dumb->chan[0].mode != M_HDLC) {
-		if(0) DEBUG(isac) { printf("Flush Off\n"); }
+	if(dumb->chan[0].mode < M_ON) {
+		if(0)DEBUG(isac) { printf("Flush Off\n"); }
 		S_flush(&dumb->chan[0].q_out);
 		if(dumb->chan[0].mode == M_OFF) {
 			if(dumb->chan[0].m_in != NULL) {
@@ -485,21 +534,24 @@ static void ISAC_kick(struct _dumb * dumb)
 				if(sendb != NULL)
 					sendp = (uchar_t *)sendb->b_rptr;
 				else
-					break;
+					goto dEnd; /* shortcut */
 			}
 		} while((numb < ISAC_W_FIFO_SIZE) && (sendb != NULL));
 		if(sendb != NULL) {
 			ByteOutISAC(dumb,CMDR, 0x08); /* XTF */
+		    DEBUG(isac)printf(",");
 			dumb->chan[0].m_out_run = sendb;
 			dumb->chan[0].p_out = sendp;
 		} else {
+		  dEnd:
 			ByteOutISAC(dumb,CMDR, 0x0A); /* XTF|XME */
+		    DEBUG(isac)printf(";");
 			freemsg(dumb->chan[0].m_out);
 			dumb->chan[0].m_out = dumb->chan[0].m_out_run = NULL;
 			if(dumb->chan[0].q_out.nblocks < 2)
 				isdn2_backenable(&dumb->card,0);
 		}
-	}
+	} else DEBUG(isac) printf("nothing");
 	dumb->chan[0].locked = 0;
 	DEBUG(isac) printf("\n");
 }
@@ -589,7 +641,7 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 					if(sendb != NULL)
 						sendp = (uchar_t *)sendb->b_rptr;
 					else
-						break;
+						goto bEnd; /* shortcut */
 				}
 			} while((numb < HSCX_W_FIFO_SIZE) && (sendb != NULL));
 #if 1
@@ -612,6 +664,7 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 				bufp->m_out_run = sendb;
 				bufp->p_out = sendp;
 			} else {
+			  bEnd:
 				if(bufp->mode >= M_HDLC)
 					ByteOutHSCX(dumb,hscx,CMDR, 0x0A); /* XTF|XME */
 				else
@@ -1119,6 +1172,7 @@ static void IRQ_ISAC(struct _dumb * dumb)
 			xblen = ByteInISAC(dumb,RBCL);
 			blen = (xblen & (ISAC_R_FIFO_SIZE-1));
 			xblen += (ByteInISAC(dumb,RBCH) & 0x0F) << 8;
+#if 0 /* if this causes problems, TELL ME. */
 			if(blen == 1) {
 				DEBUG(isac) printf("%s.R-%d\n",KERN_DEBUG ,xblen);
 				if((recvb = dumb->chan[0].m_in_run) != NULL) {
@@ -1130,7 +1184,9 @@ static void IRQ_ISAC(struct _dumb * dumb)
 					else if(isdn2_recv(&dumb->card,0,msg) != 0)
 						freemsg(msg);
 				}
-			} else {
+			} else
+#endif
+					{
 				if(blen == 0) 
 					blen = ISAC_R_FIFO_SIZE;
 				DEBUG(isac) printf("%s.R=%d\n",KERN_DEBUG ,xblen);
@@ -1360,7 +1416,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 	dumb->info = *inf;
 	dumb->infoptr = inf;
 	dumb->card.ctl = dumb;
-	dumb->card.modes = (1<<M_HDLC)| (1<<M_HDLC_7H)| (1<<M_HDLC_7L)| (1<<M_TRANSPARENT)| (1<<M_TRANS_ALAW)| (1<<M_TRANS_V110)| (1<<M_TRANS_HDLC);
+	dumb->card.modes = 0;
 	dumb->card.ch_mode = dumb_mode;
 	dumb->card.ch_prot = dumb_prot;
 	dumb->card.send = dumb_data;
@@ -1388,7 +1444,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return err;
 	}
 #ifdef linux
-	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,dumbintr,SA_INTERRUPT,"ISDN")) {
+	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,dumbintr,SA_INTERRUPT,STRING(REALNALE))) {
 		printf("IRQ not available.\n");
 		kfree(dumb);
 		return -EEXIST;
