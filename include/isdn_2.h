@@ -42,6 +42,7 @@ enum C_state {
 	C_down,						  /* Link is down */
 	C_await_up,					  /* Link going up */
 	C_await_down,				  /* Link going down */
+	C_await_back_up,			  /* Link going down, then back up, grr */
 	C_up,						  /* Link up */
 	C_lock_up,					  /* Link up, locked because the wire
 	                                 doesn't want to stay down */

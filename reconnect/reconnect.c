@@ -60,6 +60,7 @@ struct reconn_ {
 #define RECONN_FIRSTSEND 0200
 	enum { r_off,r_on,r_going_down } lowerstate; 
 	queue_t *qptr;
+	long lastdown;
 };
 
 
@@ -200,7 +201,10 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 			}
 		}
 		reco->flags &= ~RECONN_LOWER_WANTED;
+#if 0
 		flushq(WRQ(q),FLUSHDATA);
+#endif
+		reco->lastdown = jiffies;
 		q = OTHERQ(q);
 		id = PROTO_HAS_DISABLE;
 		goto doit;
@@ -217,6 +221,8 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 		reco->flags &=~ (RECONN_FIRSTRECV|RECONN_FIRSTSEND);
 		q = OTHERQ(q);
 		id = PROTO_HAS_DISCONNECT;
+		if(reco->lowerstate == r_on)
+			reco->lastdown = jiffies;
 		reco->lowerstate = r_off;
 		if(reco->flags & RECONN_LOWER_WANTED) {
 			mp->b_rptr = mp->b_wptr = origmp;
@@ -234,6 +240,8 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 	case PROTO_INTERRUPT:
 		if(!down)
 			goto drop;
+		if(reco->lowerstate == r_on)
+			reco->lastdown = jiffies;
 		reco->lowerstate = r_off;
 		id = PROTO_HAS_INTERRUPT;
 		q = OTHERQ(q);
@@ -241,6 +249,8 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 	case PROTO_WILL_DISCONNECT:
 		q = OTHERQ(q);
 		id = PROTO_DISCONNECT;
+		if(reco->lowerstate == r_on)
+			reco->lastdown = jiffies;
 		reco->lowerstate = r_going_down;
 	  doit: {
 			mblk_t *mb = allocb(3,BPRI_MED);
@@ -334,8 +344,13 @@ reconn_wsrv (queue_t * q)
 			goto def;
 		case CASE_DATA:
 			if(reco->flags & RECONN_DISABLED) {
-				freemsg(mp);
-				continue;
+				if(jiffies-250*HZ > reco->lastdown) {
+					freemsg(mp);
+					continue;
+				} else {
+					putbq(q,mp);
+					return;
+				}
 			}
 			switch(reco->lowerstate) {
 			case r_off:

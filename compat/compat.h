@@ -19,19 +19,6 @@
 #include <linux/interrupt.h>
 #include <asm/segment.h>
 
-#ifndef COMPAT_C
-
-#ifdef interruptible_sleep_on
-#undef interruptible_sleep_on
-extern void interruptible_sleep_on(struct wait_queue ** p);
-#endif
-#ifdef sleep_on
-#undef sleep_on
-extern void sleep_on(struct wait_queue ** p);
-#endif
-
-#endif /* COMPAT_C */
-
 #ifdef DO_DEBUGGING
 #include <linux/malloc.h>
 

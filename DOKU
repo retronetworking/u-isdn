@@ -492,6 +492,12 @@ AT/M foo
     übertragen wurden, und die Verbindung gegebenenfalls beenden.
 AT/Q
     Programmende. Kann nur vom Superuser ausgeführt werden.
+AT/Sn
+    Sendet ein "Status schicken"-Kommando an die bezeichnete Verbindung.
+    Der Status wird an alle AT/L- oder AT/W-Monitore gesendet.
+AT/S
+    Dasselbe wie AT/L, nur wird der aktuelle Zustand vorab _nicht_
+    ausgespuckt.
 AT/R
     Reload der Konfigdatei. Kann nur vom Superuser ausgeführt werden.
     Alle wegen eines Fehlers deaktivierten Programme werden wieder aufgeweckt.
@@ -754,10 +760,10 @@ Parameter:
 :fX Ankommende Anrufe, die (zB wegen besetzt) abgewiesen werden, werden
     "schnell" abgelehnt. (Andere Geräte am Bus können nicht abheben, da die
     Vermittlung nicht abwartet, ob sich noch jemand meldet.)
-	Dieses Flag ist bei aktivem Callback meistens notwendig, wenn der
-	andere B-Kanal anderweitig beschäftig ist, weil die Vermittlung den
-	ankommenden Ruf noch hält und den abgehenden wegen Kanalmangel abweist.
-	:-(
+    Dieses Flag ist bei aktivem Callback meistens notwendig, wenn der
+    andere B-Kanal anderweitig beschäftig ist, weil die Vermittlung den
+    ankommenden Ruf noch hält und den abgehenden wegen Kanalmangel abweist.
+    :-(
 :fr Abgehende Anrufe, die nicht durchkommen, werden "sofort" und "oft"
     wiederholt.
 :ib Wenn ankommend kein B-Kanal mitgeliefert wird, wird die Verbindung
@@ -1061,6 +1067,9 @@ Die Reihenfolge ist wichtig.
            HÄNGT. <capi>
   :pb      Die Karte hängt an einem Anlagenanschluß / S2M und verhält sich
            wie eine Nebenstellenanlage.
+  :b1      Externe Nummern bei ankommenden Rufen haben eine Vorwahl mit
+           führender Null _und_ ein voranstehendes =. (U-ISDN versteht
+           das nicht.)
   :sp 0    Bintec-Karte. [bintec]
            Auf diese Karte muß zunächst boot.68k und dann entweder bri.68k
            oder pmx.68k geladen werden (LF-Zeile).
@@ -1069,7 +1078,7 @@ Die Reihenfolge ist wichtig.
      :lp X X X  CAPI-Bitmasken für EAZ, Service, Infos. Hexadezimal.
                 Default: 03FF E7BF 003F.
      :st XXXXX  Protokollstack XXXXX laden. Siehe Handbuch zur Karte.
-                Default ist u_1tr6_pmp (wenn "german" und nicht "euro" in
+                Default ist u_1tr6_pmp (wenn "german", aber nicht "euro", in
                 config/config.data angegeben wurde) oder u_dss1_pmp (sonst).
      :ea N NNN  EAZ N auf lokale Nummer (MSN) NNN mappen.
                 Default ist die letzte Ziffer der Nummer.
@@ -1321,6 +1330,30 @@ Treiberprogramm, "slipto", dem lokale und entfernte IP-Adresse übergeben
 werden, ist im Verzeichnis str_if.
 
 
+PPP-Modul "ppp"
+---------
+ACHTUNG: Momentan existiert dieses Modul NICHT. Der Treiber kann PPP nur in
+Verbindung mit intelligenten Karten (momentan: Bintec BRI/PMX), die PPP
+on-board haben. "Richtiges" PPP muß leider noch ein wenig warten.
+
+Bei Verwendung von PAP/CHAP-Authentifizierung: ACHTUNG: /etc/isdn.conf
+SOLLTE NICHT WORLD-LESBAR SEIN. Im Normalfall erledigt die
+Authentifizierung aber bereits das ISDN. Dieser Treiber unterstützt bei PPP
+sowieso (noch?) _keine_ Identifizierung nur via PAP oder CHAP, die
+ISDN-Rufnummer _muß_ also trotzdem korrekt übermittelt werden. PAP/CHAP
+bieten nur _zusätzliche_ Sicherheit.
+
+str_if-Modul mit :.P konfigurieren!
+
+:iv    TCP/IP-Headerkompression aushandeln. vanj-Modul nicht vergessen...
+:in    TCP/IP-Headerkompression nicht aushandeln.
+       Entweder :iv oder :in muß angegeben werden, sonst wird kein IP
+       konfiguriert...
+:pc    lokal_user lokal_pw entfernt_user entfernt_pw
+       CHAP-Geheimnisse
+:pp    dto, PAP-Geheimnisse
+
+
 Cisco-HDLC-Modul "fakeh"
 ----------------
 Verwendet das Cisco-eigene "HDLC"-Protokoll. Auf der Gegenseite muß
@@ -1341,6 +1374,13 @@ eingestellt sein!
 :.N    TCP/IP (Default).
 :.E    Ethernet-Paketheader.
 :.P    PPP-Paketheader.
+
+:pa    Alle Pakete werden direkt mitprotokolliert.
+:ps    Es wird nur die Paketsumme mitprotokolliert.
+:pf    Das erste Paket einer Verbindung wird direkt mitgeloggt, danach
+       nur noch die Summe. Default.
+:to 10 Timeout in Sekunden, nach dessen Ablauf die nächste Summenmeldung
+       an den Monitor geschickt werden.
 
 
 Verbindungshalter "reconn"
@@ -1583,6 +1623,8 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 -R ip    die IP-Nummer "ip" wird zur Gegenseite geroutet. (route -host)
 -r ip    Das IP-Netz "ip" wird zur Gegenseite geroutet. (route -net)
 -r ip:nm Das IP-Netz "ip" wird mit der Netmask "nm" zur Gegenseite geroutet.
+-r ip/nm Das IP-Netz "ip" wird mit einer Netmask mit "nm" 1-Bits geroutet
+         (zB das Class-C-Netz 192.168.100.0/24).
 -x       auf die eigene Adresse wird keine "Route" gesetzt. Dieses Flag
          wird immer dann verwendet, wenn die ISDN-Interfaceadresse dieselbe
          ist wie zB am lokalen Ethernet.
@@ -1651,7 +1693,7 @@ qinfo
 Gibt alle N Sekunden eine Meldung über den aktuellen Zustand des
 Datenstroms vom ISDN-Modul zum Anwendungsprogramm aus. Nützlich, wenn
 man sehen will, wo die Daten hängenbleiben.
-:tm      Zeit zwischen Meldungen, in Sekunden.
+:tm   60   Zeit zwischen Meldungen, in Sekunden.
 
 
 count

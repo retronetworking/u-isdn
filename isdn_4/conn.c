@@ -122,6 +122,12 @@ void
 ReportOneConn(conninfo conn, int minor)
 {
 	char is1[15]="",sp[200], *spf = sp;
+	char cn = 1;
+
+	if(conn->cardname != NULL) {
+		if((conn->cardname[0] == '*') && (conn->cardname[1] == '\0'))
+			cn = 0;
+	}
 	if(conn->state != c_up) {
 		if(conn->retries > 0)
 			sprintf(is1,".%d",conn->retries);
@@ -134,7 +140,7 @@ ReportOneConn(conninfo conn, int minor)
 		conn->cg ? conn->cg->protocol : "-",
 		conn->classname ? conn->classname : (conn->cg ? conn->cg->cclass : "-"),
 		conn->pid, state2str(conn->state), is1,
-		conn->cardname ? conn->cardname : (conn->cg ? conn->cg->card : "-"),
+		(cn && conn->cardname) ? conn->cardname : (conn->cg ? conn->cg->card : "-"),
 		conn->charge, conn->ccharge, FlagInfo(conn->flags));
 	if(conn->cg != NULL && (conn->cg->flags ^ conn->flags) != 0) {
 		int foo = strlen(FlagInfo(conn->cg->flags ^ conn->flags));
@@ -326,7 +332,9 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		conn->want_reconn = 0;
 	}
 
-	conn->state=state;
+	if((conn->state != c_down) || (state != c_going_down))
+		conn->state=state; /* ^^- prevents spurious messages */
+
 	if(conn->ignore < 2)
 		ReportConn(conn);
 	if(state <= c_down)

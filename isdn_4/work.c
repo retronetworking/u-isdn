@@ -597,6 +597,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 			if(id != 0) {
 				for(xconn = isdn4_conn; xconn != NULL; xconn = xconn->next) {
 					if(xconn->id == id) {
+						if(dev > 0)
+							unlockdev(dev);
 						return "Already Running";
 					}
 				}
@@ -608,6 +610,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 			if((err = findit (foo,!!(cg->flags & F_PERMANENT))) != NULL) {
 				if(conn != NULL && rconn != NULL && conn != *rconn)
 					free(conn);
+				if(dev > 0)
+					unlockdev(dev);
 				return err;
 			}
 			cg = *foo;
@@ -615,6 +619,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 			if(conn == NULL) {
 				conn = xmalloc(sizeof(*conn));
 				if(conn == NULL) {
+					if(dev > 0)
+						unlockdev(dev);
 					return "NO MEMORY.1";
 				}
 
@@ -645,6 +651,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 		}
 		if (pipe (pip) == -1) {
 			syslog(LOG_CRIT,"Pipe: %m");
+			if(dev > 0)
+				unlockdev(dev);
 			return "NO PIPE";
 		}
 	} else {
@@ -655,6 +663,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 			if(id != 0) {
 				for(prog = conn->run; prog != NULL; prog = prog->next) {
 					if(prog->id == id)
+						if(dev > 0)
+							unlockdev(dev);
 						return "Already Running";
 				}
 			}
@@ -662,6 +672,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 		prog = (struct proginfo *) xmalloc (sizeof (struct proginfo));
 
 		if (prog == NULL)
+			if(dev > 0)
+				unlockdev(dev);
 			return "NO MEMORY.2";
 		bzero (prog, sizeof (prog));
 		prog->master = conn;

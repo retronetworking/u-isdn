@@ -15,11 +15,7 @@
 
 #include "f_module.h"
 
-#if LINUX_VERSION_CODE >= 66333 /* it happened some time before 1.3.29 */
 #define UNREGISTER   /* does seem to work */
-#else
-#undef UNREGISTER   /* does not work yet */
-#endif
 
 #include "primitives.h"
 #include "f_ip.h"
@@ -34,9 +30,8 @@
 #include "streams.h"
 #include "stropts.h"
 #include <sys/socket.h>
-#if LINUX_VERSION_CODE >= 66324 /* 1.3.20 ??? */
+#include <linux/netdevice.h>
 #include <linux/if_arp.h>
-#endif
 
 #include <sys/time.h>
 #ifdef DONT_ADDERROR
@@ -124,15 +119,6 @@ static int strl_send_packet(struct sk_buff *skb, struct device *dev);
 static int strl_close(struct device *dev);
 static struct enet_statistics *strl_get_stats(struct device *dev);
 
-#if LINUX_VERSION_CODE < 66333 /* 1.3.29 ??? */
-static int
-strl_header(unsigned char *buff, struct device *dev, unsigned short type,
-	  void *daddr, void *saddr, unsigned len, struct sk_buff *skb)
-{
-	return 0;
-}
-#else
-
 static int
 strl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
 	  void *daddr, void *saddr, unsigned len)
@@ -140,17 +126,6 @@ strl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
 	skb->protocol = htons(type);
 	return 0;
 }
-
-#endif
-
-#if LINUX_VERSION_CODE < 66304 /* 1.3.0 */
-static unsigned short strl_type_trans (struct sk_buff *skb, struct device *dev)
-{
-	struct strl_local *lp = (struct strl_local *)dev->priv;
-
-	return lp->ethertype;
-}
-#endif
 
 static int
 strl_rebuild_header(void *buff, struct device *dev, unsigned long raddr,
@@ -198,14 +173,12 @@ printk("Q NULL\n");
 		return -ENXIO;
 	}
 	
-#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 	if(!lp->encap && (skb->protocol != lp->ethertype)) {
 printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
 		lp->stats.tx_dropped++;
 		dev_kfree_skb (skb, FREE_WRITE);
 		return 0;
 	}
-#endif
 
 	if(!canput(WR(lp->q)->q_next)) {
 /* printk("Queue full\n"); */
@@ -227,13 +200,8 @@ printk("No Buff\n");
 	if(lp->encap) {
 		mb->b_rptr -= 2;
 		if(lp->encap == ENCAP_ETHER)
-#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 			*(ushort_t *)mb->b_rptr = skb->protocol;
-#else
-			*(ushort_t *)mb->b_rptr = lp->ethertype;
-#endif
 		else if(lp->encap == ENCAP_PPP) {
-#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 			switch(ntohs(skb->protocol)) {
 			case ETH_P_IP:
 				*(ushort_t *)mb->b_rptr = htons(PPP_IP);
@@ -251,9 +219,6 @@ printk("No Buff\n");
 					return 0;
 				}
 			}
-#else
-			*(ushort_t *)mb->b_rptr = htons(PPP_IP);
-#endif
 		}
 	}
 
@@ -290,6 +255,11 @@ static struct enet_statistics *
 strl_get_stats(struct device *dev)
 {
 	struct strl_local *lp = (struct strl_local *)dev->priv;
+#if 0
+	printk("%sskb_queue_len %d/%d/%d, dev->tx_queue_len %d\n",KERN_DEBUG,
+		skb_queue_len(dev->buffs),skb_queue_len(dev->buffs)+1,
+		skb_queue_len(dev->buffs)+2,dev->tx_queue_len);
+#endif
 
 	if(lp != NULL)
 		return &lp->stats;
@@ -505,16 +475,11 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	netdev->init = strl_init;
 	netdev->get_stats = strl_get_stats;
 	netdev->hard_header = strl_header;
-#if LINUX_VERSION_CODE >= 66346 /* 1.3.42 */
 	netdev->header_cache_bind = NULL;
-#endif
 	netdev->hard_start_xmit = strl_send_packet;
 	netdev->hard_header_len = 0;
 	netdev->addr_len = 0;
 	netdev->type = ARPHRD_SLIP;
-#if LINUX_VERSION_CODE < 66304 /* 1.3.0 */
-	netdev->type_trans = strl_type_trans;
-#endif
 	netdev->mtu = 1500;
 	netdev->family = AF_INET;
 	netdev->pa_alen = sizeof(unsigned long);
@@ -647,6 +612,7 @@ str_if_wsrv (queue_t * q)
 		case CASE_DATA:
 			if(lp->encap == ENCAP_PPP) { /* pass the stuff */
 			} else if(!((IFF_UP|IFF_RUNNING) & ~dev->flags)) {
+				lp->stats.tx_dropped++;
 				freemsg(mp);
 				break;
 			} /* else FALL THRU */
@@ -656,6 +622,7 @@ str_if_wsrv (queue_t * q)
 				continue;
 			} else {
 				putbq (q, mp);
+				lp->stats.collisions++;
 				return;
 			}
 		}
@@ -718,11 +685,9 @@ str_if_rsrv (queue_t *q)
 				if(lp->encap == ENCAP_PPP) {
 					switch(ntohs(encap)) {
 					case PPP_IP:
-						encap = ETH_P_IP;
+						encap = htons(ETH_P_IP);
 						break;
-#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 					/* other protocols here */
-#endif
 					default:
 						mp->b_rptr -= 2;
 						goto def;
@@ -755,9 +720,7 @@ str_if_rsrv (queue_t *q)
 				}
 				skb->len = len;
 				skb->dev = dev;
-#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 				skb->protocol=encap;
-#endif
 				netif_rx(skb);
 				lp->stats.rx_packets++;
 				break;

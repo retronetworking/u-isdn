@@ -9,21 +9,23 @@
 #endif
 
 #define IP_MON_TIMEOUT CHAR2('t','o')
+#define IP_MON_EACHPACKET CHAR2('p','a')
+#define IP_MON_FIRSTPACKET CHAR2('p','f')
+#define IP_MON_SUMMARY CHAR2('p','s')
 
 #define IP_MON_NAME "/dev/ip_mon"
 
 typedef struct _monitor {
+	unsigned long t_first;  /* kernel jiffies -- Timestamp of first packet */
+	unsigned long t_last;   /* kernel jiffies -- Timestamp of last packet */
 	unsigned long local;	/* Address of "upstream" site */
 	unsigned long remote;	/* Address of "downstream" site */
-	ulong_t sofar_b;		/* Byte count */
-	ulong_t cap_b;			/* Available byte count */
-	ushort_t sofar_p;		/* Packet count */
-	ushort_t cap_p;			/* Available packet count */
-	time_t last;			/* Time of last packet */
-	ushort_t p_local;
-	ushort_t p_remote;
-	uchar_t p_protocol;
-	char known;				/* Was reported from above */
+	ulong_t bytes;			/* Byte count */
+	ushort_t packets;		/* Packet count */
+	ushort_t p_local;		/* local  port, or ICMP type */
+	ushort_t p_remote;		/* remote port, or ICMP code */
+	uchar_t p_protocol;		/* TCP/UDP/ICMP/??? */
+	char dir;				/* incoming packet? */
 } monitor;
 
 #endif							/* __IP_MON */

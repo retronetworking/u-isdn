@@ -794,6 +794,54 @@ m_geti (mblk_t * mb, long *id)
 	return 0;
 }
 
+int
+m_getip(mblk_t * mb, ulong_t * ipa)
+{
+	unsigned long id;
+	long xx; streamchar x;
+	int err;
+
+	err = m_geti(mb,&xx);
+	if(err < 0)
+		return err;
+	id = xx<<24;
+
+	err = m_getc(mb,&x);
+	if(err < 0)
+		return err;
+	if(x != '.')
+		return -EINVAL;
+
+	err = m_geti(mb,&xx);
+	if(err < 0)
+		return err;
+	id |= xx<<16;
+
+	err = m_getc(mb,&x);
+	if(err < 0)
+		return err;
+	if(x != '.')
+		return -EINVAL;
+
+	err = m_geti(mb,&xx);
+	if(err < 0)
+		return err;
+	id |= xx<<8;
+
+	err = m_getc(mb,&x);
+	if(err < 0)
+		return err;
+	if(x != '.')
+		return -EINVAL;
+
+	err = m_geti(mb,&xx);
+	if(err < 0)
+		return err;
+	id |= xx;
+	*ipa = id;
+
+	return 0;
+}
 
 int
 m_getx (mblk_t * mb, ulong_t * id)

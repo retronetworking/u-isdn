@@ -21,6 +21,20 @@
 #include "sapi.h"
 #include <ctype.h>
 
+#define PPP_IP_VANJ CHAR2('i','v')
+#define PPP_IP      CHAR2('i','n')
+#define PPP_DO_PAP  CHAR2('p','p')
+#define PPP_DO_CHAP CHAR2('p','c')
+
+#define OPT_LOC_ALLOW   0x01 /* Option ist erlaubt (kann gesendet werden) */
+#define OPT_LOC_MAND    0x02 /* Option ist notwendig (muss ge-ackt werden) */
+#define OPT_LOC_WANT    0x04 /* Option ist erwuenscht (wird initial gesendet) */
+#define OPT_LOC_NEG     0x08 /* Option wurde bestaetigt (Status) */
+#define OPT_REM_ALLOW   0x10 /* Option ist erlaubg (kann empfangen werden) */
+#define OPT_REM_MAND    0x20 /* Option ist notwendig (sonst NAK) */
+#define OPT_REM_NAK     0x40 /* Option wurde genak't (internal only) */
+#define OPT_REM_NEG     0x80 /* Option wurde bestaetigt (Status) */
+
 #define ALWAYS_ACTIVE /* CONNECTB3_REQ statt LISTENB3_REQ bei passivem Verbindungsaufbau */
 
 #define NBOARD 4 /* number of D channels on one card */
@@ -40,8 +54,8 @@
 #define tstate talki[NBOARD+2] /* State of the current interface */
 #define chanmask talki[NBOARD+3] /* channels we have used up */
 
-#if NICONN <= 16
-#error "Need NICONN > 16"
+#if NICONN <= 17
+#error "Need NICONN > 17"
 #endif
 #if NBCONN <= 1
 #error "Need NBCONN > 1"
@@ -49,22 +63,24 @@
 #define ncci0 conni[0]
 #define waitflags conni[1] /* what're we waiting for */
 #define msgid0 conni[2] /* for connect_resp */
-#define WF_CONNECTACTIVE_IND    3 /* conni[WF_*] for IDs pertaining to that message */
-#define WF_CONNECTB3ACTIVE_IND  4
-#define WF_DISCONNECTB3_IND     5
-#define WF_DISCONNECT_IND       6
-#define WF_SELECTB2_CONF        7
-#define WF_SELECTB3_CONF        8
-#define WF_LISTENB3_CONF        9
-#define WF_CONNECTB3_IND       10
-#define WF_CONNECTB3_CONF      11
-#define WF_DISCONNECTB3_CONF   12
-#define WF_DISCONNECT_CONF     13
-#define WF_CONNECT_CONF        14
-#define WF_CONTROL_EAZ         15
-#define WF_PROTOCOLS           16
+#define hl_id conni[3] /* for higher-level stuff, like PPP */
+#define WF_CONNECTACTIVE_IND    4 /* conni[WF_*] for IDs pertaining to that message */
+#define WF_CONNECTB3ACTIVE_IND  5
+#define WF_DISCONNECTB3_IND     6
+#define WF_DISCONNECT_IND       7
+#define WF_SELECTB2_CONF        8
+#define WF_SELECTB3_CONF        9
+#define WF_LISTENB3_CONF       10
+#define WF_CONNECTB3_IND       11
+#define WF_CONNECTB3_CONF      12
+#define WF_DISCONNECTB3_CONF   13
+#define WF_DISCONNECT_CONF     14
+#define WF_CONNECT_CONF        15
+#define WF_CONTROL_EAZ         16
+#define WF_PROTOCOLS           17
 
 #define modlist connb
+#define nmodlist NBCONN
 
 /* Card states */
 #define STATE_BOOTING 1
@@ -280,35 +296,37 @@ putnr(uchar_t *nrto, uchar_t *nrfrom)
 
 
 static int
-getnr(uchar_t *nrto, uchar_t *nrfrom)
+getnr(uchar_t *nrto, uchar_t *nrfrom, int islocal, int flags)
 {
 	uchar_t *nrorig = nrfrom;
 	int len = *nrfrom++;
 	if(*nrto == '\0') {
-		switch(*nrfrom & 0x70) {
-		case 0x00: /* unknown */
-			if(nrfrom[0] == 0x00 && nrfrom[1] == 0x83)
-				*nrto++ = '='; /* at least one PBX is stupid */
-			else if(nrfrom[0] == 0x81)
-				*nrto++='.'; /* the very same PBX */
-			break;
-		case 0x10: /* international */
-			*nrto++='+';
-			break;
-		case 0x20: /* national */
-			*nrto++='=';
-			break;
-		case 0x30: /* network specific */
-			break;
-		case 0x40: /* subscriber */
-			*nrto++='-';
-			break;
-		case 0x60: /* abbreviated */
-			*nrto++='.';
-			break;
-		case 0x70: /* extension */
-			*nrto++='.';
-			break;
+		if(!islocal && !(flags & FL_BUG1)) {
+			switch(*nrfrom & 0x70) {
+			case 0x00: /* unknown */
+				if(nrfrom[0] == 0x00 && nrfrom[1] == 0x83)
+					*nrto++ = '='; /* at least one PBX is stupid */
+				else if(nrfrom[0] == 0x81)
+					*nrto++='.'; /* the very same PBX */
+				break;
+			case 0x10: /* international */
+				*nrto++='+';
+				break;
+			case 0x20: /* national */
+				*nrto++='=';
+				break;
+			case 0x30: /* network specific */
+				break;
+			case 0x40: /* subscriber */
+				*nrto++='-';
+				break;
+			case 0x60: /* abbreviated */
+				*nrto++='.';
+				break;
+			case 0x70: /* extension */
+				*nrto++='.';
+				break;
+			}
 		}
 	} else {
 		while(*nrto) nrto++; /* number becomes longer */
@@ -448,6 +466,7 @@ send_setup(isdn3_conn conn)
 	mblk_t *m2,*m3;
 
 	streamchar *s1,*s2,sx;
+	streamchar *s3,*s4,sy = 0;
 	mblk_t *mb = conn->modlist[0];
 
 	if(mb == NULL)
@@ -471,6 +490,7 @@ send_setup(isdn3_conn conn)
 		while(m_getsx(mb2,&id) == 0) ;
 		mb = mb2;
 		mb1->b_cont = mb2;
+		freemsg(conn->modlist[0]);
 		conn->modlist[0] = mb1;
 	}
 	s1 = mb->b_rptr;
@@ -480,6 +500,18 @@ send_setup(isdn3_conn conn)
 	while(s2 < mb->b_wptr && !isspace(*s2))
 		s2++;
 	sx = *s2; *s2 = '\0';
+
+	s3 = s2+1;
+	while(s3 < mb->b_wptr && isspace(*s3))
+		s3++;
+	s4 = s3;
+	while(s4 < mb->b_wptr && !isspace(*s4))
+		s4++;
+	if(s3+1 < s4) {
+		sy = *s4; *s4 = '\0';
+	} else {
+		s4 = NULL;
+	}
 
 	m2 = allocb(sizeof(*c2)+sizeof(*dl),BPRI_MED);
 	m3 = allocb(sizeof(*c3),BPRI_MED);
@@ -500,21 +532,29 @@ send_setup(isdn3_conn conn)
 	bzero(c3,sizeof(*c3));
 
 	c2->plci = conn->call_ref;
-	if(!strcmp(s1,"frame"))  {
-		mb->b_rptr = s2+1;
+	if(!strcmp(s1,"frame")) {
 		c2->B2_proto = 0x02; /* transparent HDLC */
+		c3->B3_proto = 0x04; /* transparent */
+		if((s4 != NULL) && !strcmp(s3,"ppp")) 
+			c3->B3_proto = 0xF1; /* sync PPP */
+	} else if(!strcmp(s1,"modem")) {
+		c2->B2_proto = 0xF0; /* V.22bis modem */
+		c3->B3_proto = 0x04; /* transparent */
+		if((s4 != NULL) && !strcmp(s3,"ppp"))
+			c3->B3_proto = 0xF2; /* async PPP */
 	} else if(!strcmp(s1,"trans")) {
-		mb->b_rptr = s2+1;
 		c2->B2_proto = 0x03; /* bittransparent */
+		c3->B3_proto = 0x04; /* transparent */
 	} else if(!strcmp(s1,"transalaw")) {
-		mb->b_rptr = s2+1;
 		c2->B2_proto = 0x03; /* bittransparent -- hmmm, need to send idle? */
+		c3->B3_proto = 0x04; /* transparent */
 	}
 	c2->dlpdlen = sizeof(*dl);
 	dl->data_length = 4096;
 	c3->plci = conn->call_ref;
-	c3->B3_proto = 0x04; /* transparent */
 	*s2 = sx;
+	if(s4 != NULL)
+		*s4 = sy;
 
 	printf(">SELECTB2_REQ ");
 	err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_SELECTB2_REQ, m2, conn->conni[WF_SELECTB2_CONF] = newmsgid(conn->talk));
@@ -1009,6 +1049,161 @@ send_dialout(isdn3_conn conn)
 }
 
 static int
+build_hl(isdn3_conn conn, mblk_t **mss)
+{
+	streamchar *origmp;
+	ushort_t id;
+	mblk_t *mp;
+	streamchar sname[FMNAMESZ+1];
+	int err;
+	mblk_t *ms = NULL;
+	
+	mp = conn->modlist[conn->hl_id];
+	if(mp == NULL) 
+		return -EAGAIN;
+
+	origmp = mp->b_rptr;
+	if((err = m_getid(mp,&id)) < 0) {
+		goto ret;
+	}
+	if(id != PROTO_MODULE) {
+		err = -EAGAIN;
+		goto ret;
+	}
+	while((err = m_getsx(mp,&id)) >= 0) {
+		if(id == PROTO_MODULE)
+			break;
+	}
+	if(err < 0)
+		goto ret;
+	if((err = m_getstr(mp,sname,FMNAMESZ)) < 0) 
+		goto ret;
+	if(!strcmp(sname,"ppp")) {
+		int do_auth = 0;
+		streamchar *startmp = mp->b_rptr;
+
+		ms = allocb(200,BPRI_MED);
+		if(ms == NULL) {
+			err = -ENOMEM;
+			goto ret;
+		}
+
+		while(m_getsx(mp,&id) >= 0) {
+			switch(id) {
+			case PPP_DO_PAP:
+			case PPP_DO_CHAP:
+				do_auth = 1;
+				break;
+			}
+		}
+		mp->b_rptr = startmp;
+
+		*((ushort_t *)ms->b_wptr)++ = htons(0xC021); /* LCP */
+		*((ushort_t *)ms->b_wptr)++ = htons(do_auth ? 6 : 4); /* Laenge gesamt */
+		if(do_auth) {
+			*((uchar_t *)ms->b_wptr)++ = 0x03; /* Typ */
+			if(conn->state < 5)  /* outgoing */
+				*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW|OPT_LOC_WANT|OPT_LOC_MAND;
+			else 
+				*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW;
+		}
+
+		while(m_getsx(mp,&id) >= 0) {
+			streamchar *len_off;
+
+			switch(id) {
+			case PROTO_MODULE: break;
+			case PPP_IP_VANJ:
+				*((ushort_t *)ms->b_wptr)++ = htons(0x8021); /* IPCP */
+				len_off = ms->b_wptr;
+				*((ushort_t *)ms->b_wptr)++ = htons(8); /* Laenge gesamt */
+				*((uchar_t *)ms->b_wptr)++ = 0x02; /* Typ */
+				*((uchar_t *)ms->b_wptr)++ = 0x04; /* Laenge */
+				*((ushort_t *)ms->b_wptr)++ = htons(0x2d); /* VJ */
+				goto ip_go;
+			case PPP_IP:
+				*((ushort_t *)ms->b_wptr)++ = htons(0x8021); /* IPCP */
+				len_off = ms->b_wptr;
+				*((ushort_t *)ms->b_wptr)++ = htons(4); /* Laenge gesamt */
+			  ip_go:
+			 	{
+					unsigned long ipaddr;
+					err = m_getip(mp,&ipaddr);
+					*((ushort_t *)len_off) = htons(ntohs(*((ushort_t *)len_off)) + 8);
+					*((uchar_t *)ms->b_wptr)++ = 0x03;
+					if(err >= 0)
+						*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW|OPT_LOC_WANT;
+					else
+						*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW;
+					*((uchar_t *)ms->b_wptr)++ = 4;
+					*((uchar_t *)ms->b_wptr)++ = 0;
+					if(err > 0)
+						*((ulong_t *)ms->b_wptr)++ = htonl(ipaddr);
+					else
+						*((ulong_t *)ms->b_wptr)++ = 0;
+				}
+				break;
+			case PPP_DO_PAP:
+			case PPP_DO_CHAP:
+				{
+					streamchar usera[20],pwa[20],userb[20],pwb[20];
+					streamchar *s;
+					
+					if((err = m_getstr(mp,usera,sizeof(usera)-1)) < 0)
+						goto ret;
+					if((err = m_getstr(mp,pwa,sizeof(pwa)-1)) < 0)
+						goto ret;
+					if((err = m_getstr(mp,userb,sizeof(userb)-1)) < 0)
+						goto ret;
+					if((err = m_getstr(mp,pwb,sizeof(pwb)-1)) < 0)
+						goto ret;
+
+					if(id == PPP_DO_PAP)
+						*((ushort_t *)ms->b_wptr)++ = htons(0xC021); /* PAP */
+					else if(id == PPP_DO_CHAP)
+						*((ushort_t *)ms->b_wptr)++ = htons(0xC223); /* CHAP */
+					else {
+						err = -EINVAL;
+						goto ret;
+					}
+					if(!strcmp(usera,"-")) *usera = '\0';
+					if(!strcmp(pwa,"-")) *pwa = '\0';
+					if(!strcmp(userb,"-")) *userb = '\0';
+					if(!strcmp(pwb,"-")) *pwb = '\0';
+					*((ushort_t *)ms->b_wptr)++ = htons(8+strlen(usera)+strlen(userb)+strlen(pwa)+strlen(pwb)); /* Laenge gesamt */
+					*ms->b_wptr++ = strlen(usera);
+					*ms->b_wptr++ = strlen(pwa);
+					*ms->b_wptr++ = strlen(userb);
+					*ms->b_wptr++ = strlen(pwb);
+					for(s=usera;*s;s++) *ms->b_wptr++ = *s;
+					for(s=pwa  ;*s;s++) *ms->b_wptr++ = *s;
+					for(s=userb;*s;s++) *ms->b_wptr++ = *s;
+					for(s=pwb  ;*s;s++) *ms->b_wptr++ = *s;
+				}
+				break;
+			default:
+				err = -ENXIO;
+				goto ret;
+			}
+
+		}
+		mp->b_rptr = origmp;
+	} else {
+		err = -ENXIO;
+		goto ret;
+	}
+  ret:
+  	if((err < 0) && (ms != NULL))
+		freemsg(ms);
+	else {
+		*mss = ms;
+		err = ms->b_wptr - ms->b_rptr;
+	}
+	mp->b_rptr = origmp;
+	return err;
+}
+
+static int
 after_active(isdn3_conn conn, int send_assoc)
 {
 	int err;
@@ -1031,7 +1226,16 @@ after_active(isdn3_conn conn, int send_assoc)
 				return -ENOMEM;
 			c2 = ((typeof(c2))m2->b_wptr)++;
 			bzero(c2,sizeof(*c2));
+
 			c2->plci = conn->call_ref;
+			if(conn->hl_id) {
+				mblk_t *m3;
+				err = build_hl(conn,&m3);
+				if(err >= 0) {
+					c2->ncpilen = err;
+					linkb(m2,m3);
+				}
+			}
 			printf(">CONNECTB3_REQ ");
 			err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_CONNECTB3_REQ, m2, conn->conni[WF_CONNECTB3_CONF] = newmsgid(conn->talk));
 			if(err < 0) 
@@ -1069,6 +1273,16 @@ after_active(isdn3_conn conn, int send_assoc)
 			bzero(c3,sizeof(*c3));
 			c2->plci = conn->call_ref;
 			c3->plci = conn->call_ref;
+#ifdef ALWAYS_ACTIVE
+			if(conn->hl_id) {
+				mblk_t *m4;
+				err = build_hl(conn,&m4);
+				if(err >= 0) {
+					c2->ncpilen = err;
+					linkb(m3,m4);
+				}
+			}
+#endif
 			printf(">CONNECT_RESP ");
 			if((err = capi_send(conn->talk,conn->call_ref>>16,CAPI_CONNECT_RESP,m3,conn->msgid0)) < 0) {
 				freemsg(m2);
@@ -1655,8 +1869,10 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 						info->service = (c2->DST_service << 8) | c2->DST_addinfo;
 						if(c2->telnolen > 1) {
 							int nrlen;
+							long flags = isdn3_flags(conn->card->info,-1,-1);
+
 							--data->b_rptr;
-							data->b_rptr += getnr(info->nr,data->b_rptr);
+							data->b_rptr += getnr(info->nr,data->b_rptr,0, flags);
 							nrlen = strlen(info->nr);
 							if(nrlen > 0 && (info->nr[nrlen-1] == 'S' || info->nr[nrlen-1] == 's'))
 								info->nr[nrlen-1] = '\0';
@@ -1753,8 +1969,11 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					break;
 				case AI_DAD:
 					printf("DAD ");
-					--data->b_rptr;
-					data->b_rptr += getnr(info->lnr,data->b_rptr);
+					{
+						long flags = isdn3_flags(conn->card->info,-1,-1);
+						--data->b_rptr;
+						data->b_rptr += getnr(info->lnr,data->b_rptr,1,flags);
+					}
 					if(conn->state == 6)
 						checknrlen(conn);
 					goto empt;
@@ -2541,7 +2760,9 @@ newcard (isdn3_card card)
 static int
 setup_complete(struct _isdn3_conn *conn)
 {
-	streamchar *s0,*s1,*s2,sx;
+	streamchar *s0;
+	streamchar *s1,*s2,sx;
+	streamchar *s3,*s4,sy=0;
 	mblk_t *mb = conn->modlist[0];
 	int err;
 
@@ -2575,8 +2796,68 @@ setup_complete(struct _isdn3_conn *conn)
 	while(s2 < mb->b_wptr && !isspace(*s2))
 		s2++;
 	sx = *s2; *s2 = '\0';
+
+	s3 = s2+1;
+	while(s3 < mb->b_wptr && isspace(*s3))
+		s3++;
+	s4 = s3;
+	while(s4 < mb->b_wptr && !isspace(*s4))
+		s4++;
+	if(s4-1 > s3) {
+		sy = *s4; *s4 = '\0';
+	} else {
+		s4 = NULL;
+	}
+
+	conn->hl_id = 0;
 	if(!strcmp(s1,"frame")) {
-		err = 1;
+		if(s4 == NULL)
+			err = 1;
+		else if(!strcmp(s3,"ppp")) {
+			int i;
+
+			for(i=1;i<nmodlist;i++) {
+				streamchar *origmp;
+				ushort_t id;
+				mblk_t *mp;
+				streamchar sname[FMNAMESZ+1];
+				
+				mp = conn->modlist[i];
+				if(mp == NULL) {
+					err = -ENOENT;
+					break;
+				}
+				origmp = mp->b_rptr;
+				if((err = m_getid(mp,&id)) < 0) {
+					mp->b_rptr = origmp;
+					break;
+				}
+				if(id != PROTO_MODULE) {
+					err = -EAGAIN;
+					mp->b_rptr = origmp;
+					continue;
+				}
+				while((err = m_getsx(mp,&id)) >= 0) {
+					if(id == PROTO_MODULE)
+						break;
+				}
+				if(err < 0)
+					break;
+				if((err = m_getstr(mp,sname,FMNAMESZ)) < 0) {
+					mp->b_rptr = origmp;
+					break;
+				}
+				if(!strcmp(sname,"ppp")) {
+					mp->b_rptr = origmp;
+					conn->hl_id = i;
+					err = 2;
+					break;
+				}
+				mp->b_rptr = origmp;
+				err = -ENOENT; /* not found? */
+			}
+		} else 
+			err = 1;
 	} else if(!strcmp(s1,"trans"))
 		err = 1;
 	else if(!strcmp(s1,"transalaw"))
@@ -2584,21 +2865,31 @@ setup_complete(struct _isdn3_conn *conn)
 	else
 		err = -ENOENT;
 	*s2 = sx;
+	if(s4 != NULL)
+		*s4 = sy;
 	if((err > 0) && (conn->waitflags & (1<<WF_PROTOCOLS))) {
-		int err2, i = 0;
+		int err2 = 0, i = 0;
 		do {
 			mblk_t *ms;
+
+			if((i>0) && (conn->hl_id <= i))
+				continue;
+
 			ms = dupmsg(conn->modlist[i]);
 			if(ms == NULL)
 				return -ENOMEM;
-			if(i == 0) 
-				ms->b_cont->b_rptr += s2-s0;
+			if(i == 0) {
+				if((s4 != NULL) && (err > 1))
+					ms->b_cont->b_rptr += s4-s0;
+				else
+					ms->b_cont->b_rptr += s2-s0;
+			}
 			err2 = isdn3_send_conn(conn->minor,AS_PROTO,ms);
 			if(err2 < 0) {
 				freemsg(ms);
 				break;
 			}
-		} while(conn->modlist[++i] != NULL);
+		} while((++i < nmodlist) && (conn->modlist[i] != NULL));
 		if(err2 < 0)
 			err = err2;
 	}
@@ -2631,7 +2922,7 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 			return -EINVAL;
 		{
 			int i;
-			for(i=0;i<NBCONN;i++) {
+			for(i=0;i<nmodlist;i++) {
 				if(conn->modlist[i] == NULL)
 					break;
 				freemsg(conn->modlist[i]);
@@ -2644,7 +2935,23 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 			conn->modlist[0] = NULL;
 
 		break;
-	/* case PROTO_MODULE -- none yet */
+	case PROTO_MODULE:
+		if(conn->modlist[0] == NULL)
+			break;
+		if(setup_complete(conn) == -ENOENT) {
+			int i;
+			for(i=1;i<nmodlist; i++) {
+				if(conn->modlist[i] == NULL) {
+					conn->modlist[i] = mb;
+					*data = NULL;
+					break;
+				}
+			}
+			if(i == nmodlist) {
+				return -EIO;
+			}
+		}
+		break;
 	}
 	
 	if((err = setup_complete(conn)) > 0) {

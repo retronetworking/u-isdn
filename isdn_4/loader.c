@@ -84,7 +84,7 @@ card_load_fail(struct loader *ld, int err)
 		}
 	}
 
-	syslog(LOG_ERR,"Card %s was not loaded: Error %s at file %d, pos %d\n",ld->card,strerror(err),ld->nrfile,ld->foffset);
+	syslog(LOG_ERR,"Card %s was not loaded: Error %s at file %d, pos %d\n",ld->card,strerror(-err),ld->nrfile,ld->foffset);
 
 	/* Tell lower layer to forget the thing */
 

@@ -510,7 +510,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				break;
 			}
 			if (dp == NULL) {
-				if(no_site && (*errstr > '8'))
+				if(no_site && (*errstr >= '8'))
 					errstr = "8No matching DP entry";
 				continue;
 			}
@@ -580,7 +580,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				if(cg->nr != NULL) {
 					cg->nrsuf = match_nr(cg->nr,d->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
 					if(cg->nrsuf == NULL) {
-						if(no_site && (*errstr > '8')) {
+						if(no_site && (*errstr >= '8')) {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr = "8NrRemMatch";
 						}
@@ -589,7 +589,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				} else if(!(cg->flags & F_INCOMING)) {
 					cg->nr = build_nr(d->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0);
 					if(cg->nr == NULL) {
-						if(no_site && (*errstr > '8')) {
+						if(no_site && (*errstr >= '8')) {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr="8RemNrMatch";
 						}

@@ -157,7 +157,7 @@ bd_memchk(volatile void far *base, unsigned size)
 		for (i=0; i<size; ++i) {        /*  loop thru memory  */
 			if (*ptr++ != val) {        /*  check value  */
 				if(i != 0xFFF) {
-					printf("memory check failed: i 0x%x, val 0x%lx (wanted 0x%lx)\n",i*sizeof(long),ptr[-1],val);
+					printf("memory check failed: i 0x%x 0f 0x%x, val 0x%lx (wanted 0x%lx)\n",i*sizeof(long),size*sizeof(long),ptr[-1],val);
 					return -EIO;
 				} else {
 					printf("memory check: hmmm... at 0x%x, val 0x%lx (wanted 0x%lx)\n",i*sizeof(long),ptr[-1],val);
@@ -178,6 +178,7 @@ static int
 bd_check(struct _bintec *bp)
 {
     unsigned size;
+	int err;
 
     if (!bp->info.memaddr) { /*  board not present  */
 		printf("BINTEC: no memory address given!\n");
@@ -215,7 +216,11 @@ bd_check(struct _bintec *bp)
     }
     CTRL_RESET(bp);             /*  reset board   */
 
-    return bd_memchk((void *)bp->base, size);    /*  memory check  */
+    err = bd_memchk((void *)bp->base, size);    /*  memory check  */
+	if(err < 0) {
+		printf("%sID is %d %s\n", KERN_ERR, BOARD_TYPE(bp),((BOARD_TYPE(bp) == BOARD_ID_PMX) ? "PMX" : "BRI o.ae."));
+	}
+	return err;
 }
 
 
@@ -776,7 +781,7 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 		return -ENXIO;
 	default:
 		if(channel > 0 && channel <= bp->card.nr_chans) {
-			DEBUG(info) printf("%sBINTEC: Chan%d %s<%d>%s\n",KERN_INFO ,channel,mode?"up":"down",mode,listen?" listen":"");
+			if(0)DEBUG(info) printf("%sBINTEC: Chan%d %s<%d>%s\n",KERN_INFO ,channel,mode?"up":"down",mode,listen?" listen":"");
 			bp->chan[channel].mode = mode;
 			if(mode == M_OFF) {
 				bp->chan[channel].appID = 0;
@@ -961,8 +966,10 @@ sendone(struct _bintec *bp, int thechan)
 	if(thechan != 0 && chan->waitflow > 5)
 		return 0; /* XXX  -EAGAIN ? */
 	mb = S_dequeue(&chan->q_out);
-	if(mb == NULL)
+	if(mb == NULL) 
 		return 0;
+	else if(chan->q_out.nblocks < 2)
+		isdn2_backenable(&bp->card,thechan);
 
 	len = msgdsize(mb);
 
@@ -1213,6 +1220,7 @@ static void
 process_unknown (struct _bintec *bp)
 {
 	long s;
+	int do_timer = 0;
 	if(bp->q_unknown.nblocks == 0)
 		return;
 	
@@ -1259,13 +1267,13 @@ process_unknown (struct _bintec *bp)
 			case -EAGAIN:
 			case -ERESTART:
 				S_enqueue(&bp->q_unknown,mb);
-				bp->unknown_timer = 1;
+				do_timer = 1;
 				break;
 			}
 		}
-		
 	}
-	if(bp->unknown_timer) {
+	if(do_timer && !bp->unknown_timer) {
+		bp->unknown_timer = 1;
 #ifdef NEW_TIMEOUT
 		bp->timer_toss_unknown =
 #endif

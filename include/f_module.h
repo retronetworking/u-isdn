@@ -7,21 +7,25 @@
 #endif
 
 #include <linux/config.h>
-#include <linux/version.h>
-#if LINUX_VERSION_CODE >= 66344
+#ifdef __GENKSYMS__
+#include <linux/module.h>
+#endif
 #ifdef CONFIG_MODVERSIONS
 #define MODVERSIONS
 #include <linux/modversions.h>
-#endif
-#endif
-#include <linux/module.h>
 
+#ifndef CONFIG_MODVERSIONS /* why does modversions clear this?? */
+#define CONFIG_MODVERSIONS
+#endif
+
+#endif
+#ifndef __GENKSYMS__
+#include <linux/module.h>
+#endif
+#include "symtables"
 #include <linux/kernel.h>
 
 #ifndef F_NOCODE
-#if LINUX_VERSION_CODE < 66344
-char kernel_version[] = UTS_RELEASE;
-#endif
 
 static int do_init_module(void);
 static int do_exit_module(void);

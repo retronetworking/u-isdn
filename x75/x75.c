@@ -639,7 +639,7 @@ x75_wsrv (queue_t * q)
 				if (x_75->x75.status == S_down && ((x_75->connmode & (X75CONN_DATA)) == X75CONN_DATA))
 					x75_changestate (&x_75->x75, DL_ESTABLISH_REQ, 0);
 				if (!x75_cansend (&x_75->x75, isUI)) {
-					putbqf (q, mp);/* assume backenable gets called */
+					putbqff (q, mp);/* assume backenable gets called */
 					return;
 				} else if ((err = x75_send (&x_75->x75, isUI, mp)) == 0)
 					break;

@@ -35,6 +35,7 @@
 
 #define PROTO_OFFSET CHAR2('o','s')	/* do mblk preallocation */
 #define PROTO_TICK CHAR2('t','k')	/* sync the timers */
+#define PROTO_TELLME CHAR2('t','m')	/* send back queue state */
 #define PROTO_DATA_IN CHAR2('d','I')	/* data are flowing in; for external measuerment */
 #define PROTO_DATA_OUT CHAR2('d','O')	/* data are flowing out; for external measuerment */
 
