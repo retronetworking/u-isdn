@@ -159,11 +159,11 @@ char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
 	if(lastprefpos==NULL)
 		return NULL;
 	if(*prefpos == '\0' && (islocal & 1)) {
-		char *xextpos = strchr(extnr,'/');
-		char *xlocpos = strchr(locnr,'/');
+		char *xextpos = strchr(extnr,'.');
+		char *xlocpos = strchr(locnr,'.');
 		if(xextpos != NULL && xlocpos != NULL && 
 				(!strcmp(xextpos,xlocpos) || (wildmatch(xextpos+1,xlocpos+1) != NULL)))
-			lastprefpos="/";
+			lastprefpos=".";
 	}
 	
 	locpos=strchr(locnr,*lastprefpos);

@@ -645,7 +645,6 @@ report_generic (isdn3_conn conn, uchar_t * data, int len, ushort_t id)
 	conn_info (conn, mb);
 
 	report_addisplay (mb, data, len);
-	report_addstatus (mb, data, len);
 	report_addfac (mb, data, len);
 	report_addprogress (mb, data, len);
 

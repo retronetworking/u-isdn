@@ -259,8 +259,10 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 	if(conn->state <= c_down)
 		setconnref(conn,0);
 #endif
-	if(state == c_up)
+	if(state == c_up) {
 		conn->cause = 0;
+		conn->upwhen = time(NULL);
+	}
 	else if(state == c_going_up)
 		conn->cause = 999999;
 	if((conn->state < c_going_down && state > c_going_down) || state < c_off) {

@@ -152,10 +152,10 @@ read_file (FILE * ffile, char *errf)
 				if (skipsp (&li)) break; c->card = li;
 				if (skipsp (&li)) break; c->type = li;
 				if (skipsp (&li)) c->args = ""; else c->args = li;
-				if((pri = strchr(c->type,',')) != NULL) {
-					*pri++ = '\0';
+				if((pri = strchr(c->type,',')) != NULL)
 					c->num = atoi(pri);
-				}
+				if((pri = strchr(c->type,'.')) != NULL) 
+					c->num2 = atoi(pri);
 				do_subclass(c);
 				chkone(c);
 				c->protocol = str_enter(c->protocol);
@@ -225,10 +225,8 @@ read_file (FILE * ffile, char *errf)
 				if (skipsp (&li)) break; c->card = li;
 				if (skipsp (&li)) break; c->type = li;
 				if (!skipsp (&li)) c->arg = li;
-				if((pri = strchr(c->type,',')) != NULL) {
-					*pri++ = '\0';
+				if((pri = strchr(c->type,',')) != NULL) 
 					c->num = atoi(pri);
-				}
 				chkone(c);
 				do_subclass(c);
 				c->protocol = str_enter(c->protocol);

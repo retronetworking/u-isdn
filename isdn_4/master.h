@@ -262,11 +262,11 @@ typedef struct conngrab {
 	struct _cf *r_;
 	mblk_t *par_in;
 	mblk_t *par_out;
-int dropline;
 	int flags;
 	int refs;
-	short delay;
+	short delay, mintime;
 	short d_level, d_nextlevel, retries;
+	int dropline;
 } *conngrab;
 
 typedef struct conninfo {
@@ -288,6 +288,7 @@ typedef struct conninfo {
 	char *causeInfo, *cardname, *classname, *lastMsg;
 	int seqnum;
 	short retries;
+	time_t upwhen;
 	unsigned timer_reconn:1;
 	unsigned want_fast_reconn:1;
 	unsigned want_reconn:3;

@@ -519,8 +519,11 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 			DUMPW (cg->par_out->b_rptr, io[2].iov_len);
 		}
 	}
-	setconnstate(conn,c_going_up);
-	(void) strwritev (xs_mon, io, iovlen, 1);
+
+	if(conn->state < c_going_up) {
+		setconnstate(conn,c_going_up);
+		(void) strwritev (xs_mon, io, iovlen, 1);
+	}
 	chkone(conn);
 	*ret = NULL;
 	return conn;

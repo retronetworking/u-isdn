@@ -63,8 +63,8 @@ struct streamtab xstrloginfo =
 #include "isdn_limits.h"
 
 struct _log {
+	int nr;
 	char flags;
-	char nr;
 };
 
 static int
