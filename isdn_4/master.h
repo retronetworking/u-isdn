@@ -534,6 +534,7 @@ struct isdncard {
 	ushort_t nrdchan; /* seqnum... */
 	ushort_t nrbchan;
 	ulong_t mask;
+	int is_down:1;
 };
 EXTERN struct isdncard *isdn4_card INIT(NULL);
 

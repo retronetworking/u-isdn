@@ -57,6 +57,9 @@ void *deb_kmalloc(size_t sz, int prio, const char *deb_file, unsigned int deb_li
 int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line);
 #define deb_kfree_s(a,b,c,d) deb_kfree((a),(c),(d))
 #define deb_kcheck_s(a,b,c,d) deb_kcheck((a),(c),(d))
+#ifdef kcheck
+#undef kcheck
+#endif
 #define kcheck(a) deb_kcheck((a),__FILE__,__LINE__)
 
 #else /* DO_DEBUGGING */

@@ -3104,6 +3104,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 						free(card);
 					}
 					break;
+#ifdef _tei_
 				case HDR_TEI:
 					{
 						isdn3_card card;
@@ -3117,6 +3118,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 							tei_getid (card);
 					}
 					break;
+#endif
 				case HDR_OPENPROT:
 					{
 						isdn3_talk talk;
@@ -3188,6 +3190,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 									break;
 								} /* ELSE FALL THRU */
 							case PH_DISCONNECT_IND:
+							case MDL_ERROR_IND:
 								if(card->is_up != 2) {
 									mblk_t *mx = allocb(32,BPRI_MED);
 									if(mx != NULL) {
@@ -3290,6 +3293,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 										}
 									}
 									break;
+#ifdef _tei_
 								case HDR_TEI:
 									{
 										isdn3_card card = isdn3_findcard(hdr.hdr_tei.card);
@@ -3299,6 +3303,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 										}
 									}
 									break;
+#endif
 								case HDR_LOAD:
 									{
 										isdn3_card card = isdn3_findcard(hdr.hdr_load.card);

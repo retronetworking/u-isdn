@@ -508,10 +508,15 @@ int
 do_offcard(void)
 {
 	int ret;
+	struct isdncard *card;
 
 	if ((ret = m_getstr(&xx, crd, 4)) != 0)
 		return ret;
 
+	for(card = isdn4_card; card != NULL; card = card->next) {
+		if (!strcmp(card->name, crd))
+			card->is_down = 1;
+	}
 	conn = xmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
@@ -531,9 +536,14 @@ int
 do_recard(void)
 {
 	int ret;
+	struct isdncard *card;
 
 	if ((ret = m_getstr(&xx, crd, 4)) != 0)
 		return ret;
+	for(card = isdn4_card; card != NULL; card = card->next) {
+		if (!strcmp(card->name, crd))
+			card->is_down = 0;
+	}
 	conn = xmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
