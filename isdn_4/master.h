@@ -276,7 +276,6 @@ typedef struct conninfo {
 	long connref;				  /* L3 connection ID, globally unique */
 	long charge;
 	long ccharge;				  /* cumulative charge, informational msg */
-	int chargecount;			/* Debug! */
 	pid_t pid;
 	long id;
 	uchar_t minor;
@@ -517,6 +516,7 @@ struct loader {
 	long seqnum; /* position in config file(s) */
 	int nrfile; /* loaded to card */
 	long foffset; /* position in load file */
+	int thislen; /* for EAGAIN */
 	struct loader *next;
 	int cardnum;
 	int connseq;

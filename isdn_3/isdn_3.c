@@ -3146,7 +3146,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 												putnext (q, mx);
 											}
 										}
-										if(hdr.hdr_notify.ind != PH_ACTIVATE_NOTE)
+										if((card->modes & CHM_INTELLIGENT) || (hdr.hdr_notify.ind != PH_ACTIVATE_NOTE))
 											card->is_up = 1;
 									}
 								}

@@ -101,4 +101,8 @@
 #define PUSH_BEFORE 020 /* Only unload the modules before reconn */
 #define PUSH_AFTER  040 /* only do the modules after reconn */
 
+/* Card modes */
+
+#define CHM_INTELLIGENT 01 /* If this bit is set, the card is clever and modes>>1 has the ID of the high-level driver. */
+
 #endif							/* _PRIM_H */

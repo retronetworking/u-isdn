@@ -6,7 +6,7 @@
  */
 
 #include "master.h"
-#include "isdn_12.h"
+#include "isdn_12.h" /* for the header keys */
 
 /* Once upon a time, do_info() was a very big function. */
 
@@ -263,16 +263,13 @@ find_conn(void)
 		if(conn->flags & F_INCOMING)
 			dialin = 1;
 		if(charge > 0) {
+			if((conn->state <= c_going_down) && (conn->charge > 0)) {
+				if(conn->cg != NULL)
+					syslog(LOG_ALERT,"Cost Runaway, connection not closed for %s:%s",conn->cg->site,conn->cg->protocol);
+				else
+					syslog(LOG_ALERT,"Cost Runaway, connection not closed for ???");
+			}
 			conn->charge = charge;
-			if(conn->state <= c_going_down) {
-				if (++conn->chargecount == 3) {
-					if(conn->cg != NULL)
-						syslog(LOG_ALERT,"Cost Runaway, connection not closed for %s:%s",conn->cg->site,conn->cg->protocol);
-					else
-						syslog(LOG_ALERT,"Cost Runaway, connection not closed for ???");
-				}
-			} else
-				conn->chargecount = 0;
 			ReportConn(conn);
 		}
 		if(cause != 0)
@@ -1388,13 +1385,13 @@ do_hasconnected(void)
 int
 do_disconnect(void)
 {
-#if 0
-	if (conn != NULL)
+#if 1
+	if (conn != NULL) {
 		if(conn->state > c_down) {
 			if(conn->state == c_going_up)
-				do_updown();
+				do_updown(c_going_down);
 		}
-
+	}
 	xx.b_rptr = xx.b_wptr = ans;
 	db.db_base = ans;
 	db.db_lim = ans + sizeof (ans);
@@ -1709,7 +1706,7 @@ do_atcmd(void)
 								continue;
 						ReportOneConn(fconn,minor);
 					}
-					sprintf(buf,"# Waiting %s...",conn->cardname);
+					sprintf(buf,"# Waiting%s %s...",in_boot?"/blocked":"", conn->cardname);
 					resp = str_enter(buf);
 
 					return 1;
@@ -2108,7 +2105,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 				timeout(card_load,loader,HZ*5);
 				return 0;
 			}
-			card_load_fail(loader,errnum);
+			card_load_fail(loader,(errnum < 0) ? errnum : -errnum);
 		}
 		return 0;
 	}

@@ -6,7 +6,6 @@
  */
 
 #include "master.h"
-#include "isdn_12.h" /* CHM_INTELLIGENT */
 
 void
 syncflags(conninfo conn, char set)

@@ -725,11 +725,21 @@ boot(struct _isdn1_card * card, int step, int offset, mblk_t *data)
 			err = -EIO;
 			break;
 		}
-		bp->waitmsg = 2;
-		if(bp->info.irq != 0) {
-			if(bp->type != BOARD_ID_PMX) 
-				setctl(bp,0); /* enable interrupts */
-			*bp->state = 3; /* ... send and receive */
+		err = -EAGAIN;
+		if(bp->waitmsg == 0)  {
+#if 0
+			if(jiffies & 0x7)
+				err = -EAGAIN;
+			else
+#endif
+				err = 0;
+		} else if(bp->waitmsg > 2) {
+			bp->waitmsg = 2;
+			if(bp->info.irq != 0) {
+				if(bp->type != BOARD_ID_PMX) 
+					setctl(bp,0); /* enable interrupts */
+				*bp->state = 3; /* ... send and receive */
+			}
 		}
 		break; /* boot is finished */
 	default:
@@ -876,7 +886,7 @@ bintec_candata (struct _isdn1_card * card, short channel)
 	struct _bintec * bp = (struct _bintec *)card;
 	if(bp->waitmsg)
 		return 0;
-	return (bp->chan[channel].q_out.nblocks < 4);
+	return (bp->chan[channel].q_out.nblocks < 8);
 }
 
 /*
@@ -922,7 +932,8 @@ recvone(struct _bintec *bp, int thechan)
 	if((err = isdn2_recv(&bp->card,thechan,mb)) < 0) {
 		S_requeue(&chan->q_in,mb);
 		return err;
-	}
+	} else 
+		DEBUG(info) if((thechan == 0) && (chan->q_in.nblocks == 0)) printf("%sBINTEC: upqueue cleared\n",KERN_INFO);
 	return 0;
 }
 
@@ -1019,10 +1030,8 @@ pushone(struct _bintec *bp, int thechan)
 		return -EAGAIN;
 	}
 	mb = S_dequeue(&chan->q_in);
-	if(mb == NULL) {
-		DEBUG(info) if(thechan == 0) printf("%sBINTEC: upqueue cleared\n",KERN_INFO);
+	if(mb == NULL) 
 		return -ENOENT;
-	}
 	if(mb->b_cont == NULL) {
 		freeb(mb);
 		return -EINVAL;
@@ -1358,7 +1367,7 @@ DoIRQ(struct _bintec *bp)
 						}
 					} else if(err == -EAGAIN) {
 						if(bp->chan[0].q_in.nblocks < 100) {
-							DEBUG(info) printf("BINTEC read: queued info packet\n");
+							DEBUG(info) if(bp->chan[0].q_in.nblocks == 0) printf("BINTEC read: queued info packet\n");
 							S_enqueue(&bp->chan[0].q_in,mb);
 							err = 0;
 						} else {
@@ -1384,6 +1393,9 @@ DoIRQ(struct _bintec *bp)
 			}
 		}
 	}
+
+	if(bp->waitmsg != 0)
+		return;
 
 	recvone(bp,0);
 	for(lastpos=1; lastpos <= bp->card.nr_chans; lastpos++) {

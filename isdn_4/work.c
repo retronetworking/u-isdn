@@ -6,7 +6,6 @@
  */
 
 #include "master.h"
-#include "isdn_12.h"
 
 /* Handle dead processes */
 void
@@ -63,7 +62,7 @@ deadkid (void)
 		}
 	}
 	if(has_dead) {
-		in_boot=1;
+		in_boot = 1;
 		connreport("# Blocking connections","*",0);
 		do_run_now++;
 		timeout(run_now,NULL,3*HZ);
