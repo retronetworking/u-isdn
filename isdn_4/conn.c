@@ -11,7 +11,8 @@
 /* Clone a connection info record ("conngrab" because I use it to collect
    all pertinent information to grab data out of the configuration files
    with), or create a new one. */
-conngrab Xnewgrab(conngrab master, int lin)
+conngrab
+Xnewgrab(conngrab master, int lin)
 {
 	conngrab slave;
 
@@ -20,7 +21,7 @@ conngrab Xnewgrab(conngrab master, int lin)
 		return NULL;
 	if(master == NULL) {
 		bzero(slave,sizeof(*slave));
-		slave->cclass = str_enter("*");
+		slave->cclass = "*";
 		slave->mask = ~0;
 	} else {
 		if(master->refs == 0 || master->protocol == (char *)0xdeadbeef)
@@ -36,7 +37,8 @@ conngrab Xnewgrab(conngrab master, int lin)
 }
 
 /* Forget one... */
-void Xdropgrab(conngrab cg,int lin)
+void
+Xdropgrab(conngrab cg,int lin)
 {
 	if(cg == NULL)
 		return;
@@ -62,14 +64,16 @@ void Xdropgrab(conngrab cg,int lin)
 }
 
 /* Set the reference number. For debugging. */
-void Xsetconnref(const char *deb_file, unsigned int deb_line, conninfo conn, int connref)
+void
+Xsetconnref(const char *deb_file, unsigned int deb_line, conninfo conn, int connref)
 {
 	printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
 	conn->connref = connref;
 }
 
 /* Print the text foo onto all ATL/ channels. */
-void connreport(char *foo)
+void
+connreport(char *foo, char *card)
 {
 	conninfo conn;
 	mblk_t xx;
@@ -84,8 +88,17 @@ void connreport(char *foo)
 		struct iovec io[2];
 
 		chkone(conn);
-		if(conn->ignore != 3 || conn->minor == 0)
+		if(conn->ignore < 3 || conn->minor == 0)
 			continue;
+		if(!wildmatch(conn->cardname,card))
+			continue;
+		if(conn->lastMsg != NULL && !strcmp(conn->lastMsg,foo))
+			continue;
+		if(conn->lastMsg != NULL) 
+			free(conn->lastMsg);
+		conn->lastMsg = malloc(strlen(foo)+1);
+		if(conn->lastMsg != NULL) 
+			strcpy(conn->lastMsg,foo);
 
 		xx.b_wptr = ans;
 		m_putid (&xx, CMD_PROT);
@@ -93,20 +106,17 @@ void connreport(char *foo)
 		m_puti (&xx, conn->minor);
 		m_putdelim (&xx);
 		m_putid (&xx, PROTO_AT);
-		*xx.b_wptr++ = '*';
 		io[0].iov_base = xx.b_rptr;
 		io[0].iov_len = xx.b_wptr - xx.b_rptr;
 		io[1].iov_base = foo;
 		io[1].iov_len = strlen(foo);
-		DUMPW (xx.b_rptr, io[0].iov_len);
-		printf ("+ ");
-		DUMPW (foo,strlen(foo));
 		(void) strwritev (xs_mon, io, 2, 1);
 	}
 }
 
 /* Print the state of this connection with connreport(). */
-void ReportConn(conninfo conn)
+void
+ReportConn(conninfo conn)
 {
 	char sp[200], *spf = sp;
 	spf += sprintf(spf,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s",
@@ -133,12 +143,13 @@ void ReportConn(conninfo conn)
 	else if(conn->cg != NULL && conn->cg->oldlnr != NULL)
 		spf += sprintf(spf, ";%s",conn->cg->oldlnr);
 	spf += sprintf(spf," %s", CauseInfo(conn->cause, conn->causeInfo));
-	connreport(sp);
+	connreport(sp,(conn->cg ? conn->cg->card : "*"));
 }
 
 /* Sets the state of a connection; does all the housekeeping associated
    with the change. */
-void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState state)
+void
+Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState state)
 {
 	chkone(conn);
 	printf("%s:%d: State %d: %s",deb_file,deb_line,conn->minor,state2str(conn->state));
@@ -302,14 +313,17 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 	{	/* Say that we forgot the thing. */
 		char xs[10];
 		sprintf(xs,"-%d",conn->seqnum);
-		connreport(xs);
+		connreport(xs,conn->cg ? conn->cg->card : "*");
 	}
 	dropgrab(conn->cg);
+	if(conn->lastMsg != NULL)
+		free(conn->lastMsg);
 	free(conn);
 }
 
 
-void retime(struct conninfo *conn)
+void
+retime(struct conninfo *conn)
 {
 	if(conn->retime) {
 		int xlen;
@@ -336,7 +350,8 @@ void retime(struct conninfo *conn)
 	}
 }
 
-void time_reconn(struct conninfo *conn)
+void
+time_reconn(struct conninfo *conn)
 {
 	if(conn->timer_reconn) {
 		conn->timer_reconn = 0;
@@ -346,7 +361,8 @@ void time_reconn(struct conninfo *conn)
 }
 
 /* Reestablish a connection, eg. because data are to be transmitted. */
-void try_reconn(struct conninfo *conn)
+void
+try_reconn(struct conninfo *conn)
 {
 	mblk_t *md;
 	int xlen;
@@ -382,9 +398,8 @@ void try_reconn(struct conninfo *conn)
 
 		if(conn->want_reconn < MAX_RECONN) { /* if ==, we have a direct callback */
 			cg->nr = NULL; cg->nrsuf = NULL;
-		}
-		else 
 			cg->flags &=~F_NRCOMPLETE;
+		}
 		cg->lnr = NULL; cg->lnrsuf = NULL;
 		cg->card = conn->cardname ? conn->cardname : "*";
 		cg->cclass = conn->classname ? conn->classname : "*";
@@ -415,26 +430,26 @@ void try_reconn(struct conninfo *conn)
 		if(ret != NULL) {
 			if(!strcmp(ret,"0BUSY")) {
 				conn->cause = ID_priv_Busy;
-				if ((conn->flags & F_PERMANENT) && (conn->minor != 0)) {
-					mblk_t *mb = allocb(30,BPRI_MED);
-
-					setconnstate(conn, c_down);
-					m_putid (mb, CMD_PROT);
-					m_putsx (mb, ARG_MINOR);
-					m_puti (mb, conn->minor);
-					m_putdelim (mb);
-					m_putid (mb, PROTO_DISABLE);
-					xlen = mb->b_wptr - mb->b_rptr;
-					DUMPW (mb->b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-					freeb(mb);
-				}
 			} else {
 				conn->cause = ID_priv_Print;
 				conn->causeInfo = ret;
 			}
 printf("DropThis, %s\n",ret);
 			setconnstate(conn,c_off);
+			if ((conn->flags & F_PERMANENT) && (conn->minor != 0)) {
+				mblk_t *mb = allocb(30,BPRI_MED);
+
+				setconnstate(conn, c_down);
+				m_putid (mb, CMD_PROT);
+				m_putsx (mb, ARG_MINOR);
+				m_puti (mb, conn->minor);
+				m_putdelim (mb);
+				m_putid (mb, PROTO_DISABLE);
+				xlen = mb->b_wptr - mb->b_rptr;
+				DUMPW (mb->b_rptr, xlen);
+				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
+				freeb(mb);
+			}
 			return;
 		}
 

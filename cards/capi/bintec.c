@@ -9,7 +9,7 @@
 /* Der Rest: */
 /*
  *
- * ISDN CAPI driver.
+ * ISDN driver for CAPI cards: BINTEC.
  *
  * Copyright (c) 1993-1995 Matthias Urlichs <urlichs@noris.de>.
  */
@@ -88,7 +88,6 @@ bd_memchk(volatile void far *base, unsigned size)
 
     size /= sizeof(long);
 
-printf("u");
 	{
 		volatile unchar far *p;
 
@@ -96,7 +95,7 @@ printf("u");
 		for (i=0; i<256; ++i) {
 			p[i] = (unchar) i;
 			if (p[i] != i) {
-				printf("board not present\n");
+				printf("board not present, addr %p, %d is %d\n",p,i,p[i]);
 				return -EIO;
 			}
 		}
@@ -114,7 +113,6 @@ printf("u");
 			}
 		}
 	}
-printf("v");
 	{
 		volatile ushort far *p;
 
@@ -175,7 +173,6 @@ printf("v");
 			val += 0x12345678;          /*  adjust value  */
 		}
 	}
-printf("w");
     return 0;  /*  success  */
 }
 
@@ -188,11 +185,9 @@ static int
 bd_check(struct _bintec *bp)
 {
     unsigned size;
-	int err;
 
-printf("k");
     if (!bp->info.memaddr) { /*  board not present  */
-		printf("BINTEC: board not present\n");
+		printf("BINTEC: no memory address given!\n");
 		return -EINVAL;
     }
 
@@ -200,7 +195,6 @@ printf("k");
 
     bp->ctrl  = (unchar far *) (bp->base + 0x3ffe);
     *bp->ctrl = 0xff;
-printf("j");
 	if ((*(bp->ctrl) >> 5) != BOARD_ID_PMX) {
 		bp->type = *(bp->ctrl) >> 5;
 		bp->ctrl  = (unchar far *) (bp->base + 0x3ffe);
@@ -223,26 +217,17 @@ printf("j");
 		size  = 64 * 1024 - 4;
 	}
 
-printf("i");
     if (BOARD_TYPE(bp) != BOARD_ID_BRI
 		&& BOARD_TYPE(bp) != BOARD_ID_BRI4
 		&& BOARD_TYPE(bp) != BOARD_ID_PMX
 		&& BOARD_TYPE(bp) != BOARD_ID_X21
     		) {
-		printf( "BINTEC: no board at HwMemAddr 0x%04lx detected\n", bp->info.memaddr);
+		printf( "BINTEC: board ctrl 0x%02x: ID unknown\n", *bp->ctrl);
 		return -ENXIO;
     }
-printf("h");
     CTRL_RESET(bp);             /*  reset board   */
 
-printf("g");
-    err = bd_memchk((void *)bp->base, size);    /*  memory check  */
-    if (err < 0) {
-		printf("BINTEC: at mem 0x%lx: failure: %d\n", bp->info.memaddr, err);
-		return err;
-    }
-printf("f");
-    return 0;
+    return bd_memchk((void *)bp->base, size);    /*  memory check  */
 }
 
 
@@ -257,13 +242,20 @@ bd_msgout( struct _bintec *bp )
 {
     unsigned char c;
     static char newline = 1;
+	int count = 0;
 
     while ((c = *bp->debugtext) != 0) {
 		*bp->debugtext = 0;   /*  clear byte  */
 		if(!newline || (c != '\n')) { /* do not print empty lines */
-			if (newline) printf("BINTEC: debug: ");
+			if (newline) printf("%sBINTEC: debug: ",KERN_DEBUG);
 			newline = (c == '\n');
 			printf("%c", c);  /*  display byte  */
+		}
+		if(++count > 1000) {
+			printf("\n%sBINTEC: The board seems to be in an infinite loop.\n",KERN_ERR);
+			isdn2_new_state(&bp->card,2);
+			CTRL_RESET(bp);
+			return -EIO;
 		}
     }
 
@@ -289,7 +281,6 @@ bd_init( struct _bintec *bp )
 		printf("bd_init: board addr not present\n");
 		return -EFAULT;
     }
-printf("c");
     bp->base  = (unchar far *) bp->info.memaddr;
     bp->ctrl  = (unchar far *) (bp->base + 0x3ffe);
     *bp->ctrl = 0xff;
@@ -303,7 +294,6 @@ printf("c");
 		bp->snd.p = (unchar far *)   (bp->base + 0x2000);
 		bp->rcv.d = (icinfo_t far *) (bp->base + 0x3ff0);
 		bp->snd.d = (icinfo_t far *) (bp->base + 0x3ff6);
-printf("d");
     } else {
 		bp->type = BOARD_ID_PMX;
 		bp->ctrl  = (unchar far *)   (bp->base + 0xfffe);
@@ -331,7 +321,6 @@ printf("d");
 		printf("BINTEC: unknown board ID %d\n",bp->type);
 		return -EIO;
 	}
-printf("e");
 	return 0;
 }
 
@@ -352,6 +341,10 @@ reset_card(struct _bintec *bp)
 		S_flush(&bp->chan[i].q_in);
 		S_flush(&bp->chan[i].q_out);
 		bp->chan[i].mode = M_OFF;
+		if(bp->chan[i].in_more != NULL) {
+			freemsg(bp->chan[i].in_more);
+			bp->chan[i].in_more = NULL;
+		}
 	}
 	S_flush(&bp->q_unknown);
 	if(bp->unknown_timer) {
@@ -621,15 +614,12 @@ static int
 init1 (struct _bintec *bp)
 {
 	int err;
-printf("a");
 	err = bd_init(bp);
 	if(err < 0)
 		return err;
-printf("b");
 	err = bd_check(bp);
 	if(err < 0)
 		return err;
-printf("c");
 	bp->waitmsg = 999;
 	return 0;
 }
@@ -803,18 +793,40 @@ bintec_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
     int err = 0;
 	hdlc_buf chan = &bp->chan[channel];
 
-    DEBUG(info)printf("Prot chan %d flags 0%o\n",channel,flags);
+    DEBUG(info) printf("Prot chan %d flags 0%o\n",channel,flags);
 
     if(!(flags & ~CHP_FROMSTACK)) { /* Nothing else set? */
         if ((err = m_getid (mp, &id)) != 0)
             goto err;
-        if(!(flags & CHP_FROMSTACK)) {
+        if(flags & CHP_FROMSTACK) { /* from the application */
+			switch(id) {
+			default:
+				err = -ERESTART;
+				break;
+			case PROTO_OFFSET:
+				{
+					long z;
+					if ((err = m_geti (mp, &z)) != 0)
+						goto err;
+					if (z < 0 || z >= 1024) {
+						err = -EINVAL;
+						goto err;
+					}
+					if(bp->maxoffset < z)
+						bp->maxoffset = z;
+					bp->chan[channel].offset = z;
+				}
+				err = -ERESTART;
+				break;
+			}
+		} else { /* from the system */
 			switch (id) {
 			default:
+				err = -ERESTART;
 				break;
 			case CMD_CARDPROT:
 				{
-					while((err = m_getsx(mp,&id)) == 0) {
+					while(m_getsx(mp,&id) == 0) {
 						switch(id) {
 						case ARG_ASSOC:
 							{ /* appID plci ncci */
@@ -831,43 +843,34 @@ bintec_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 								DEBUG(capi) printf("BINTEC: chan %d: assoc %04lx %04lx %04lx\n",channel,a,p,n);
 								process_unknown(bp);
 							}
+							break;
 						}
 					}
 				}
 				if(err == 0) {
 					mblk_t *mz = make_reply(err);
 					if(mz != NULL) {
+    					mp->b_rptr = origmp;
+						mp->b_datap->db_type = mz->b_datap->db_type;
 						linkb(mz,mp);
 						if((err = isdn2_chprot(card,channel,mz,flags|CHP_FROMSTACK)) < 0)
 							freeb(mz);
-					}
-				}
-				return err;
-			case PROTO_OFFSET:
-				{
-					long z;
-					if ((err = m_geti (mp, &z)) != 0)
-						goto err;
-					if (z < 0 || z >= 1024) {
-						err = -EINVAL;
-						goto err;
-					}
-					if(flags & CHP_FROMSTACK) { /* down */
-						if(bp->maxoffset < z)
-							bp->maxoffset = z;
-						bp->chan[channel].offset = z;
+						else 
+							mp = NULL;
 					}
 				}
 				break;
 			}
 		}
     }
+	if(err == 0) {
+		if(mp != NULL)
+			freemsg(mp);
+		return 0;
+	}
   err:
-    if(mp != NULL)  {
-        if (origmp != NULL)
-            mp->b_rptr = origmp;
-    }
-    return (err ? err : isdn2_chprot(card,channel,mp,flags));
+    mp->b_rptr = origmp;
+    return ((err != -ERESTART) ? err : isdn2_chprot(card,channel,mp,flags));
 }
 
 /*
@@ -912,7 +915,7 @@ bintec_flush (struct _isdn1_card * card, short channel)
 static int
 sendone(struct _bintec *bp, int thechan)
 {
-	int len, err;
+	int len, hlen, err;
 	struct _hdlc_buf *chan = &bp->chan[thechan];
 	mblk_t *mb;
 
@@ -930,9 +933,9 @@ sendone(struct _bintec *bp, int thechan)
 		return err;
 	}
 	if(thechan != 0)
-		len += 15;
+		hlen = 21;
 	else
-		len += 2;
+		hlen = 2;
 	DEBUG(capiout) {
 		if(thechan == 0) {
 			struct CAPI_every_header *capi;
@@ -947,17 +950,19 @@ sendone(struct _bintec *bp, int thechan)
 			printf("\n");
 		foo:;
 	}
-	err = putstart(bp,len > MAXSEND ? MAXSEND : len ); /* auto-puts the length */
+	err = putstart(bp,hlen + ((len > MAXSEND) ? MAXSEND : len)); /* auto-puts the length */
 	if(err >= 0) {
 		put16(bp, htons(1));
 		if(thechan != 0) { /* data */
-			put16(bp, 13); /* msg len, including header */
+			put16(bp, 19); /* msg len, including header */
 			put16(bp, chan->appID); /* AppID */
 			put16(bp, CAPI_DATAB3_REQ);
 			put16(bp, bp->msgnr++ & 0x3FFF);
 			put16(bp, chan->NCCI); 
+			put16(bp, (len > MAXSEND) ? MAXSEND : len); 
+			put32(bp, 0);
 			put8 (bp, ++chan->dblock);
-			put16(bp, len > MAXSEND ? CAPI_MORE : 0); /* flags */
+			put16(bp, (len > MAXSEND) ? CAPI_MORE : 0); /* flags */
 		}
 		putmb(bp,mb,MAXSEND);
 		err = putend(bp);
@@ -1003,16 +1008,31 @@ pushone(struct _bintec *bp, int thechan)
 		struct CAPI_datab3_resp *cr;
 		mblk_t *mr = allocb(sizeof(*capi)+sizeof(*cr),BPRI_HI);
 		if(mr != NULL) {
-			capi  = ((typeof(capi ))mr->b_rptr);
+			capi  = ((typeof(capi ))mb->b_rptr);
 			capi2 = ((typeof(capi2))mr->b_wptr)++;
 			cr = ((typeof(cr))mr->b_wptr)++;
 			ci =  (typeof(ci))(capi+1);
-			*capi2 = *capi;
+			capi2->len = mr->b_wptr-mr->b_rptr;
+			capi2->appl = capi->appl;
 			capi2->PRIM_type = CAPI_DATAB3_RESP;
+			capi2->messid = capi->messid;
 			cr->ncci = ci->ncci;
 			cr->blknum = ci->blknum;
 
-			err = isdn2_recv(&bp->card,0,mb->b_cont);
+			if(ci->flags & CAPI_MORE) {
+				if(chan->in_more == NULL) 
+					chan->in_more = mb->b_cont;
+				else
+					linkb(chan->in_more,mb->b_cont);
+				err = 0;
+			} else {
+				if(chan->in_more != NULL) {
+					linkb(chan->in_more,mb->b_cont);
+					mb->b_cont = chan->in_more;
+					chan->in_more = NULL;
+				}
+				err = isdn2_recv(&bp->card,thechan,mb->b_cont);
+			}
 			if(err == 0) {
 				freeb(mb);
 				S_enqueue(&bp->chan[0].q_out,mr);
@@ -1022,6 +1042,7 @@ pushone(struct _bintec *bp, int thechan)
 				S_requeue(&chan->q_in, mb);
 				freemsg(mr);
 			} else {
+				/* XXX TODO: send a toss message, or close the channel */
 				freemsg(mb);
 				freemsg(mr);
 			}
@@ -1048,6 +1069,8 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 	switch(capi->PRIM_type) {
 	case CAPI_ALIVE_IND:
 		err = 0;
+		if(!isdn2_canrecv(&bp->card,0)) 
+			goto def;
 		capi->PRIM_type = CAPI_ALIVE_RESP;
 		if(bp->chan[0].q_out.nblocks < 100)
 			S_enqueue(&bp->chan[0].q_out,mb);
@@ -1120,6 +1143,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 		}
 		break;
 	default:
+	def:
 		if(!isdn2_canrecv(&bp->card,0)) {
 			printf("BINTEC read: cannot accept packet\n");
 			if(bp->chan[0].q_in.nblocks < 100)
@@ -1281,9 +1305,10 @@ DoIRQ(struct _bintec *bp)
 					}
 					{
 						mblk_t *m2 = allocb(len-capilen+offset,BPRI_HI);
-						if(m2 == NULL) 
+						if(m2 == NULL) {
 							getflush(bp,len-capilen);
-						else {
+							printf("%sBINTEC error: No memory for %d bytes\n",KERN_ERR,len-capilen);
+						} else {
 							m2->b_rptr += offset;
 							m2->b_wptr += offset;
 							getmb(bp,m2,len-capilen);
@@ -1426,13 +1451,9 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return -ENOMEM;
 	}
 	bzero(bp,sizeof(*bp));
-printf("A %p %p ",bp,inf);
 	bp->info = *inf;
-printf("1");
 	bp->infoptr = inf;
-printf("2");
 	bp->card.ctl = bp;
-printf("3");
 	bp->card.modes = CHM_INTELLIGENT;
 	bp->card.ch_mode = bintec_mode;
 	bp->card.ch_prot = bintec_prot;
@@ -1443,15 +1464,12 @@ printf("3");
 	bp->card.boot = boot;
 	bp->polled = -1;
 	bp->lastout = 1;
-printf("B");
 	printf("ISDN: " STRING(REALNAME) " at mem 0x%lx irq %d: ",bp->info.memaddr,bp->info.irq);
-printf("C");
 	if((err = init1(bp)) < 0) {
 		printf("Card not initializable.\n");
 		kfree(bp);
 		return err;
 	}
-printf("D");
 #ifdef linux
 	if((bp->info.irq != 0) && (bintecmap[bp->info.irq] == NULL) && request_irq(bp->info.irq,bintecintr,SA_INTERRUPT,"Bintec")) {
 		printf("IRQ not available.\n");
@@ -1459,7 +1477,6 @@ printf("D");
 		return -EIO;
 	}
 #endif
-printf("E");
 	NAME(REALNAME,poll)(bp);
 	if((err = isdn2_register(&bp->card, bp->info.ID)) != 0) {
 		printf("not installed (ISDN_2), err %d\n",err);
@@ -1467,7 +1484,6 @@ printf("E");
 		return err;
 	}
 
-printf("F");
 	bp->polled = 1;
 #ifdef linux
 	if(bp->info.irq == 0) {

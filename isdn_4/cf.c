@@ -107,14 +107,19 @@ do_subclass(cf c)
 {
 	char *info;
 	if((info = strchr(c->card,'/')) != NULL) {
+		char neg;
 		int x = 0;
 		*info++ = '\0';
-		c->mask = 0;
+		neg = (*info == '-');
+		c->mask = neg ? ~0 : 0;
 		while(*info != 0) {
 			if(*info >= '0' && *info <= '9') {
 				x = x * 10 + *info - '0';
 			} else if(x != 0) {
-				c->mask = 1<<(x-1);
+				if(neg)
+					c->mask |= 1<<(x-1);
+				else
+					c->mask &=~ (1<<(x-1));
 				x = 0;
 			}
 			info++;
@@ -222,6 +227,18 @@ read_file (FILE * ffile, char *errf)
 			c->type     = str_enter(c->type);
 			c->arg      = str_enter(c->arg);
 			app (&cf_D, c);
+			continue;
+		case CHAR2 ('T', 'M'):
+			/* TM <Key> <String> */
+			if (skipsp (&li)) break; c->cclass = li;
+			if (skipsp (&li)) break; c->arg = li;
+			if (!skipsp (&li)) break;
+			if (isintime(c->arg) < 0) break;
+			chkone(c);
+			do_subclass(c);
+			c->cclass   = str_enter(c->cclass);
+			c->arg      = str_enter(c->arg);
+			app (&cf_TM, c);
 			continue;
 		case CHAR2 ('D', 'L'):
 			/* DL <Key> <Karte> <Nummer> <Protokolle> */
@@ -361,9 +378,15 @@ char **fileargs;
 void
 read_args (void *nix)
 {
+	int nexttime = 0;
+#ifdef NEW_TIMEOUT
+	static long classtimer;
+#endif
+
 	char **arg;
 	struct conninfo *conn;
 	conngrab cg;
+	cf cft;
 
 #define CFREE(what) do { while(what != NULL) { cf cf2 = what->next;free(what);what = cf2; } } while(0)
 	CFREE (cf_P);
@@ -371,6 +394,7 @@ read_args (void *nix)
 	CFREE (cf_MP);
 	CFREE (cf_D);
 	CFREE (cf_DL);
+	CFREE (cf_TM);
 	CFREE (cf_DP);
 	CFREE (cf_R);
 	CFREE (cf_LF);
@@ -397,6 +421,29 @@ read_args (void *nix)
 		read_file (f, *arg);
 		fclose (f);
 	}
+	if(theclass != NULL) {
+#ifdef NEW_TIMEOUT
+		untimeout(classtimer);
+#else
+		untimeout(read_args_run,NULL);
+#endif
+	}
+	theclass = "*";
+	for(cft = cf_TM; cft != NULL; cft = cft->next) {
+		if((nexttime = isintime(cft->arg)) > 0) {
+			theclass = cft->arg;
+			break;
+		}
+	}
+
+	if(nexttime == 0)
+		nexttime = 60;
+	else if(nexttime > 32767/HZ/60)
+		nexttime = 32767/HZ/60;
+#ifdef NEW_TIMEOUT
+	classtimer =
+#endif
+		timeout(read_args_run,NULL,nexttime * 60 * HZ);
 }
 
 /* Read all the files and kick off the programs. */

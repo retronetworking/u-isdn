@@ -6,9 +6,6 @@ NOCLEAN = catfone
 all:: 
 
 install::
-	-mkdir -p /lib/modules/$(shell ./getversion)/isdn
-	-mkdir -p $(DESTDIR)/bin-$(shell ./getversion) 
-	cp /dev/null /lib/modules/modules.isdn.all
 	@if test ! -f /etc/isdn.conf; then				 \
 		echo install isdn.conf /etc ;				 \
 		install isdn.conf /etc ;					 \

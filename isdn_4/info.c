@@ -14,6 +14,8 @@
 #error "Sorry, but you need GCC's nested functions for this."
 #endif
 
+extern void log_printmsg (void *log, const char *, mblk_t *, const char *);
+
 void
 do_info (streamchar * data, int len)
 {
@@ -43,6 +45,7 @@ ushort_t cause;
 int xlen;
 int has_force;
 long bchan;
+long subcard;
 long hdrval;
 char no_error;
 struct loader *loader;
@@ -180,6 +183,12 @@ parse_arg(void)
 			return 2;
 		}
 		break;
+	case ARG_SUBCARD:
+		if (m_geti (&xx, &subcard) != 0) {
+			printf (" XErr 9s\n");
+			return 2;
+		}
+		break;
 	case ARG_CHANNEL:
 		if (m_geti (&xx, &bchan) != 0) {
 			printf (" XErr 9a\n");
@@ -294,6 +303,7 @@ init_vars (void)
 	foffset = -1;
 	thelength = -1;
 	errnum = 0;
+	subcard = 0;
 
 	*(ulong_t *) crd = 0;
 	crd[4] = '\0';
@@ -306,6 +316,7 @@ init_vars (void)
 	xx.b_cont = NULL;
 	db.db_base = data;
 	db.db_lim = data + len;
+	db.db_type = M_DATA;
 	xx.b_datap = &db;
 	if (m_getid (&xx, &ind) != 0)
 		return 1;
@@ -979,7 +990,7 @@ do_hasenable(void)
 	return 0;
 }
 
-/* PROTO_ENABLE was successful -> mark a connection as OFF. */
+/* PROTO_DISABLE was successful -> mark a connection as OFF. */
 int
 do_hasdisable(void)
 {
@@ -1002,9 +1013,12 @@ do_disc(void)
 			conn->cg->oldnr = conn->cg->nr;
 		if(conn->cg->lnr != NULL)
 			conn->cg->oldlnr = conn->cg->lnr;
-		if(!conn->want_fast_reconn)
+		if(!conn->want_fast_reconn) {
 			conn->cg->nr = NULL;
+			conn->cg->flags &=~ F_NRCOMPLETE;
+		}
 		conn->cg->lnr = NULL;
+		conn->cg->flags &=~ F_LNRCOMPLETE;
 		conn->fminor = 0;
 		if(conn->got_hd) { /* Protocol stack is down also */
 			switch(conn->state) {
@@ -1199,7 +1213,7 @@ do_close(void)
 		}
 		{
 			for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
-				if(conn->minor == minor && conn->ignore == 3) {
+				if(conn->minor == minor && conn->ignore >= 3) {
 					dropconn(conn);
 					continue;
 				}
@@ -1244,6 +1258,59 @@ do_close(void)
 	chown (idevname (minor), 0,0);
 	return 0;
 }
+
+
+/* IND_TRACE: something happened... */
+int
+do_trace(void)
+{
+	mblk_t xy;
+	struct datab db;
+	char ans[20];
+	char bufstr[4000], *bufi = bufstr;
+	int len = xx.b_wptr-xx.b_rptr;
+
+	xy.b_rptr = ans;
+	db.db_base = ans;
+	db.db_lim = ans + sizeof (ans);
+	xy.b_datap = &db;
+
+	if(subcard == 0)
+		return 0;
+
+	bufi += sprintf(bufi,"%s/%ld %s",crd[0] ? crd : "????",subcard, dialin ? " in." : "out.");
+
+    *bufi++ = '<';
+    while (len--) {
+        bufi += sprintf (bufi,"%02x", *xx.b_rptr++);
+        if (len)
+            *bufi++ = (' ');
+    }
+    *bufi++ = '>';
+
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+		struct iovec io[2];
+
+		chkone(conn);
+		if(conn->ignore < 4 || conn->minor == 0)
+			continue;
+
+		xy.b_wptr = ans;
+		m_putid (&xy, CMD_PROT);
+		m_putsx (&xy, ARG_FMINOR);
+		m_puti (&xy, conn->minor);
+		m_putdelim (&xy);
+		m_putid (&xy, PROTO_AT);
+		io[0].iov_base = xy.b_rptr;
+		io[0].iov_len = xy.b_wptr - xy.b_rptr;
+		io[1].iov_base = bufstr;
+		io[1].iov_len = bufi-bufstr;
+		DUMPW (xy.b_rptr, io[0].iov_len);
+		(void) strwritev (xs_mon, io, 2, 1);
+	}
+	return 0;
+}
+
 
 /* IND_OPEN: a /dev/isdn/isdnXX device was openend. */
 int
@@ -1448,7 +1515,7 @@ int
 do_wantconnect(void)
 {
 	if (!quitnow && conn != NULL && (conn->state > c_off || (conn->state == c_off && has_force))) {
-		if ((conn->state == c_off) && (conn->minor != 0)) {
+		if ((conn->flags & F_PERMANENT) && (conn->state == c_off) && (conn->minor != 0)) {
 			mblk_t *mb = allocb(30,BPRI_MED);
 
 			if(mb != NULL) {
@@ -1502,7 +1569,7 @@ do_atcmd(void)
 	/* AT recognized */
 	/* If we're AT/Listening, stop it. */
 	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
-		if(conn->minor == minor && conn->ignore == 3) {
+		if(conn->minor == minor && conn->ignore >= 3) {
 			dropconn(conn);
 			break;
 		}
@@ -1671,6 +1738,7 @@ do_atcmd(void)
 			case 'l': /* AT/L */
 			case 'L': /* List connections and state changes. */
 				{
+					char buf[30];
 					struct conninfo *fconn;
 					char *sp;
 					msgbuf = malloc(10240);
@@ -1678,36 +1746,107 @@ do_atcmd(void)
 						resp = "NO MEMORY.6";
 						return 1;
 					}
+					conn = malloc(sizeof(*conn));
+					if(conn == NULL) {
+						free(msgbuf);
+						resp = "NoMem";
+						return 1;
+					}
+					bzero(conn,sizeof(*conn));
+					{
+						streamchar *m1, *m2, m3;
+						m_getskip (&xx);
+						if (xx.b_rptr != xx.b_wptr) {
+							m1 = m2 = xx.b_rptr;
+							while (m2 < xx.b_wptr && *m2 != '/' && *m2 != ';') {
+								if (isspace (*m2))
+									break;
+								m2++;
+							}
+							if(m1 == m2)
+								conn->cardname = "*";
+							else {
+								m3 = *m2;
+								*m2 = '\0';
+								conn->cardname = str_enter(m1);
+								*m2 = m3;
+								xx.b_rptr = m2;
+								m_getskip (&xx);
+							}
+						} else
+							conn->cardname = "*";
+					}
 					sp = resp = msgbuf;
 					sp += sprintf(sp,"#:ref id site protocol class pid state/card cost total flags,rem.nr;loc.nr cause\r\n");
 					for(fconn = isdn4_conn; fconn != NULL; fconn = fconn->next)  {
-						if(fconn->ignore < 3) {
-							sp += sprintf(sp,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s %s\r\n",
-								fconn->ignore?"!":"", fconn->minor, fconn->seqnum,
-								(fconn->cg && fconn->cg->site) ? fconn->cg->site : "-",
-								(fconn->cg && fconn->cg->protocol) ? fconn->cg->protocol : "-",
-								(fconn->cg && fconn->cg->cclass) ? fconn->cg->cclass : "-",
-								fconn->pid, state2str(fconn->state),
-								(fconn->cg && fconn->cg->card) ? fconn->cg->card : (fconn->cardname ? fconn->cardname : "-"),
-								fconn->charge, fconn->ccharge, FlagInfo(fconn->flags),
-								CauseInfo(fconn->cause, fconn->causeInfo));
-						}
+						if(fconn->ignore >= 3) 
+							continue;
+						if((fconn->cg != NULL) && (fconn->cg->card != NULL))
+							if(!wildmatch(fconn->cg->card,conn->cardname))
+								continue;
+						sp += sprintf(sp,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s %s\r\n",
+							fconn->ignore?"!":"", fconn->minor, fconn->seqnum,
+							(fconn->cg && fconn->cg->site) ? fconn->cg->site : "-",
+							(fconn->cg && fconn->cg->protocol) ? fconn->cg->protocol : "-",
+							(fconn->cg && fconn->cg->cclass) ? fconn->cg->cclass : "-",
+							fconn->pid, state2str(fconn->state),
+							(fconn->cg && fconn->cg->card) ? fconn->cg->card : (fconn->cardname ? fconn->cardname : "-"),
+							fconn->charge, fconn->ccharge, FlagInfo(fconn->flags),
+							CauseInfo(fconn->cause, fconn->causeInfo));
 					}
-					conn = malloc(sizeof(*conn));
-					if(conn != NULL) {
-						bzero(conn,sizeof(*conn));
-						conn->seqnum = ++connseq;
-						conn->ignore = 3;
-						conn->minor = minor;
-						conn->next = isdn4_conn; isdn4_conn = conn;
-					}
-					/* sprintf(sp,"OK"); */
-					*--sp = '\0'; *--sp = '\0';  /* Take off the CRLF at the end; the driver will put it back */
+					conn->seqnum = ++connseq;
+					conn->ignore = 3;
+					conn->minor = minor;
+					conn->next = isdn4_conn; isdn4_conn = conn;
+					sprintf(buf,"# Waiting %s...",conn->cardname);
+					resp = str_enter(buf);
 
 					return 1;
 				}
 				break;
 
+			case 'w': /* AT/W */
+			case 'W': /* Monitor D channels */
+				{
+					char buf[30];
+					conn = malloc(sizeof(*conn));
+					if(conn == NULL) {
+						resp = "NoMemConn";
+						return 1;
+					}
+					bzero(conn,sizeof(*conn));
+					conn->seqnum = ++connseq;
+					conn->ignore = 4;
+					conn->minor = minor;
+					conn->next = isdn4_conn; isdn4_conn = conn;
+					{
+						streamchar *m1, *m2, m3;
+						m_getskip (&xx);
+						if (xx.b_rptr != xx.b_wptr) {
+							m1 = m2 = xx.b_rptr;
+							while (m2 < xx.b_wptr && *m2 != '/' && *m2 != ';') {
+								if (isspace (*m2))
+									break;
+								m2++;
+							}
+							if(m1 == m2)
+								conn->cardname = "*";
+							else {
+								m3 = *m2;
+								*m2 = '\0';
+								conn->cardname = str_enter(m1);
+								*m2 = m3;
+								xx.b_rptr = m2;
+								m_getskip (&xx);
+							}
+						} else
+							conn->cardname = "*";
+					}
+					sprintf(buf,"# Monitoring %s...",conn->cardname);;
+					resp = str_enter(buf);
+					return 1;
+				}
+				break;
 			case 'i': /* AT/I */
 			case 'I': /* List of active cards, and Level 3 state. */
 				{
@@ -1752,7 +1891,7 @@ do_atcmd(void)
 #if 0
 			case 'f':
 			case 'F':
-				{	/* Forward call. Untested. */
+				{	/* Forward call. Untested; only works with 1TR6, if at all. */
 					mblk_t yy;
 
 					m_getskip (&xx);
@@ -1905,6 +2044,7 @@ do_atcmd(void)
 						m2++;
 					}
 				}
+				m_getskip (&xx);
 				if (m2 < xx.b_wptr && *m2 == '/') {
 					*m3 = '\0';
 					m_getskip (&xx);
@@ -1951,7 +2091,12 @@ do_atcmd(void)
 				cg->flags = F_OUTGOING|F_DIALUP;
 				if(m3 != NULL)
 					cg->card = str_enter(m3);
-				cg->protocol = str_enter(m2 ? m2 : (streamchar *)"login");
+				else
+					cg->card = "*";
+				if(m2 != NULL)
+					cg->protocol = str_enter(m2);
+				else
+					cg->protocol = "login";
 
 				if (*m1 == '/') {
 					cg->site = str_enter(m1+1);
@@ -1994,8 +2139,17 @@ do_atcmd(void)
 int
 do_getinfo(void)
 {
-	if(conn != NULL && conn-charge != 0 && (conn->charge % 10) == 0)
+	int DoReport = 0;
+	if(conn == NULL) {
+		/* What to do? */
+		return -ENXIO;
+	}
+	if(conn-charge != 0 && (conn->charge % 10) == 0)
 		syslog(LOG_INFO,"Cost %s:%s %ld",conn->cg->site,conn->cg->protocol,conn->charge);
+	if(cause != 0) {
+		conn->cause = cause;
+		DoReport = 1;
+	}
 	if((charge > 0) && (conn->state >= c_going_up)) {
 			/* Send a TICK messge to the protocol stack to sync timers. */
 		mblk_t *mb = allocb(30,BPRI_MED);
@@ -2012,7 +2166,10 @@ do_getinfo(void)
 			freemsg(mb);
 		}
 		setconnstate(conn,conn->state);
+		DoReport = 0;
 	}
+	if(DoReport)
+		ReportConn(conn);
 	return 0;
 }
 
@@ -2164,8 +2321,8 @@ do_noerror(void)
 		}
 	}
 	find_conn();
-	/* if(ind != IND_OPEN) */ 
-	(char *) xx.b_rptr = (char *) data;
+	if(ind != IND_TRACE)
+		(char *) xx.b_rptr = (char *) data;
   redo:
   	if (conn != NULL && conn->cg != NULL) {
 		if (conn->cg->nr != NULL && nr[0] == '\0')
@@ -2189,6 +2346,7 @@ do_noerror(void)
 	case IND_DISC:             ret = do_disc();          break;
 	case IND_CLOSE:            ret = do_close();         break;
 	case IND_OPEN:             ret = do_open();          break;
+	case IND_TRACE:            ret = do_trace();         break;
 	case PROTO_HAS_CONNECTED:  ret = do_hasconnected();  break;
 	case PROTO_DISCONNECT:     ret = do_disconnect();    break;
 	case PROTO_HAS_DISCONNECT: ret = do_hasdisconnect(); break;

@@ -83,23 +83,15 @@ logh_printmsg (void *xlog, const char *text, mblk_t * mp)
 
 	if ((DATA_TYPE(mp) == M_DATA)
 #ifdef M_EXDATA
-		|| (DATA_TYPE(mp) == M_EXDATA)
+			|| (DATA_TYPE(mp) == M_EXDATA)
 #endif
-		) do {
+				) do {
 		mblk_t *mm;
 		mblk_t *mn;
 
 		if (mp == NULL) {
 			printf ("Null\n");
 			break;
-		}
-		if (mp->b_rptr[0] == 0x3f) {
-#ifdef KERNEL
-			printf ("BadMsg\n");
-			break;
-#else
-			abort ();
-#endif
 		}
 		mm = dupmsg (mp);
 		if (mm == NULL) {

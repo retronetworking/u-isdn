@@ -456,7 +456,8 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 		   number does what it's supposed to. */
 		/* Incoming calls start at the beginning and don't hit the
 		   wraparound. */
-		for (d = cf_D, numwrap = (cg->flags & F_INCOMING);
+		/* "numidx" holds the position of the next number to try. */
+		for (d = cf_D, numwrap = ((cg->flags & F_INCOMING) == 0);
 				(d != NULL) || (numwrap > 0);
 				d = (numwrap ? d->next : d)) {
 			char *matcla;
@@ -465,17 +466,18 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			char *matpro;
 			ulong_t matsub;
 
-			if(d == NULL) {
+			if(d == NULL) { /* Restart at the beginning */
 				numwrap = 0;
 				numidx = 0;
-				d = cf_D;
+				if((d = cf_D) == NULL)
+					break; /* no D lines at all... */
 			} 
 			if (numwrap > 0 && numidx >= numwrap++)
-				continue;
+				continue; /* scan and skip */
 			else if(numwrap == 0)
 				numwrap = -1;
 			if(!(cg->flags & F_INCOMING))
-				numidx++;
+				numidx++; /* Check this; check the next number next time. */
 
 			/* Yes, we did increment the refcount, above. */
 			dropgrab(cg);
@@ -665,6 +667,11 @@ findit (conngrab *foo, int ignbusy)
 
 	if(cg == NULL)
 		return "NoMemFoo";
+	cg->cclass = classmatch(cg->cclass,theclass);
+	if(cg->cclass == NULL) {
+		dropgrab(cg);
+		return "0Not Now";
+	}
 	p = cg->par_in;
 	card = cg->card;
 
@@ -692,7 +699,7 @@ findit (conngrab *foo, int ignbusy)
 				m_getstr (p, st, 4);
 				if((card = wildmatch(st,cg->card)) == NULL) {
 					dropgrab(cg);
-					return "CARD MISMATCH";
+					return "0CARD MISMATCH";
 				}
 				break;
 			case ARG_SUBCARD:
@@ -703,17 +710,16 @@ findit (conngrab *foo, int ignbusy)
 		}
 		p->b_rptr = olds;
 		if(cg->site == NULL && cg->nr == NULL)
-			cg->site = str_enter("unknown");
+			cg->site = "unknown";
 	}
 
 	cardlim = 0;
 
 	if(isdn4_card != NULL) {
-		for(c = isdn4_card; (c != NULL) || (cardlim < cardidx); c = c->next) {
+		for(c = isdn4_card; (c != NULL) || (cardlim <= cardidx); c = c->next) {
 			if(c == NULL) { /* Wraparound */
 				c = isdn4_card;
-				if(cardlim < cardidx)
-					cardidx %= (cardlim+1);
+				cardidx %= cardlim;
 			}
 			if(!wildmatch(card,c->name))  {
 				cardlim += c->nrdchan;
@@ -726,7 +732,7 @@ findit (conngrab *foo, int ignbusy)
 		  	cardlim++;
 			if(cg->flags & F_INCOMING) /* never skip */
 				cardidx = 1;
-			if(cardlim >= cardidx)  {
+			if(cardlim >= cardidx) {
 				if ((errstrx = findsite (&cg,ignbusy)) == NULL) { /* Found it */
 					cf crd;
 					cardidx++;

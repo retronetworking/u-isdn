@@ -60,6 +60,12 @@ char *wildmatch(char *a, char *b)
 		return NULL;
 }
 
+ulong_t
+maskmatch(ulong_t a, ulong_t b)
+{
+	return a & b;
+}
+
 /* Given a string aaa+bbb, return aaa. */
 char *
 strippat(char *a)
@@ -120,12 +126,6 @@ pluscat(char *a, char *b)
 }
 
 
-ulong_t
-maskmatch(ulong_t a, ulong_t b)
-{
-	return a & b;
-}
-
 /* "abc" "bcd" -> "bc" */
 /* "abc+bc" "bcd+b" -> "bc+bc+b" */
 /* "abc+bc" "bcd+d" -> NULL */
@@ -157,11 +157,6 @@ classmatch(char *a, char *b)
 			}
 			if((bplus=strchr(b,'+')) != NULL) *bplus='\0';
 			aorig = a;
-			if(strlen(a) == 2) { /* Obvious optimization */
-				a = classmatch(b,a+1);
-				if(bplus != NULL) *bplus = '+';
-				return a;
-			}
 			do {
 				while(*++a != '\0' && *a != '+') {
 					if(strchr(b,*a) != NULL)
@@ -274,3 +269,4 @@ do_quitnow(void *nix)
 	quitnow = 1;
 	kill_progs(NULL);
 }
+

@@ -339,6 +339,9 @@ AT/I
     Listet den internen Zustand. In der ersten Zeile stehen die erkannten
     ISDN-Karten, die zweite Zeile enthält den internen Zustand des ISDN-
     Systems. Zum Debuggen.
+AT/W karte
+    Beobachtet den Traffic auf den D-Kanälen der Karte (kann ein Pattern
+    sein: AT/W* auf allen Karten). Dazu muß :de in der DL-Zeile stehen.
 AT/M foo
     Sendet den Systembefehl "foo" nach unten. Gefährlich.
     Kann zum Online-Rekonfigurieren von Modulen verwendet werden. Beispiel:
@@ -550,8 +553,14 @@ Alle Zeilentypen:
       "ab"  "+bx"  "a" -> leere Menge
       Damit läßt sich sehr flexibel einstellen, wer auf welcher Leitung /
       Nummer mit welchen Parametern anrufen kann.
-<Mod> sind einzelne Buchstaben, der der betreffenden Zeile eine Sonder-
-      behandlung verpassen.
+<Karte> ist der vierstellige Name der ISDN-Karte, der dieser beim Laden
+        des Treibers verpaßt wurde; üblich ist eine dreistellike Kennung
+        des Kartentyps und eine fortlaufende Numerierung.
+        Ein angefügtes /# gibt an, daß die Zeile nur auf das Interface
+        Nr. # der Karte angewendet werden kann; mehrere Ziffern sind
+        möglich (Beispiel: "Bin0/23".)
+<Mod> sind einzelne Buchstaben, die der betreffenden Zeile eine Sonder-
+      behandlung verpassen. Welche, ist jeweils beschrieben.
 <Parameter...> ist eine Folge von einem oder mehr Parameter-Wert-Angaben.
                (Manche Parameter haben keine Wertangabe.)
       Merke: Zeilen ohne Parameter sind nicht besonders sinnvoll.
@@ -571,10 +580,12 @@ Parameter:
     "Verbindungs"handlers.)
 :dI Eine Verbinung dieses Typs soll persistent sein, d.h. zwischen zwei
     Verbindungen wird das handhabende Programm nicht unterbrochen.
-    Ein "reconn"-Streamsmodul stellt sicher, daß das Programm davon nichts
+    Ein "reconn"-Streamsmodul (_muß_ in der zu dieser P-Zeile passenden
+    ML-Zeile auftauchen!) stellt sicher, daß das Programm davon nichts
     mitbekommt, außer wenn der Wiederaufbau der Verbindung nicht klappt.
-:bc Zu verwendender B-Kanal, 1 oder 2. Nur für Festverbindungen
-    interessant; im normalen ISDN managt die Vermittlung B-Kanäle für uns.
+:bc Zu verwendender B-Kanal, 1 oder 2 (oder 30, bei S2M). Nur für Fest-
+    verbindungen interessant; im normalen ISDN managt die Vermittlung die
+    B-Kanäle für uns.
 :nj Kann der Ruf nicht angenommen werden, wird BUSY statt CallRejected
     gesendet.
 :xi Wenn ankommende und abgehende Anrufe kollidieren, soll der an-
@@ -616,6 +627,8 @@ Spezifisch für Euro-ISDN:
 Spezifisch für die Bearbeitung von Telefonnummern:
 :nr Entfernte Telefonnummer. Siehe unten unter Telefonnummernverarbeitung.
 :lr Lokal angewählte Telefonnummer, bzw. deren variabler Teil.
+
+Metaparameter:
 :om Die folgenden Nummernteile sind zum Rauswählen bestimmt, d.h. eindeutig.
 :im Die folgenden Nummernteile sind zum Einwählen bestimmt, d.h. Muster.
 :bm Die Nummernteile werden sowohl ankommend als auch abgehend verwendet
@@ -731,6 +744,21 @@ d für Wählverbindungen
 p für Verbindungsaufbau nach Bedarf
 
 
+TM-Zeile ("Time")
+--------
+
+Form:
+TM <Key> <Zeitangabe>
+
+Beispiel:
+TM abcde SaSu,Am-Fr18-08
+
+Schlüssel für Zeiten. Zu der angegebenen Zeit werden nur Verbindungen
+zugelassen, deren <Key>-Parameter mit dem angegebenen Key kompatibel ist.
+
+Achtung: es wird immer der erste gefundene TM-Eintrag verwendet!
+
+
 DL-Zeile ("Dial Local")
 --------
 
@@ -779,6 +807,11 @@ Die Reihenfolge ist wichtig.
            Vermittlungen und Nebenstellenanlagen sinnvoll.
 :mf        Verbindung am Bus, fester TEI-Identifier. Default.
 :mt        Verbindung am Bus, feste TEI(0x12). In Spezialfällen notwendig.
+:de        Debugging, macht D-Kanal-Datenaustausch beobachtbar (mit AT/W).
+           Vorsicht: Diese Option verlangsamt das gesamte ISDN-System, auch
+           wenn  niemand mit AT/W zusieht.
+           Die beobachteten Daten sind bei manchen aktiven Karten entweder
+           verzögert, oder sie können nicht dargestellt werden!
 
 :ud XX     Verzögerung zwischen dem Verbindungsaufbau (D-Kanal) und dem
            eigentlichen Datenaustausch (B-Kanal). Zehntelsekunden; max.
@@ -822,6 +855,8 @@ Die Reihenfolge ist wichtig.
   :sp 0    Bintec-Karte. [bintec]
            Auf diese Karte muß zunächst boot.68k und dann entweder bri.68k,
            bri_4.68k oder pmx.68k geladen werden (LF-Zeile).
+     :sc X      Die folgenden Optionen betreffen nur das Xte Interface
+                auf der Karte. X in 1..4.
      :lp X X X  CAPI-Bitmasken für EAZ, Service, Infos. Hexadezimal.
                 Default: 03FF E7BF 003F.
      :st XXXXX  Protokollstack XXXXX laden. Siehe Handbuch zur Karte.
@@ -1107,8 +1142,8 @@ Verwendet das Cisco-eigene "HDLC"-Protokoll. Auf der Gegenseite muß
 werden. Die Option für das Paketformat muß genauso wie bei str_if
 eingestellt sein!
 
-:.N             TCP/IP (Default).
-:.E             Ethernet-Paketheader.
+:.N    TCP/IP (Default).
+:.E    Ethernet-Paketheader.
 
 
 IP-Monitor "ipmon"
@@ -1117,9 +1152,25 @@ Loggt IP-Pakete mit. Das Programm "monitor" liest dieses Protokoll aus dem
 Kernel. Die Option für das Paketformat muß genauso wie bei str_if
 eingestellt sein!
 
-:.N                TCP/IP (Default).
-:.E                Ethernet-Paketheader.
-:.P                PPP-Paketheader.
+:.N    TCP/IP (Default).
+:.E    Ethernet-Paketheader.
+:.P    PPP-Paketheader.
+
+
+Verbindungshalter "reconn"
+-----------------
+
+Verhindert (in Zusammenarbeit mit korrekten P- und R-Zeilen, siehe oben),
+daß eine Verbindungstrennung sich auf eine Anwendung auswirkt; die
+Verbindung wird automatisch neu aufgebaut, sobald wieder Daten anstehen.
+
+Sollte logischerweise nicht unterhalb von X.75 oder ähnlichen Modulen zur
+Übertragungssicherung eingesetzt werden, weil die ständig Daten
+austauschen, um zu prüfen, ob die Gegenstelle noch da ist.
+
+:pf  Das jeweils erste Datenpaket (das, das zum Verbindungsneuaufbau
+     geführt hat), wird in den Syslog mitgeschrieben.
+:nf  Es wird nicht mitgeschrieben. (Default.)
 
 
 Zeitbegrenzer "timer"
@@ -1166,6 +1217,19 @@ Implementiert V.110 im 38400-Baud-Modus. Ungetestete Experimentierversion.
 Warnung: Exzessive Kernelbelastung durch Bitschieberei etc. Für ernsthafte
 Anwendungen braucht es einen entsprechenden Wandler in Hardware auf der Karte.
 In der jetztigen Version ungetestet.
+
+
+Datenrate "rate" (ungetestet!)
+---------
+
+Begrenzt die mögliche Übertragungsrate. "Überschüssige" Daten werden
+zunächst gepuffert, dann weggeworfen; daher ist es sinnvoll, "rate" vor
+"x75" zu verwenden. Bei TCP/IP, das sowieso keinen gesicherten Kanal
+voraussetzt, geht es natürlich auch ohne X75.
+
+:ri XXX  Begrenzung der ankommenden Daten auf XXX bytes pro Sekunden.
+:ro XXX  dito, gesendete Daten.
+:rb XXX  dito, beide Richtungen.
 
 
 Van-Jacobsen-Kompression "vanj"

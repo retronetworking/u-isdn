@@ -271,6 +271,7 @@ int dropline;
 	int refs;
 	short delay;
 } *conngrab;
+
 typedef struct conninfo {
 	struct conninfo *next;
 	struct proginfo *run;
@@ -288,7 +289,7 @@ typedef struct conninfo {
 	int retiming;
 	int ctimer;
 	int cause;
-	char *causeInfo, *cardname, *classname;
+	char *causeInfo, *cardname, *classname, *lastMsg;
 	int seqnum;
 	short retries;
 	unsigned timer_reconn:1;
@@ -362,8 +363,7 @@ void do_quitnow(void *nix);
 
 #define setconnref(a,b) Xsetconnref(__FILE__,__LINE__,(a),(b))
 void Xsetconnref(const char *deb_file,unsigned int deb_line, conninfo conn, int connref);
-void connreport(char *foo);
-
+void connreport(char *foo, char *card); 
 /* Changing a connection status, and things to do */
 const char *CauseInfo(int cause, char *pri);
 
@@ -438,6 +438,7 @@ EXTERN cf cf_C  INIT(NULL);
 EXTERN cf cf_CM INIT(NULL);
 EXTERN cf cf_CL INIT(NULL);
 EXTERN cf cf_LF INIT(NULL);
+EXTERN cf cf_TM INIT(NULL);
 
 #define chkfree(x) do { } while(0)
 #ifdef DO_DEBUG_MALLOC
@@ -534,5 +535,8 @@ struct isdncard {
 	ulong_t mask;
 };
 EXTERN struct isdncard *isdn4_card INIT(NULL);
+
+int isintime(char *z);
+EXTERN uchar_t *theclass INIT(NULL);
 
 #endif

@@ -290,37 +290,41 @@ dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 	struct _dumb * dumb = (struct _dumb *)card;
 	streamchar *origmp = mp->b_rptr;
 	ushort_t id;
-	int error = 0;
+	int err = 0;
 
 	DEBUG(info)printf("%sProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
 
 	if(!(flags & ~CHP_FROMSTACK)) {
-		if ((error = m_getid (mp, &id)) != 0)
+		if ((err = m_getid (mp, &id)) != 0)
 			goto err;
 		switch (id) {
 		default:
+			err = -ERESTART;
 			break;
 		case PROTO_OFFSET:
 			{
 				long z;
-				if ((error = m_geti (mp, &z)) != 0)
+				if ((err = m_geti (mp, &z)) != 0)
 					goto err;
 				if (z < 0 || z >= 1024) {
-					error = -EINVAL;
+					err = -EINVAL;
 					goto err;
 				}
 				if(flags & CHP_FROMSTACK) /* down */
 					dumb->chan[channel].offset = z;
 			}
+			err = -ERESTART;
 			break;
 		}
+	} else
+		err = -ERESTART;
+	if(err == 0) {
+		freemsg(mp);
+		return 0;
 	}
   err:
-	if(mp != NULL)  {
-		if (origmp != NULL)
-			mp->b_rptr = origmp;
-	}
-	return (error ? error : isdn2_chprot(card,channel,mp,flags));
+	mp->b_rptr = origmp;
+	return ((err != -ERESTART) ? err : isdn2_chprot(card,channel,mp,flags));
 }
 
 /*
