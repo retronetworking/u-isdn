@@ -348,14 +348,14 @@ char kernel_version[] = UTS_RELEASE;
 
 int init_module(void)
 {
-/* This should work... */
-#if defined(__ELF__)
-#define U
-#else
-#define U "_"
-#endif
-	rename_module_symbol(U "do_i_sleep_on",U "interruptible_sleep_on");
-	rename_module_symbol(U "do_sleep_on",U "sleep_on");
+/* This should _really_ work... */
+	printk("If exactly two \"rename...\" errors follow, ignore them.\n");
+	if(!rename_module_symbol("_do_i_sleep_on","_interruptible_sleep_on") &&
+	   !rename_module_symbol( "do_i_sleep_on", "interruptible_sleep_on"))
+		return -ENOENT;
+	if(!rename_module_symbol("_do_sleep_on","_sleep_on") &&
+	   !rename_module_symbol( "do_sleep_on", "sleep_on"))
+		return -ENOENT;
 	return 0;
 }
 

@@ -5,7 +5,7 @@
 #include <sys/time.h>
 #include "f_signal.h"
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
+#include "stropts.h"
 #ifdef DO_ADDUSER
 #include "f_user.h"
 #endif

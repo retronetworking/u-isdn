@@ -8,7 +8,7 @@
 #include <sys/param.h>
 #include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #include "f_user.h"
 #include "f_malloc.h"
 #include <sys/errno.h>

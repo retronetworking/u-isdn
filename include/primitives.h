@@ -2,7 +2,7 @@
 #define _PRIM_H
 
 #include <linux/config.h>
-#include <linux/syscompat.h>
+#include "compat.h"
 #include "config.h"
 #include "kernel.h"
 
@@ -12,7 +12,7 @@
 #ifdef linux
 #include <linux/major.h>
 #ifdef KERNEL
-#include <linux/syscompat.h>
+#include "compat.h"
 #else
 #include <stdio.h> /* printf */
 #include <unistd.h>

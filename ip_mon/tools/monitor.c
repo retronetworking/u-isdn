@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "ip_mon.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <fcntl.h>

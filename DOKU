@@ -16,6 +16,11 @@ unter der GPL bzw. ihrem deutschen Äquivalent verfügbar sein.
 Achtung:
 =======
 
+Es gibt eine Mailingliste zum Thema: linux-isdn@uranus.central.de.
+"Bitte trag mich ein"-Requests bitte _nicht_ drothin, sondern an
+linux-isdn-request@uranus.central.de.
+
+
 Version 14: Die CL- und DL-Zeilen haben sich geändert (erweitert um
 <Key>-Parameter).  Intelligente Karten funktionieren NOCH NICHT.
 
@@ -140,14 +145,19 @@ wer kann und will, möge sich dransetzen.
 Kernelpatches
 =============
 
-Die Patches basieren auf dem in der Versionsnummer bezeichneten Kernel.
+Die Patches basieren auf dem Kernel 1.2.11.
 Frühere bzw. spätere Kernels auf eigene Gefahr bzw. Bastelei. 
+Insbesondere sollten die Leute, die meckern, weil sie den Kram nicht unter
+1.3.xx zum Laufen bekommen, sich ernsthaft fragen, wieso sie einen Kernel
+einsetzen, der ausdrücklich für Leute gedacht ist, die selber nach Bugs
+suchen können.
 
 Was die einzelnen Patches machen und ob sie benötigt werden,
 steht in den einzelnen Dateien am Anfang. Lesen, bevor der Kernel verändert
 wird!
 
-Der Kernel sollte mit CONFIG_MODVERSIONS gebaut werden.
+Der Kernel sollte mit CONFIG_MODVERSIONS gebaut werden; das ist zwar nicht
+unbedingt notwendig, aber sinnvoll.
 Das modutils-1.2.8-Paket wird in jedem Fall benötigt, um Parameter an die
 einzelnen Module zu übergeben.
 
@@ -223,16 +233,24 @@ for i in biglog more_free setnoswap ; do
     patch -p0 -d /usr/src/linux < $i
 done
 # Andere Patche in diesem Verzeichnis ansehen, evtl. ebenfalls installieren.
+# Vorsicht, die Patches beruhen auf Linux 1.2.11.
 #
 # Kernel installieren und booten.
 # (alten Kernel unbedingt zu Backupzwecken erhalten!)
 # Danach:
 
-vi config/config.data
-# Zeile "PROTOCOLS" und "SUBPROTOCOLS" ansehen. Siehe unten "DL-Zeile".
 make.isdn
-# Als Superuser:
+# Wenn er nun über config.new und config.data meckert:
+#   Siehe unten Probleme.
+#   mv config/config.new config/config.data
+#   vi config/config.data
+#   #  Insbesondere: Zeilen "PROTOCOLS" und "SUBPROTOCOLS" ansehen.
+#   #                Siehe unten "DL-Zeile".
+#   Danach: Nochmal make.isdn starten.
+#
+# Nun als Superuser:
 make.isdn
+# oder einfach "make install".
 Editiere /lib/modules/modules.isdn:
     -o Tel0 isdn/teles.o name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
   anstatt
@@ -244,6 +262,54 @@ vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
 # Wenn das alles funktioniert, rc.isdn via rc.local starten.
 
 Sämtliche Gerätedateien werden automatisch angelegt.
+
+Probleme bei der Installation
+--------
+
+Als allererstes: Der obige Hinweis re Kernel installieren sollte ernst
+genommen werden. Grund: Jeder modularisierte Treiber _braucht_ Zugriff auf
+die korrekt konfigurierten Sourcen genau des Kernels, unter dem er später
+laufen soll. Dies gilt ganz besonders, wenn der Kernel mit
+CONFIG_MODVERSIONS gebaut wurde (das ist um einiges sicherer!).
+
+Wenn sich die Module nicht laden lassen, weil insmod Sachen wie "kfree"
+nicht findet, dann liegt das daran, daß die Version der Sourcen des
+Kernels, des laufenden Kernels, und der ISDN-Treiber, nicht übereinstimmt.
+
+Also: cd /wo/auch/immer/ist/src/linux; make config; make dep; make;
+make modules; make modules_install; cp arch/i386/boot/zImage /boot/linux\
+.versionsnummer; vi /etc/lilo.conf; lilo; reboot. 
+
+Disclaimer: So mache ich das.
+
+
+config.new und config.dist und config.data. Das Problem ist, daß ich an der
+config.data gelegentlich was ändern muß, aber der Benutzer daran auch
+rumspielt (dazu ist die Datei da). Was tun?
+Einfach: Mit den Parametern der alten config.data wird die neue config.dist
+"geladen", und das Ergebnis liegt nun in config.new. Dasselbe passiert,
+wenn es noch keine config.data gibt. In beiden Fällen tut man gut daran,
+sich die Datei config.new näher anzusehen, evtl. mit der alten config.data
+zu vergleichen, und dann "mv config.new config.data". Sicherheitshalber
+weigert sich das Makefile in config/, ohne diesen Schritt weiterzuarbeiten.
+
+
+Autoconfig und wieso nicht: Nein, ich weigere mich (momentan), automatisch
+nach Karten, deren Interrupts, deren Konfigurationsregister etc.pp. zu
+suchen. Bei einem laufenden Kernel ist das alles andere als einfach!
+
+Stattdessen müssen die entsprechenden Daten in /lib/modules/modules.isdn
+eingetragen werden. Wenn irgendwas nicht stimmt, wird im allgemeinen die
+Karte nicht erkannt und das Treibermodul nicht geladen.
+Ausnahme: IRQs, die werden momentan nicht überprüft. Das kann man manuell
+machen: nach der installation der Treiber beim ISDN-Anschluß der Karte
+anrufen. Dann "cat /proc/interrupts". Wenn neben dem Wort ISDN eine Zahl
+kleiner drei steht, stimmt was nicht -- anderen Interrupt probieren,
+BIOS-Konfiguration überprüfen: auch korrekt eingestellte Interrupts können
+Probleme machen, wenn zB das BIOS eines PCI-Rechners den Interrupt zu einem
+PCI- anstatt zu einem ISA-Slot routet. (Evtl müssen da trotz BIOS-
+Konfiguration noch Jumper auf dem Mainboard umgesetzt werden. Doku des
+Teils lesen!) 
 
 
 Treiberparameter:
@@ -284,8 +350,9 @@ Beispiel:  insmod d_teles.o
            rmmod Tel0 ; rmmod d_teles.o
 
 
-Alle Treiber können vor oder nach Start des Masterprogramms geladen oder
-wieder entfernt werden. Aktive Verbindungen werden (unsauber) abgebrochen.
+Alle Kartentreiber können vor oder nach Start des Masterprogramms geladen
+oder wieder entfernt werden. Aktive Verbindungen werden (unsauber)
+abgebrochen.
 
 
 Testen:
@@ -561,6 +628,10 @@ Alle Zeilentypen:
         möglich (Beispiel: "Bin0/23".)
 <Mod> sind einzelne Buchstaben, die der betreffenden Zeile eine Sonder-
       behandlung verpassen. Welche, ist jeweils beschrieben.
+      Die Unterscheidung "mehrere gleichzeitig" oder "nur eine
+      gleichzeitig" bei Wählverbindungen bezieht sich jeweils auf eine
+      Art/Partner-Kombination; allgemeinere Einschränkungen werden mit
+      einer Extra-CL-Zeile realisiert.
 <Parameter...> ist eine Folge von einem oder mehr Parameter-Wert-Angaben.
                (Manche Parameter haben keine Wertangabe.)
       Merke: Zeilen ohne Parameter sind nicht besonders sinnvoll.
@@ -592,7 +663,7 @@ Parameter:
     kommende abgewiesen werden. (Default: Der abgehende Ruf wird
     abgebrochen.)
 :yi Bei einem ankommeden Ruf wird automatisch ein abgehender gestartet und
-    der ankommende wird abgewiesen.
+    der ankommende wird abgewiesen (Callback).
 :bi Bei einem ankommenden Ruf, der nicht angenommen werden kann (belegt?),
     wird automatisch auf einer anderen Leitung zurückgerufen.
     :fr ebenfalls zu setzen ist meist sinnvoll.
@@ -651,8 +722,14 @@ X Wenn diese Zeile (oder eine darüberliegende) "paßt", wird das Scannen
 i für ankommende Verbindungen
 o für abgehende Verbindungen
 f für Festverbindungen
-d für Wählverbindungen
+d für Wählverbindungen (nur eine gleichzeitig)
+m für Wählverbindungen (mehrere gleichzeitig)
 p für Verbindungsaufbau nach Bedarf
+  Ist keines der Zeichen 'd','p','f' vorhanden, wird 'd' angenommen, mit
+  dem Unterschied, daß die so bezeichnete Verbindung mehrmals unabhängig
+  voneinander aufgebaut werden kann (z.B. Login). 'd' bezeichnet eine
+  nur einmal herstellbare Verbindung (TCP, wenn das Interface nach
+  Verbindungsende verschwinden soll).
 
 Der Suchalgorithmus findet zunächst eine zur Verbindung passende Zeile mit
 R-Flag und hängt an deren Parameterliste alle ebenfalls passenden Zeilen
@@ -686,7 +763,8 @@ Mod:
 i für ankommende Verbindungen
 o für abgehende Verbindungen
 f für Festverbindungen
-d für Wählverbindungen
+d für Wählverbindungen (nur eine gleichzeitig)
+m für Wählverbindungen (mehrere gleichzeitig)
 p für Verbindungsaufbau nach Bedarf
 ,#  Verzögerung bei Verbindungsende, in Sekunden, für sauberes
     Herunterfahren des B-Kanalprotokolls.
@@ -714,7 +792,8 @@ Mod:
 i für ankommende Verbindungen
 o für abgehende Verbindungen
 f für Festverbindungen
-d für Wählverbindungen
+d für Wählverbindungen (nur eine gleichzeitig)
+m für Wählverbindungen (mehrere gleichzeitig)
 p für Verbindungsaufbau nach Bedarf
 u für Parameter, die nur beim Programmstart gesetzt werden (x75-Kram zB)
 a für Parameter, die bei Neueinlesen der Konfigdaten gesetzt werden
@@ -740,8 +819,11 @@ Mod:
 i für ankommende Verbindungen
 o für abgehende Verbindungen
 f für Festverbindungen (der zu verwendende B-Kanal steht in der P-Zeile)
-d für Wählverbindungen
+d für Wählverbindungen (nur eine gleichzeitig)
+m für Wählverbindungen (mehrere gleichzeitig)
 p für Verbindungsaufbau nach Bedarf
+B Backup-Nummer, wird nur verwendet, wenn das Wählen anderer Nummern
+  mindestens einmal fehlschlug.
 
 
 TM-Zeile ("Time")
@@ -864,8 +946,8 @@ Die Reihenfolge ist wichtig.
      :lp X X X  CAPI-Bitmasken für EAZ, Service, Infos. Hexadezimal.
                 Default: 03FF E7BF 003F.
      :st XXXXX  Protokollstack XXXXX laden. Siehe Handbuch zur Karte.
-                Default ist u_1tr6_pmp (wenn "german" und nicht "euro" inn
-				config/config-data angegeben wurde) oder u_dss1_pmp (sonst).
+                Default ist u_1tr6_pmp (wenn "german" und nicht "euro" in
+                config/config.data angegeben wurde) oder u_dss1_pmp (sonst).
      :ea N NNN  EAZ N auf lokale Nummer (MSN) NNN mappen.
                 Default ist die letzte Ziffer der Nummer.
                 Nicht bei :pb verwenden.
@@ -956,7 +1038,8 @@ B Die Verbindung wird beim Hochfahren des Managers automatisch aufgebaut.
 i für ankommende Verbindungen
 o für abgehende Verbindungen
 f für Festverbindungen. "B" wird hier normalerweise ebenfalls angegeben.
-d für Wählverbindungen
+d für Wählverbindungen (nur eine gleichzeitig)
+m für Wählverbindungen (mehrere gleichzeitig)
 p für Verbindungsaufbau nach Bedarf ("reconn"-Modul nicht vergessen!);
   wird beim Programmstart automatisch mitgestartet. Die eigentliche
   ISDN-Verbindung wird hierdurch _nicht_ aufgebaut, dafür ist "B" gedacht.
@@ -1343,14 +1426,16 @@ Steuerprogramm für den gesamten ISDN-Kram.
         Hintergrund setzt.
 -f dev  Steuerdevice anstelle von /dev/isdnmon.
 -I      Debugbefehle werden von stdin gelesen.
--t      Testflag. Nicht verwenden.
 -l      setzt ein strlog-Modul auf die Steuerverbindung. Debugging.
--L      setzt ein qinfo-Modul auf die Steuerverbindung. Debugging.
--w      setzt ein strlog-Modul auf die programminterne Verbindung zwischen
-        dem eigentlichen Programm und dem ISDN-Level-3-Code. Debugging.
+-w      setzt ein logh-Modul auf die programminterne Verbindung zwischen
+        dem Treiber im Kernel und dem Masterprozeß. Debugging.
+-L, -W  wie -l / -w, jedoch im Kernel-Log anstatt auf stderr.
+-m      schreibt die programminterne Verbindung zwischen Ebene 3 und 4 
+        auf stderr mit. Sehr wichtig beim Debuggen.
+-M      schreibt diverse andere Debugginginfo nach stderr.
 -x file Datei mit (internen) Steuerbefehlen, die nach dem vollständigen Start
         des ISDN-Krams ausgeführt wird. Ungetestet.
-file... Steuerdateien.
+file... Konfigurationsdateien.
 
 
 monitor
@@ -1416,13 +1501,12 @@ Hackers Corner
 ==============
 
 Debuggingoptionen:
-Das Masterprogramm schickt Debugkram nach stdout. Umleiten nach /dev/null
-wenn's stört.
+Das Masterprogramm schickt Debugkram nach stderr und manches andere nach
+stdout. Umleiten nach /dev/null wenn's stört; die Debugsachen werden
+sukzessive abgestellt, wenn ich mal wieder ein wenig Zeit habe. :-/
 
-In isdn/cards/dumb/Config.c stehen ein paar DEBUG_*-Flags.
-
-In isdn/config/config.data finden sich die Konstanten CONF_DEBUG und
-CONF_MOD2, die das Verhalten von isdn_2/isdn_2.c kontrollieren.
+Das Debuggingverhalten des Haupttreibers im Kernel läßt sich durch die
+isdn2_debug- und isdn2_log-Flags steuern; siehe isdn_2/isdn_2.c.
 
 Hinweis: Wenn alles funktioniert, kann man die Debuggerei getrost
 abschalten. Allerdings ist dann die Fehlersuche so gut wie unmöglich...

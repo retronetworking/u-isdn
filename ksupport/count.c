@@ -8,7 +8,7 @@
 #include "f_malloc.h"
 #include <sys/param.h>
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
+#include "stropts.h"
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif

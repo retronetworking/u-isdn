@@ -7,7 +7,7 @@
 #include "f_signal.h"
 #include "f_malloc.h"
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
+#include "stropts.h"
 #ifdef DO_ADDUSER
 #include "f_user.h"
 #endif

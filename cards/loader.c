@@ -8,11 +8,6 @@
 #error "You have to define CARDTYPE for this to work."
 #endif
 
-#define xxappxx(a,b) a##b
-#define NAME(a,b) xxappxx(a,b) /* isn't C wonderful */
-#define xxstrxx(a) #a
-#define STRING(a) xxstrxx(a) /* ditto */
-
 extern int NAME(CARDTYPE,init)(struct cardinfo *inf);
 extern void NAME(CARDTYPE,exit)(struct cardinfo *inf);
 
@@ -38,6 +33,7 @@ static int do_init_module(void)
 	inf.memaddr = mem;
 	inf.ID = name;
 	inf.debug = debug;
+	inf.use_count = &mod_use_count_;
 	return NAME(CARDTYPE,init)(&inf);
 }
 

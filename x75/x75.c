@@ -18,7 +18,6 @@
 #include <sys/sysmacros.h>
 #include "streams.h"
 #include <sys/errno.h>
-/* #include <sys/stropts.h> */
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif

@@ -10,18 +10,19 @@
 
 
 /* Verify that the connection mode matches the stated flags. */
-int
+long
 matchflag(long flags, char *ts)
 {
-	char inc,outg,leas,prep,dial,ini,aft;
+	char inc,outg,leas,perm,dial,mdial,ini,aft;
 
 	ini = (strchr(ts,'u') != NULL);
 	aft = (strchr(ts,'a') != NULL);
 	inc = (strchr(ts,'i') != NULL);
 	outg= (strchr(ts,'o') != NULL);
 	leas= (strchr(ts,'f') != NULL);
-	prep= (strchr(ts,'p') != NULL);
+	perm= (strchr(ts,'p') != NULL);
 	dial= (strchr(ts,'d') != NULL);
+	mdial=(strchr(ts,'m') != NULL);
 
 	if(flags & F_SETINITIAL) { if (aft && !ini) return 0; }
 	if(flags & F_SETLATER)   { if (!aft && ini) return 0; }
@@ -29,12 +30,23 @@ matchflag(long flags, char *ts)
 	if(flags & F_OUTGOING) { if (inc && !outg) return 0; }
 	if(flags & F_INCOMING) { if (!inc && outg) return 0; }
 
-	if(!(flags & (F_LEASED|F_PERMANENT|F_DIALUP))) return 1;
-	if(!(leas || dial || prep)) return 1;
-	if((flags & F_LEASED)   && leas) return 1;
-	if((flags & F_PERMANENT)&& prep) return 1;
-	if((flags & F_DIALUP)   && dial) return 1;
+	if(!(leas || dial || perm)) goto set;
+	if(!(flags & (F_LEASED|F_PERMANENT|F_MULTIDIALUP|F_DIALUP))) goto set;
+	if((flags & F_LEASED)      && leas) goto set;
+	if((flags & F_PERMANENT)   && perm) goto set;
+	if((flags & F_DIALUP)      && dial) goto set;
+	if((flags & F_MULTIDIALUP) && mdial) goto set;
 	return 0;
+  set:
+  	if(ini)  flags |= F_SETINITIAL;
+  	if(aft)  flags |= F_SETLATER;
+  	if(inc)  flags |= F_INCOMING;
+  	if(outg) flags |= F_OUTGOING;
+  	if(leas) flags |= F_LEASED;
+  	if(perm) flags |= F_PERMANENT;
+  	if(dial) flags |= F_DIALUP;
+  	if(mdial)flags |= F_MULTIDIALUP;
+  	return   flags |  F_FOOBAR;
 }
 
 /* Check if this P-line matches a connection request */
@@ -42,6 +54,7 @@ char *
 pmatch1 (cf prot, conngrab *cgm)
 {
 	char *sit, *pro, *cla, *car;
+	long flg;
 	ulong_t sub;
 	char first = 1;
 	conngrab cg = *cgm;
@@ -71,7 +84,7 @@ pmatch1 (cf prot, conngrab *cgm)
 		mblk_t *cand = NULL;
 		streamchar *mbs_in = NULL, *mbs_out = NULL;
 
-		if(!matchflag(cg->flags,prot->type)) { if(first) { dropgrab(cg); return "5ERR BadFlag"; } else continue;}
+		if((flg = matchflag(cg->flags,prot->type)) == 0) { if(first) { dropgrab(cg); return "5ERR BadFlag"; } else continue;}
 		if (first) {
 			if (strchr (prot->type, 'M')) { /* First Match not allowed. */
 				dropgrab(cg);
@@ -96,7 +109,7 @@ pmatch1 (cf prot, conngrab *cgm)
 		}
 		if(!first) {
 			cgc->site = sit; cgc->protocol = pro; cgc->card = car; cgc->cclass = cla;
-			cgc->mask = sub;
+			cgc->mask = sub; cgc->flags = flg;
 		}
 		if(cgc->par_out == NULL) { /* No outgoing parameter list? Yet! */
 			if ((cgc->par_out = allocb(256,BPRI_LO)) == NULL) {
@@ -286,8 +299,8 @@ pmatch1 (cf prot, conngrab *cgm)
 						break;
 					if ((nrt & ARG_IN) && (cgc->flags & F_INCOMING)) {
 						if (cgc->nrsuf != NULL) {
-							if(1)printf("MatchSuffix %s and %s\n",cgc->nrsuf,yy);
-							if(match_suffix(cgc->nrsuf,yy) <= 0) DG("2WrongNrSuffix 2");
+							if(0)printf("MatchSuffix %s and %s\n",cgc->nrsuf,yy);
+							if(match_suffix(cgc->nrsuf,yy) <= 0) DG("3WrongNrSuffix 2");
 						} else
 							cgc->nrsuf = str_enter(yy);
 					}
@@ -322,7 +335,7 @@ pmatch1 (cf prot, conngrab *cgm)
 						if(cgc->lnrsuf != NULL) {
 							if(1)printf("MatchLSuffix %s and %s\n",cgc->lnrsuf,yy);
 							if((suf = match_suffix(cgc->lnrsuf,yy)) <= 0) 
-								DG(suf ? "3LNrIncompSuffix 2" : "3WrongLNrSuffix 2");
+								DG(suf ? "1LNrIncompSuffix 2" : "2WrongLNrSuffix 2");
 						} else
 							DG("4LNrIncompSuffix 3");
 					}
@@ -342,9 +355,9 @@ pmatch1 (cf prot, conngrab *cgm)
 									cgc->flags |= F_LNRCOMPLETE;
 							} else {
 								if((cgc->lnrsuf != 0) && (match_suffix(cgc->lnrsuf,yy) < 0))
-									DG("3LNrIncompSuffix 4");
+									DG("2LNrIncompSuffix 4");
 								else
-									DG("3WrongLNrSuffix 4");
+									DG("2WrongLNrSuffix 4");
 							}
 						}
 					}
@@ -489,6 +502,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			char *matcar;
 			char *matpro;
 			ulong_t matsub;
+			long matflg;
 
 			if(d == NULL) { /* Restart at the beginning */
 				numwrap = 0;
@@ -500,20 +514,23 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 				continue; /* scan and skip */
 			else if(numwrap == 0)
 				numwrap = -1;
-			if(!(cg->flags & F_INCOMING))
-				numidx++; /* Check this; check the next number next time. */
+			if(!(cg->flags & F_INCOMING)) {
+				numidx++;
+				if((strchr(d->type,'B') != NULL) && (numwrap > 0))
+					continue; /* THIS DOES NOT WORK YET */
+			}
 
 			/* Yes, we did increment the refcount, above. */
 			dropgrab(cg);
 			cg = *foo;
 			cg->refs++;
 
+			if((matflg = matchflag(cg->flags,d->type)) == 0) continue;
 			if((matsit = wildmatch(cg->site,d->site)) == NULL) continue;
 			if((matpro = wildmatch(cg->protocol,d->protocol)) == NULL) continue;
 			if((matcar = wildmatch(matcrd,d->card)) == NULL) continue;
 			if((matcla = classmatch(matclass,d->cclass)) == NULL) continue;
 			if((matsub = maskmatch(cg->mask,d->mask)) == 0) continue;
-			if(!matchflag(cg->flags,d->type)) continue;
 
 			/* Preliminary match OK, remember the data so far. */
 			dropgrab(cg);
@@ -522,7 +539,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 
 			cg->site = matsit; cg->cclass = matcla;
 			cg->card = matcar; cg->protocol = matpro;
-			cg->mask = matsub;
+			cg->mask = matsub; cg->flags = matflg;
 
 			if(!(cg->flags & F_LEASED)) {
 				/* Now figure out the numbers... */

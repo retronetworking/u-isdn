@@ -4,6 +4,20 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-11-06
+
+Release 19. Kleinere Bugfixes, insbesondere funktioniert das Senden von
+EAZ unter 1TR6 wieder...
+
+Der Backoff-Algorithmus, wennn die Gegenstelle nicht antwortet, wurde von
+"konstant oder linear" auf "exponentiell" umgestellt. Sorry, aber das muß
+so sein -- sonst meckert die Telekomik. 
+
+Der Master spuckt jetzt seine ganzen Debugmeldungen auf stderr aus und
+protokolliert Statusmeldungen (Gebühreneinheiten) auf stdout.
+VORHER WAR DAS UMGEKEHRT, das hat manchen Benutzer durcheinandergebracht.
+
+
 *** 1995-10-30
 
 Release 17.

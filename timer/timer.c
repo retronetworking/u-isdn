@@ -11,7 +11,7 @@
 #include <sys/param.h>
 #include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif

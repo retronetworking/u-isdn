@@ -7,10 +7,10 @@
 #if !(defined(__sys_stream_h) || defined(_SYS_STREAM_H) || defined(_LINUX_STREAM_H))
 
 #ifdef KERNEL
-#include <sys/stream.h>
+#include "stream.h"
 #else
 #ifdef linux
-#include <sys/stream.h>
+#include "stream.h"
 #else
 #include <sys/aux-stream.h>
 #endif							/* KERNEL */

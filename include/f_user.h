@@ -4,7 +4,7 @@
 #ifdef KERNEL
 
 #ifdef linux
-#include <linux/syscompat.h>
+#include "compat.h"
 #endif
 
 #ifdef M_UNIX /* SCO et al */

@@ -11,8 +11,9 @@
 #include "f_module.h"
 #undef F_NOCODE
 #endif
+#include "kernel.h"
 #include <linux/types.h>
-#include <linux/stream.h>
+#include "stream.h"
 #include <linux/mm.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
@@ -26,8 +27,6 @@
 #include <linux/termios.h>
 
 #include <linux/tqueue.h>
-
-#include <linux/syscompat.h>
 
 #define WAIT_READ 1
 #define WAIT_WRITE 2
@@ -982,7 +981,11 @@ static int xstream_write(struct stream_header *p_stream, int fromuser, const cha
 }
 
 static int 
-streams_write (struct inode *inode, struct file *file, const char *buf, int count)
+streams_write (struct inode *inode, struct file *file,
+#if LINUX_VERSION_CODE > 66304 /* 1.3.0 ?? */
+	const
+#endif
+	char *buf, int count)
 {
 	struct stream_header *p_stream;
 	unsigned long s;
@@ -1286,7 +1289,7 @@ xstreams_ioctl (struct stream_header *p_stream, unsigned int cmd, unsigned long 
 	case TCSETSF:
 		strioc.ic_len = sizeof(struct termios);
 		cmd |= IOC_IN;
-		goto doit;
+		goto do_strioctl;
 #endif
 #ifdef TCSETA
 	case TCSETA:
@@ -1294,30 +1297,28 @@ xstreams_ioctl (struct stream_header *p_stream, unsigned int cmd, unsigned long 
 	case TCSETAF:
 		strioc.ic_len = sizeof(struct termio);
 		cmd |= IOC_IN;
-		goto doit;
+		goto do_strioctl;
 #endif
 #ifdef TCGETS
 	case TCGETS:
 		strioc.ic_len = sizeof(struct termios);
 		cmd |= IOC_OUT;
-		goto doit;
+		goto do_strioctl;
 #endif
 #ifdef TCGETA
 	case TCGETA:
 		strioc.ic_len = sizeof(struct termio);
 		cmd |= IOC_OUT;
-		goto doit;
+		goto do_strioctl;
 #endif
 #ifdef UIOCTTSTAT
 	case UIOCTTSTAT:
 		strioc.ic_len = 3;
 		cmd |= IOC_OUT;
-		goto doit;
+		goto do_strioctl;
 #endif
 	default:
 		strioc.ic_len = (cmd & IOCSIZE_MASK) >> IOCSIZE_SHIFT;
-	  doit:
-
 		goto do_strioctl;
 
 	case I_STR:
@@ -1667,7 +1668,10 @@ static void tstreams_close(struct tty_struct * tty, struct file * file)
 }
 
 static int tstreams_write(struct tty_struct * tty, int fromuser,
-		 const unsigned char *buf, int count)
+#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 ?? */
+		 const
+#endif
+		 unsigned char *buf, int count)
 {
 	struct stream_header *p_stream = (struct stream_header *)tty->driver_data;
 
@@ -1749,12 +1753,10 @@ static int tstreams_ioctl(struct tty_struct *tty, struct file * file,
 	int err;
 	struct stream_header *p_stream = (struct stream_header *)tty->driver_data;
 
-	if(p_stream == NULL)
+	if(p_stream == NULL) 
 		return 0;
 
 	err = xstreams_ioctl(p_stream,cmd,arg);
-	if(err == -EINVAL)
-		err = -ENOIOCTLCMD;
 	return err;
 }
 

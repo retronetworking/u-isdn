@@ -25,7 +25,7 @@
 
 #include "primitives.h"
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #ifdef M_UNIX
 #include <sys/socket.h>
 #endif

@@ -6,9 +6,6 @@ SUBDIRS  = config include  compat streams support  isdn_3 isdn_4  tools  \
 .PHONY: depend
 
 all::	.diddepend
-depend::
-	$(MAKE) -C compat depend
-	$(MAKE) -C streams depend
 
 dep: depend
 

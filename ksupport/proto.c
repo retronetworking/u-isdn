@@ -8,7 +8,7 @@
 #include "f_signal.h"
 #include <sys/param.h>
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
+#include "stropts.h"
 #include "f_user.h"
 #include <sys/errno.h>
 #include <f_termio.h>
@@ -902,7 +902,6 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 
 				if(0)printf("%sProto IOC %x\n",KERN_DEBUG,iocb->ioc_cmd);
 				switch (iocb->ioc_cmd) {
-#if 1 /* ndef linux */
 #ifdef TCGETA
 				case TCGETA:
 					{
@@ -926,18 +925,15 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 #else
 						memcpy(tty->c_cc,proto->tty.c_cc,NCCS);
 #endif
-
-						goto iocack;
+						goto iocackn;
 					}
-#endif
 #endif
 #ifdef TCFLSH
 				case TCFLSH:
 					{
-						goto iocack; /* We don't flush */
+						goto iocackn; /* We don't flush */
 					}
 #endif
-#if 1 /* ndef linux */
 #ifdef TCGETS
 				case TCGETS:
 					{
@@ -951,9 +947,8 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 						mp->b_cont = m0;
 						*((struct termios *) m0->b_wptr)++ = proto->tty;
 
-						goto iocack;
+						goto iocackn;
 					}
-#endif
 #endif
 #ifdef UIOCTTSTAT
 				case UIOCTTSTAT:
@@ -973,7 +968,6 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 						goto iocack;
 					}
 #endif
-#if 1 /* ndef linux */
 #ifdef TCSETA
 				case TCSETA:
 				case TCSETAW:
@@ -1027,12 +1021,10 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 						/* bzero(proto->tty.c_cc,NCC); */
 #endif
 						splx (ms);
-						goto iocack;
+						goto iocackn;
 
 					}
 #endif
-#endif
-#if 1 /* ndef linux */
 #ifdef TCSETS
 				case TCSETS:
 				case TCSETSW:
@@ -1078,10 +1070,9 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 						/* bzero(proto->tty.c_cc,NCC); */
 #endif
 						splx (ms);
-						goto iocack;
+						goto iocackn;
 
 					}
-#endif
 #endif
 #ifdef TCSBRK
 				case TCSBRK:
@@ -1174,6 +1165,7 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 #ifdef UIOCNOFLOW
 				case UIOCNOFLOW:
 #endif
+				  
 				  iocack:
 					DATA_TYPE(mp) = M_IOCACK;
 					qreply (q, mp);
@@ -1181,11 +1173,13 @@ if(!realq)printf("%sFromDel %p\n",KERN_DEBUG, &proto->write_delay);
 				default:
 					putnext (q, mp);
 					break;
+#ifdef linux /* This is handled by the line discipline. */
+				  iocackn:
+					error = -ENOIOCTLCMD; /* special code */
+#endif
 				  iocnak:
 					DATA_TYPE(mp) = M_IOCNAK;
-					if(error < 0)
-						error = -error;
-					iocb->ioc_error = error;
+					iocb->ioc_error = (error < 0) ? -error : error;
 					qreply (q, mp);
 				}
 				break;
