@@ -193,7 +193,8 @@ static struct _dumb *dumbmap[16] = { NULL, };
 
 
 
-static void toggle_off(struct _dumb * dumb)
+static void
+toggle_off(struct _dumb * dumb)
 {
 	int i;
 	ByteOutISAC(dumb,MASK,0xFF);
@@ -207,7 +208,8 @@ static void toggle_off(struct _dumb * dumb)
 	}
 	
 }
-static void toggle_on(struct _dumb * dumb)
+static void
+toggle_on(struct _dumb * dumb)
 {
 	int i;
 	for(i=1;i <= dumb->numHSCX; i++) {
@@ -525,7 +527,8 @@ ISACpresent(struct _dumb *dumb)
 	return 1;
 }
 
-static void InitHSCX(struct _dumb * dumb)
+static void
+InitHSCX(struct _dumb * dumb)
 {
 	int i;
 	for (i=1; i <= dumb->numHSCX; i++) 
@@ -533,7 +536,8 @@ static void InitHSCX(struct _dumb * dumb)
 }
 
 
-static void ISAC_kick(struct _dumb * dumb)
+static void
+ISAC_kick(struct _dumb * dumb)
 {
 	mblk_t *sendb;
 	uchar_t *sendp = NULL;
@@ -623,7 +627,8 @@ static void ISAC_kick(struct _dumb * dumb)
 #ifdef __GNUC__
 /* inline */
 #endif
-static void HSCX_kick(struct _dumb * dumb, u_char hscx)
+static void
+HSCX_kick(struct _dumb * dumb, u_char hscx)
 {
 	mblk_t *sendb;
 	uchar_t *sendp = NULL;
@@ -784,7 +789,8 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 #ifdef __GNUC__
 /* inline */
 #endif
-static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, 
+static void
+IRQ_HSCX_(struct _dumb * dumb, u_char hscx, 
 #ifdef WIDE
 						Byte isr0, Byte isr1
 #else
@@ -1147,7 +1153,8 @@ static void DoCIR (struct _dumb * dumb, Byte CIR)
 #ifdef __GNUC__
 inline
 #endif
-static void IRQ_ISAC(struct _dumb * dumb)
+static void
+IRQ_ISAC(struct _dumb * dumb)
 {
 	Byte Reason;
 
@@ -1367,7 +1374,8 @@ static void IRQ_ISAC(struct _dumb * dumb)
 #ifdef __GNUC__
 inline
 #endif
-static void IRQ_HSCX(struct _dumb * dumb)
+static void
+IRQ_HSCX(struct _dumb * dumb)
 {
 	int i;
 	for(i=1;i <= dumb->numHSCX; i += 2) {
@@ -1397,65 +1405,59 @@ static void IRQ_HSCX(struct _dumb * dumb)
 
 
 static void
-dumbintr(int irq, struct pt_regs *regs)
+intr(int irq, struct pt_regs *regs)
 {
 	struct _dumb *dumb;
 	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		if(dumb->info.irq == irq) {
-			if(!dumb->polled++) {
-				IRQ_HSCX(dumb);
-				IRQ_ISAC(dumb);
-				PostIRQ(dumb);
-				dumb->polled--;
-			} else if(dumb->polled < 0)
-				dumb->polled--;
+		DEBUG(info)printf(" Pi%d ",dumb->polled);
+		if(!dumb->polled++) {
+			IRQ_HSCX(dumb);
+			IRQ_ISAC(dumb);
+			PostIRQ(dumb);
 			toggle_off(dumb);
-		}
+			dumb->polled--;
+		} else if(dumb->polled < 0)
+			dumb->polled--;
 	}
 	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		if(dumb->info.irq == irq && dumb->polled == 0) {
+		if(dumb->polled == 0) {
 			toggle_on(dumb);
 		}
+		DEBUG(info)printf(" -Pi%d ",dumb->polled);
 	}
 }
 
 
-#ifdef linux
 void NAME(REALNAME,poll)(struct _dumb *dumb)
-#else
-void NAME(REALNAME,poll)(void *nix)
-#endif
 {
-#ifndef linux
-	struct _dumb *dumb;
-	for(i=dumb_num-1;i>=0;--i)
-#endif
-        {
-		int j;
-#ifndef linux
-		dumb = &dumbdata[i];
-#endif
-		if(!dumb->polled++) {
-			do {
-				IRQ_HSCX(dumb);
-				IRQ_ISAC(dumb);
-			} while(--dumb->polled);
+	long s;
+	int j;
+	DEBUG(info)printf(" Pl%d ",dumb->polled);
+	s = splstr();
+	if(!dumb->polled++) {
+		splx(s);
+		IRQ_HSCX(dumb);
+		IRQ_ISAC(dumb);
 
-			if (dumb->chan[0].q_out.nblocks != 0)
-				ISAC_kick(dumb);
-			for(j=1;j <= dumb->numHSCX; j++) {
-				if (dumb->chan[j].q_out.nblocks != 0)
-					HSCX_kick(dumb,j);
-			}
-			toggle_off(dumb);
-			toggle_on(dumb);
-		} else
-			dumb->polled--;
-#if 0 /* def linux */
-		if(dumb->info.irq != 0)
-			unblock_irq(dumb->info.irq);
-#endif
-	}
+		if (dumb->chan[0].q_out.nblocks != 0)
+			ISAC_kick(dumb);
+		for(j=1;j <= dumb->numHSCX; j++) {
+			if (dumb->chan[j].q_out.nblocks != 0)
+				HSCX_kick(dumb,j);
+		}
+		splstr();
+		while(--dumb->polled) {
+			splx(s);
+			IRQ_HSCX(dumb);
+			IRQ_ISAC(dumb);
+			splstr();
+		}
+		toggle_off(dumb);
+		toggle_on(dumb);
+	} else
+		dumb->polled--;
+	splx(s);
+	DEBUG(info)printf(" -Pl%d ",dumb->polled);
 }
 
 
@@ -1519,7 +1521,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return err;
 	}
 #ifdef linux
-	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,dumbintr,SA_INTERRUPT,STRING(REALNAME))) {
+	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,intr,SA_INTERRUPT,STRING(REALNAME))) {
 		printf("IRQ not available.\n");
 		kfree(dumb);
 		return -EEXIST;
