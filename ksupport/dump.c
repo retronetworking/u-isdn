@@ -203,10 +203,10 @@ dump_one_hdr (isdn23_hdr hdr)
 		printf ("Idata from %d/%02x", hdr->hdr_data.card, hdr->hdr_data.SAPI);
 		break;
 	case HDR_UIDATA:
-		printf ("UIdata from %d/%02x", hdr->hdr_data.card, hdr->hdr_data.SAPI);
+		printf ("UIdata from %d/%02x", hdr->hdr_uidata.card, hdr->hdr_uidata.SAPI);
 		break;
 	case HDR_RAWDATA:
-		printf ("RawData from %d", hdr->hdr_data.card);
+		printf ("RawData from %d, dchan %d, flags 0%o", hdr->hdr_rawdata.card,hdr->hdr_rawdata.dchan,hdr->hdr_rawdata.flags);
 		break;
 	case HDR_LOAD:
 		printf("Boot from %d, stage %d, offset %d len %d",hdr->hdr_load.card,hdr->hdr_load.seqnum,hdr->hdr_load.foffset,hdr->hdr_load.len);

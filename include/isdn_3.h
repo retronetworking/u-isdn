@@ -136,7 +136,7 @@ typedef struct _isdn3_hndl {
  **/
 
 #define NITALK 11
-#define NSTALK 1
+#define NSTALK 5
 
 typedef struct _isdn3_talk {		  /* one per card's D channel connection */
 	struct _isdn3_conn *conn;	  /* connections managed on this channel */

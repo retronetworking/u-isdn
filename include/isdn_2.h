@@ -68,6 +68,7 @@ typedef struct _isdn2_card {
 	int timer_takedown;
 #endif
 	long id;
+	int flags;
 	enum C_state status;		  /* physical link state */
 #ifdef DO_MULTI_TEI
 	uchar_t TEI[MAX_B];

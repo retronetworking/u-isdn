@@ -26,7 +26,11 @@ read_data ()
 {
 	struct _isdn23_hdr hdr;
 	int err;
-	uchar_t dbuf[MAXLINE];
+#ifdef DO_DEBUGGING
+	static struct _isdn23_hdr oldhdr;
+	static
+#endif
+		uchar_t dbuf[MAXLINE];
 	int len = 0;
 	int iovlen = 1;
 	struct iovec io[2];
@@ -118,6 +122,9 @@ read_data ()
 	}
 
 	/* dump_hdr(&hdr,"Read 2->3",dbuf); */
+#ifdef DO_DEBUGGING
+	oldhdr = hdr;
+#endif
 
 	io[0].iov_base = (caddr_t) & hdr;
 	io[0].iov_len = sizeof (struct _isdn23_hdr);

@@ -470,7 +470,12 @@ sendstate (isdn2_card card, uchar_t ch, uchar_t SAPI, uchar_t ind, short add)
 	}
 	if (isdn_chan.qptr != NULL) {
 		if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-		putnext (isdn_chan.qptr, mb);
+		if(canput(isdn_chan.qptr->q_next))
+			putnext (isdn_chan.qptr, mb);
+		else {
+			freemsg(mb);
+			return -ENOSPC;
+		}
 	} else {
 		freemsg (mb);
 		return -ENXIO;
@@ -669,13 +674,13 @@ D_L1_not_up (isdn2_card card)
 		hdr->hdr_nocard.card = card->nr;
 		if (isdn_chan.qptr != NULL) {
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-			putnext (isdn_chan.qptr, mb);
-		} else {
-			freemsg (mb);
-			return;
-		}
+			if(canput(isdn_chan.qptr->q_next)) {
+				putnext (isdn_chan.qptr, mb);
+				return;
+			}
+		} 
+		freemsg (mb);
 	}
-	return;
 }
 
 /*
@@ -874,12 +879,15 @@ D_recv (isdn2_state state, char isUI, mblk_t * mb)
 	linkb (mb2, mb);
 	if (isdn_chan.qptr != NULL) {
 		if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb2);
-		putnext (isdn_chan.qptr, mb2);
-	} else {
-		freeb (mb2);
-		return -ENXIO;
+		if(canput(isdn_chan.qptr->q_next)) {
+			putnext (isdn_chan.qptr, mb2);
+			return 0;
+		}
+		freeb(mb2);
+		return -ENOSPC;
 	}
-	return 0;
+	freeb (mb2);
+	return -ENXIO;
 }
 
 /*
@@ -949,6 +957,10 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 #endif
 			if (isdn_chan.qptr != NULL) {
 				if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mp);
+				if(!canput(isdn_chan.qptr->q_next)) {
+					freeb(mp);
+					return -ENOSPC;
+				}
 				putnext (isdn_chan.qptr, mp);
 				state->card->TEI[ch] = TEI_REQUESTED;
 			} else {
@@ -971,6 +983,31 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
 			log_printmsg (NULL, " Send", mb, KERN_DEBUG);
 		}
+		if(state->card->flags & HDR_CARD_DEBUG) {
+			isdn23_hdr hdr;
+			mblk_t *m1 = allocb(sizeof(*hdr),BPRI_MED);
+			mblk_t *m2 = dupmsg(mb);
+
+			if (m1 == NULL || m2 == NULL) {
+				if(m1 != NULL)
+					freemsg(m1);
+				if(m2 != NULL)
+					freemsg(m2);
+			} else {
+				hdr = ((isdn23_hdr) m1->b_wptr)++;
+				hdr->key = HDR_RAWDATA;
+				hdr->seqnum = hdrseq; hdrseq += 2;
+				hdr->hdr_rawdata.card = state->card->nr;
+				hdr->hdr_rawdata.dchan = 1;
+				hdr->hdr_rawdata.len = dsize (m2);
+				hdr->hdr_rawdata.flags = 1;
+				linkb (m1, m2);
+				if(canput(isdn_chan.qptr->q_next)) 
+					putnext (isdn_chan.qptr, m1);
+				else
+					freemsg(m1);
+			}
+		}
 		if ((err = (*crd->send) (crd, 0, mb)) != 0)
 			mb->b_rptr += 2;
 	} else {
@@ -987,6 +1024,31 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 		if(isdn2_log & 0x20) {
 			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
 			log_printmsg (NULL, " Send", mb2, KERN_DEBUG);
+		}
+		if(state->card->flags & HDR_CARD_DEBUG) {
+			isdn23_hdr hdr;
+			mblk_t *m1 = allocb(sizeof(*hdr),BPRI_MED);
+			mblk_t *m2 = dupmsg(mb2);
+
+			if (m1 == NULL || m2 == NULL) {
+				if(m1 != NULL)
+					freemsg(m1);
+				if(m2 != NULL)
+					freemsg(m2);
+			} else {
+				hdr = ((isdn23_hdr) m1->b_wptr)++;
+				hdr->key = HDR_RAWDATA;
+				hdr->seqnum = hdrseq; hdrseq += 2;
+				hdr->hdr_rawdata.card = state->card->nr;
+				hdr->hdr_rawdata.dchan = 1;
+				hdr->hdr_rawdata.len = dsize (m2);
+				hdr->hdr_rawdata.flags = 1;
+				linkb (m1, m2);
+				if(canput(isdn_chan.qptr->q_next)) 
+					putnext (isdn_chan.qptr, m1);
+				else
+					freemsg(m1);
+			}
 		}
 		if ((err = (*crd->send) (crd, 0, mb2)) != 0)
 			freeb (mb2);
@@ -1160,10 +1222,12 @@ isdn2_unregister (struct _isdn1_card *card)
 		hdr->hdr_nocard.card = crd->nr;
 		if (isdn_chan.qptr != NULL) {
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-			putnext (isdn_chan.qptr, mb);
-		} else {
+			if(canput(isdn_chan.qptr->q_next))
+				putnext (isdn_chan.qptr, mb);
+			else
+				freemsg(mb);
+		} else
 			freemsg (mb);
-		}
 	}
 	*pcrd = crd->next;
 
@@ -1295,7 +1359,10 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 		if (isdn_chan.qptr != NULL) {
 			qenable (WR (isdn_chan.qptr));
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-			putnext (isdn_chan.qptr, mb);
+			if(canput(isdn_chan.qptr->q_next))
+				putnext (isdn_chan.qptr, mb);
+			else
+				freemsg(mb);
 			D_checkactive (ctl);
 		} else
 			freemsg (mb);
@@ -1304,26 +1371,27 @@ isdn2_new_state (struct _isdn1_card *card, char state)
 	return /* 0 */ ;
 }
 
-/* --> isdn_12.h */
-extern int
-isdn2_chprot (struct _isdn1_card *card, short channel, mblk_t * proto, int flags)
+static int
+do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 {
-	isdn2_card ctl;
-
 	if (isdn2_debug & 0x80)
-		printf ("%sisdn2_new_proto %p %p %d 0%o\n",KERN_DEBUG, card, proto, channel, flags);
-	ctl = (isdn2_card) card->ctl;
+		printf ("%sisdn2_chprot %p %p %d 0%o\n",KERN_DEBUG, ctl, proto, channel, flags);
 	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL))
 		return -ENXIO;
-	else if(flags & CHP_FROMSTACK) { /* to the master */
+	if(flags & CHP_TOCARD) {
+		flags &=~ CHP_TOCARD;
+		if((ctl->card != NULL) && (ctl->card->ch_prot != NULL))
+			return (*ctl->card->ch_prot)(ctl->card,channel,proto,flags);
+	}
+	if(flags & CHP_FROMSTACK) { /* to the master */
 		isdn23_hdr hdr;
 		mblk_t *mb;
 
-		mb = allocb (sizeof (struct _isdn23_hdr) + 2, BPRI_HI);
+		mb = allocb (sizeof (struct _isdn23_hdr), BPRI_HI);
 
 		if (mb == NULL) {
 			if (isdn2_debug & 0x10)
-				printf ("%sisdn2_data for %d: No rawhdr mem\n",KERN_DEBUG, ctl->nr);
+				printf ("%sisdn2_chprot for %d: No rawhdr mem\n",KERN_DEBUG, ctl->nr);
 			return -ENOMEM;
 		}
 		hdr = ((isdn23_hdr) mb->b_wptr)++;
@@ -1346,7 +1414,10 @@ isdn2_chprot (struct _isdn1_card *card, short channel, mblk_t * proto, int flags
 		linkb (mb, proto);
 		if (isdn_chan.qptr != NULL) {
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-			putnext (isdn_chan.qptr, mb);
+			if(canput(isdn_chan.qptr->q_next))
+				putnext (isdn_chan.qptr, mb);
+			else
+				freemsg(mb);
 		} else
 			freemsg (mb);
 		return 0;
@@ -1362,6 +1433,18 @@ isdn2_chprot (struct _isdn1_card *card, short channel, mblk_t * proto, int flags
 }
 
 /* --> isdn_12.h */
+extern int
+isdn2_chprot (struct _isdn1_card *card, short channel, mblk_t * proto, int flags)
+{
+	isdn2_card ctl;
+
+	ctl = (isdn2_card) card->ctl;
+	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL))
+		return -ENXIO;
+	return do_chprot(ctl,channel,proto,flags);
+}
+
+/* --> isdn_12.h */
 int
 isdn2_canrecv (struct _isdn1_card *card, short channel)
 {
@@ -1371,9 +1454,13 @@ isdn2_canrecv (struct _isdn1_card *card, short channel)
 	if (ctl == NULL)
 		return 1;				  /* will get flushed in isdn2_recv(); avoid
 								   * clogging the card here */
-	else if (channel == 0)		  /* D channel is always ready... */
-		return 1;
-	else {
+	else if (channel == 0) {	  /* D channel is always ready... */
+		if(isdn_chan.qptr == NULL)
+			return 0;
+		return canput(isdn_chan.qptr->q_next);
+		/* XXX: For dumb cards, I should ask X.75, but at this point I
+		        don't know the SAPI. */
+	} else {
 		isdn2_chan ch = ctl->chan[channel];
 
 		if (ch == NULL || ch->qptr == NULL)
@@ -1420,6 +1507,32 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				else
 					err = -ENXIO;
 			} else {
+				if(ctl->flags & HDR_CARD_DEBUG) {
+					isdn23_hdr hdr;
+					mblk_t *m1 = allocb(sizeof(*hdr),BPRI_MED);
+					mblk_t *m2 = dupmsg(data);
+
+					if (m1 == NULL || m2 == NULL) {
+						if(m1 != NULL)
+							freemsg(m1);
+						if(m2 != NULL)
+							freemsg(m2);
+					} else {
+						hdr = ((isdn23_hdr) m1->b_wptr)++;
+						hdr->key = HDR_RAWDATA;
+						hdr->seqnum = hdrseq; hdrseq += 2;
+						hdr->hdr_rawdata.card = ctl->nr;
+						hdr->hdr_rawdata.dchan = 1;
+						hdr->hdr_rawdata.len = dsize (m2);
+						hdr->hdr_rawdata.flags = 0;
+						linkb (m1, m2);
+						if(canput(isdn_chan.qptr->q_next)) 
+							putnext (isdn_chan.qptr, m1);
+						else
+							freemsg(m1);
+					}
+				}
+
 				if (ctl->status != C_up && ctl->status != C_wont_down) {
 					if(isdn2_debug & 0x80)
 						printf("%s  -- L1 up\n",KERN_DEBUG);
@@ -1433,7 +1546,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				x1 = SAPI = *data->b_rptr++;
 				if (SAPI & 0x01) {	  /* TODO: X25 packet? */
 					if (isdn2_debug & 0x10)
-						printf ("%sisdn2_data %d: SAPI %x invalid\n",KERN_DEBUG, ctl->nr, SAPI);
+						printf ("%sisdn2_recv %d: SAPI %x invalid\n",KERN_DEBUG, ctl->nr, SAPI);
 					freemsg (data);
 					return 0 /* ESRCH */ ;
 				}
@@ -1443,7 +1556,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				x2 = TEI = *data->b_rptr++;
 				if ((TEI & 0x01) == 0) {
 					if (isdn2_debug & 0x10)
-						printf ("%sisdn2_data %d: TEI %x invalid\n",KERN_DEBUG, ctl->nr, TEI);
+						printf ("%sisdn2_recv %d: TEI %x invalid\n",KERN_DEBUG, ctl->nr, TEI);
 					goto rawdata;
 				}
 				cmd = (SAPI & 0x02) ? 1 : 0;
@@ -1455,7 +1568,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 				}
 				if(ch > N_TEI) {
 					if (isdn2_debug & 0x100)
-						printf("%sisdn2_data %d: %02x: not my TEI (%02x)\n",KERN_DEBUG,ctl->nr,TEI,ctl->TEI[0]);
+						printf("%sisdn2_recv %d: %02x: not my TEI (%02x)\n",KERN_DEBUG,ctl->nr,TEI,ctl->TEI[0]);
 					freemsg (data);
 					return 0;
 				}
@@ -1469,31 +1582,8 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 						cmd |= 2;
 					err = x75_recv (&state->state, cmd, data);
 				} else if (TEI == TEI_BROADCAST && isdn_chan.qptr != NULL) {
-					isdn23_hdr hdr;
-					mblk_t *mb;
-
 				rawdata:
-					if ((mb = allocb (sizeof (struct _isdn23_hdr) + 2, BPRI_HI)) == NULL) {
-						if (isdn2_debug & 0x10)
-							printf ("%sisdn2_data for %d: No rawhdr mem\n",KERN_DEBUG,
-									ctl->nr);
-						freemsg (data);
-						return 0 /* ENOMEM */ ;
-					}
-					hdr = ((isdn23_hdr) mb->b_wptr)++;
-					hdr->key = HDR_RAWDATA;
-					hdr->seqnum = hdrseq; hdrseq += 2;
-					hdr->hdr_rawdata.card = ctl->nr;
-					*mb->b_wptr++ = x1;
-					*mb->b_wptr++ = x2;
-					hdr->hdr_rawdata.len = dsize (data) + 2;
-					linkb (mb, data);
-					if (isdn_chan.qptr != NULL) {
-						if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-						putnext (isdn_chan.qptr, mb);
-					} else
-						freemsg (mb);
-					err = 0;
+					err = -ENXIO;
 				} else {
 					err = 0;		  /* Not an error */
 					freemsg (data);
@@ -1596,13 +1686,15 @@ isdn2_sendcard (isdn2_card card)
 	hdr->hdr_card.modes = card->card->modes;
 	if (isdn_chan.qptr != NULL) {
 		if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-		putnext (isdn_chan.qptr, mb);
-		(*card->card->ch_mode) (card->card, 0, M_STANDBY, 1);
-	} else {
-		freemsg (mb);
-		(*card->card->ch_mode) (card->card, 0, M_OFF, 0);
-		return /* ENXIO */ ;
+		if(canput(isdn_chan.qptr->q_next)) {
+			putnext (isdn_chan.qptr, mb);
+			(*card->card->ch_mode) (card->card, 0, M_STANDBY, 1);
+			return;
+		}
 	}
+	freemsg (mb);
+	(*card->card->ch_mode) (card->card, 0, M_OFF, 0);
+	return /* ENXIO / ENOSPC */ ;
 }
 
 /*
@@ -1696,7 +1788,12 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 					hdr->hdr_open.uid = u.u_uid;
 #endif
 					if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-					putnext (isdn_chan.qptr, mb);
+					if(canput(isdn_chan.qptr->q_next))
+						putnext (isdn_chan.qptr, mb);
+					else {
+						freemsg(mb);
+						ERR_RETURN(-ENOSPC);
+					}
 				} else {
 					if (isdn2_debug & 0x10)
 						printf ("%sisdn2_open %d: Can't notify controller: no mem\n",KERN_DEBUG, dev);
@@ -1809,7 +1906,10 @@ isdn2_disconnect (isdn2_chan ch, uchar_t error)
 					hdr->hdr_detach.error = error;
 					hdr->hdr_detach.perm = 0;
 					if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-					putnext (isdn_chan.qptr, mb);
+					if(canput(isdn_chan.qptr->q_next))
+						putnext (isdn_chan.qptr, mb);
+					else
+						freemsg(mb);
 				} else {
 					if (isdn2_debug & 0x10)
 						printf ("%sisdn2_disconnect %d: Can't notify controller: no mem\n",KERN_DEBUG, ch->dev);
@@ -1888,7 +1988,10 @@ isdn2_close (queue_t *q, int dummy)
 			hdr->hdr_close.minor = ch->dev;
 			hdr->hdr_close.error = 0;
 			if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-			putnext (isdn_chan.qptr, mb);
+			if(canput(isdn_chan.qptr->q_next))
+				putnext (isdn_chan.qptr, mb);
+			else
+				freemsg(mb);
 		} else if (isdn2_debug & 0x10)
 			printf ("%sisdn2_close %d: Can't notify controller: no mem\n",KERN_DEBUG, ch->dev);
 		ch->status = M_blocked;
@@ -2287,16 +2390,23 @@ isdn2_wsrv (queue_t *q)
 				}
 #endif
 				{
-					struct _isdn1_card *crd1;
-
-					if (chan->card == NULL || (crd1 = chan->card->card) == NULL || (crd1->ch_prot == NULL) || (*crd1->ch_prot)(crd1,chan->channel,mp,CHP_FROMSTACK) < 0) {
+printf("m");
+					if (chan->card != NULL) {
+						if((err = do_chprot(chan->card,chan->channel,mp,CHP_FROMSTACK)|CHP_TOCARD) < 0) {
+							printf("%sChProtErr isdn_2.c %d %d\n",KERN_DEBUG,__LINE__,err);
+							freemsg(mp);
+							/* TODO: Kill me. */
+						}
+					} else {
 						mblk_t *mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
+printf("j");
 
 						if (mb == NULL) {
 							printf("%sNoMemHdr isdn_2.c %d\n",KERN_DEBUG,__LINE__);
 							putbqf (q, mp);
 							return;
 						}
+printf("i");
 						hdr2 = ((isdn23_hdr) mb->b_wptr)++;
 						hdr2->key = HDR_PROTOCMD;
 						hdr2->seqnum = hdrseq; hdrseq += 2;
@@ -2305,20 +2415,32 @@ isdn2_wsrv (queue_t *q)
 						hdr2->hdr_protocmd.channel = 0;
 						hdr2->hdr_protocmd.len = dsize (mp);
 						linkb (mb, mp);
+printf("h");
 						do {
 							DATA_TYPE(mp) = M_DATA;
 							mp = mp->b_cont;
 						} while(mp != NULL);
+printf("g");
 						if (isdn_chan.qptr != NULL) {
+printf("f");
 							if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
-							putnext (isdn_chan.qptr, mb);
+							if(canput(isdn_chan.qptr->q_next)) {
+printf("e");
+								putnext (isdn_chan.qptr, mb);
+							} else {
+printf("d");
+								freemsg(mb);
+							}
 						} else {
 							freemsg (mb);
 							printf ("%sHang 4\n",KERN_DEBUG);
 							putctlx (RD (q), M_HANGUP);
 						}
+printf("c");
 					}
+printf("b");
 				}
+printf("a");
 			}
 			break;
 		case CASE_DATA:
@@ -2362,13 +2484,9 @@ isdn2_wsrv (queue_t *q)
 								if (isdn2_debug & 0x100)
 									printf ("%sunknown key %d\n",KERN_DEBUG, hdr.key);
 								h_reply (q, &hdr, EINVAL);
-							free_it:
-								if (mp != NULL) {
-									freemsg (mp);
-									mp = NULL;
-								}
 								break;
-								{
+#if 0
+								{ /* redo */
 									mblk_t *mz = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
 
 									if (mz == NULL) {
@@ -2385,6 +2503,7 @@ isdn2_wsrv (queue_t *q)
 									putbqf (q, mz);
 								}
 								return;
+#endif
 							case HDR_ATCMD:
 								{
 									mblk_t *mz = NULL;
@@ -2400,7 +2519,6 @@ isdn2_wsrv (queue_t *q)
 									} else
 										freemsg (mp);
 									mp = NULL;
-									goto free_it;
 								}
 								break;
 							case HDR_PROTOCMD:
@@ -2414,17 +2532,19 @@ isdn2_wsrv (queue_t *q)
 										if (hdr.hdr_protocmd.channel > crd->card->nr_chans) {
 											printf ("%s -- bad channel\n",KERN_DEBUG);
 											h_reply (q, &hdr, -EINVAL);
-										} else if ((crd->card == NULL) || (crd->card->ch_prot == NULL) || (err = (*crd->card->ch_prot) (crd->card, hdr.hdr_protocmd.channel, mp,0)) != 0) {
-											printf ("%s -- Err SetMode\n",KERN_DEBUG);
+											break;
+										}
+										if((err = do_chprot(crd,hdr.hdr_protocmd.channel,mp,CHP_TOCARD)) < 0) {
+											printf ("%s -- Err SetMode %d\n",KERN_DEBUG,err);
 											h_reply (q, &hdr, err);
-										} else
+										} else 
 											mp = NULL;
-										goto free_it;
+										break;
 									}
 									xMINOR (protocmd);
 									oldhd = mp->b_rptr;
 									DATA_TYPE(mp) = MSG_PROTO;
-									if (m_getid(mp,&id) != 0 || id != PROTO_MODLIST) {
+									if ((m_getid(mp,&id) != 0) || (id != PROTO_MODLIST)) {
 										struct _isdn1_card *crd1;
 										mp->b_rptr = oldhd;
 
@@ -2432,15 +2552,21 @@ isdn2_wsrv (queue_t *q)
 											if (isdn2_debug & 0x10)
 												printf ("%sUpdatePushlist to %p, minor %d\n",KERN_DEBUG, chan->qptr, minor);
 											h_reply(q,&hdr,0);
-											goto free_it;
+											break;
 										}
-										if (chan->card != NULL)
+										if (chan->card != NULL) {
 											crd1 = chan->card->card;
-										else
+											err = do_chprot(chan->card,chan->channel,mp,CHP_TOCARD);
+										} else {
 											crd1 = NULL;
-										if(crd1 == NULL || crd1->ch_prot == NULL || (*crd1->ch_prot)(crd1,chan->channel,mp,0) < 0)
-											putnext (chan->qptr, mp);
-										mp = NULL;
+											if(canput(chan->qptr->q_next)) {
+												putnext(chan->qptr,mp);
+												err = 0;
+											} else
+												err = -ENOSPC;
+										}
+										if(err >= 0)
+											mp = NULL;
 									} else {
 										while(m_getsx(mp,&id) == 0) ;
 										if (isdn2_debug & 0x10)
@@ -2449,7 +2575,6 @@ isdn2_wsrv (queue_t *q)
 										h_reply (q, &hdr, pushlist (chan->qptr, mp));
 										/* pushlist doesn't free */
 									}
-									goto free_it;
 								}
 								break;
 							case HDR_XDATA:
@@ -2458,7 +2583,7 @@ isdn2_wsrv (queue_t *q)
 									xMINOR (xdata);
 									putnext (chan->qptr, mp);
 									mp = NULL;
-									goto free_it;
+									break;
 								}
 								break;
 							case HDR_UIDATA:
@@ -2472,13 +2597,13 @@ isdn2_wsrv (queue_t *q)
 #endif
 									if (state == NULL || state->state.status == S_free) {
 										h_reply (q, &hdr, EINVAL);
-										goto free_it;
+										break;
 									}
 									if (!((crd->card->modes & CHM_INTELLIGENT)
 											? D_cansend(state)
 											: x75_cansend (&state->state, 1))) {
 										h_reply (q, &hdr, (crd->status == C_wont_up) ? EIO : ENOMEM);
-										goto free_it;
+										break;
 									}
 									DATA_TYPE(mp) = M_DATA;
 									if (crd->card->modes & CHM_INTELLIGENT)
@@ -2490,7 +2615,7 @@ isdn2_wsrv (queue_t *q)
 									} else
 										mp = NULL;
 								}
-								goto free_it;
+								break;
 							case HDR_DATA:
 								{
 									LENHDR (data);
@@ -2502,13 +2627,13 @@ isdn2_wsrv (queue_t *q)
 #endif
 									if (state == NULL) {
 										h_reply (q, &hdr, EINVAL);
-										goto free_it;
+										break;
 									}
 									if (!((crd->card->modes & CHM_INTELLIGENT)
 											? D_cansend(state)
 											: x75_cansend (&state->state, 0))) {
 										h_reply (q, &hdr, (crd->status == C_wont_up) ? EIO : ENOMEM);
-										goto free_it;
+										break;
 									}
 									DATA_TYPE(mp) = M_DATA;
 									if (crd->card->modes & CHM_INTELLIGENT)
@@ -2520,7 +2645,7 @@ isdn2_wsrv (queue_t *q)
 									else
 										mp = NULL;
 								}
-								goto free_it;
+								break;
 							case HDR_RAWDATA:
 								{
 									LENHDR (rawdata);
@@ -2529,7 +2654,7 @@ isdn2_wsrv (queue_t *q)
 										h_reply (q, &hdr, err);
 									} else
 										mp = NULL;
-									goto free_it;
+									break;
 								}
 								break;
 							case HDR_CLOSE:
@@ -2669,7 +2794,7 @@ isdn2_wsrv (queue_t *q)
 										mp = NULL;
 										h_reply (q, &hdr, 0);
 									}
-									goto free_it;
+									break;
 								}
 							case HDR_TEI:
 								{
@@ -2732,12 +2857,7 @@ isdn2_wsrv (queue_t *q)
 										h_reply (q, &hdr, EINVAL);
 										break;
 									}
-									if(hdr.hdr_card.flags & HDR_CARD_PP) {
-										int j;
-										for (j=0; j <= N_TEI; j++)
-											crd->TEI[j] = j;
-										/* crd->noshutdown = 1; */
-									}
+									crd->flags = hdr.hdr_card.flags;
 									if (crd->status != C_up)
 										h_reply (q, &hdr, D_L1_up (crd));
 								}
@@ -2834,8 +2954,8 @@ isdn2_wsrv (queue_t *q)
 								}
 								break;
 							}			  /* switch */
-							if (mp != NULL) {	/* TODO: Allocate another mblk_t and
-												* put it back. */
+						  free_it:
+							if (mp != NULL) {
 								freemsg (mp);
 								mp = NULL;
 							}
@@ -2885,7 +3005,10 @@ isdn2_wsrv (queue_t *q)
 							linkb (mz, mp);
 							if (isdn_chan.qptr != NULL) {
 								if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mz);
-								putnext (isdn_chan.qptr, mz);
+								if(canput(isdn_chan.qptr->q_next))
+									putnext (isdn_chan.qptr, mz);
+								else
+									freemsg(mz);
 							} else {
 								freemsg (mz);
 								printf ("Hang 6\n");

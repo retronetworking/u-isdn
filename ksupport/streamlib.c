@@ -1002,7 +1002,7 @@ make_reply (int err)
 	} else {
 		m_putid (mq, PROTO_ERROR);
 		m_putsx (mq, PROTO_ERROR);
-		m_puti (mq, err);
+		m_puti (mq, (err > 0) ? err : -err);
 	}
 	m_putdelim (mq);
 	return mq;

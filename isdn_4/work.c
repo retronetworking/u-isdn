@@ -269,8 +269,8 @@ pushcardprot (conngrab cg, int minor)
 			if (cmod == NULL)
 				return -ENOENT;
 			num = cmod->num;
-			break;
 		}
+		break;
 	}
 	if (prot == NULL) 
 		return -ENOENT;

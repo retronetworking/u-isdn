@@ -232,7 +232,6 @@ isdn3_killconn (isdn3_conn conn, char force)
 		conn->id = 0;
 	
 	if ((conn->delay > 0) && (conn->minorstate & MS_DELAYING)) {
-		printf("** Kill DELAYING %p\n",conn);
 #ifdef NEW_TIMEOUT
 		untimeout (conn->later_timer);
 #else
@@ -380,10 +379,15 @@ isdn3_killconn (isdn3_conn conn, char force)
 					conn->fminor = 0;
 					/* minorflags[conn->minor] &= MINOR_OPEN; */
 				}
-				{ int i; for(i=0;i<NMINOR;i++) if(minor2conn[i]==conn) {
-					printf("ISDN_3 DeadConn %p, at pos %d, minor %d\n",minor2conn[i],i,conn->minor);
-					minor2conn[i]=NULL;
-				} }
+				{
+					int i;
+					for(i=0;i<NMINOR;i++) {
+						if(minor2conn[i]==conn) {
+							printf("ISDN_3 DeadConn %p, at pos %d, minor %d\n",minor2conn[i],i,conn->minor);
+							minor2conn[i]=NULL;
+						}
+					}
+				}
 				if(conn->id_msg != NULL)
 					freemsg(conn->id_msg);
 				for(i=0;i < NSCONN; i++) {
@@ -436,7 +440,6 @@ delay_conn (isdn3_conn conn)
 static void
 later_conn (isdn3_conn conn)
 {
-	if(1)printf ("**Hit DELAYING %p\n",conn);
 	conn->minorstate &= ~MS_DELAYING;
 	conn->delay = 0;
 	isdn3_setup_conn (conn, EST_NO_CHANGE);
@@ -506,14 +509,12 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 	 */
 	if (conn->delay > 0) {
 		if (conn->minorstate & MS_DELAYING) {
-			if(1)printf("** Clear DELAYING %p\n",conn);
 #ifdef NEW_TIMEOUT
 			untimeout (conn->later_timer);
 #else
 			untimeout (later_conn, conn);
 #endif
 		}
-		printf("** Set DELAYING %p\n",conn);
 #ifdef NEW_TIMEOUT
 		conn->later_timer =
 #endif
@@ -603,7 +604,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			&& (minorflags[conn->minor] & MINOR_PROTO)
 			&& (conn->minorstate & MS_INITPROTO)
 			&& !(conn->minorstate & (MS_NOMINOR | MS_DETACHED))
-			&& ( /* (conn->minorstate & MS_OUTGOING) || */ (established > EST_LISTEN))
+			&& ( /* (conn->minorstate & MS_OUTGOING) || */ (established >= EST_LISTEN))
 			&& (established > EST_NO_CHANGE || !(conn->minorstate & MS_SETUP_SENT))) {
 		isdn23_hdr hdr;
 		mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
@@ -1748,6 +1749,7 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 		break;
 	case CMD_DOCARD:
 		if(card != NULL) {
+			int flags = 0;
 			m_getskip(mx);
 			if(card->info != NULL)
 				freemsg(card->info);
@@ -1761,7 +1763,9 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 				ushort_t idx;
 				ulong_t sap;
 				while(m_getsx(mx,&idx) == 0) {
-					if(idx == ARG_PROTOCOL && m_geti (mx, &sap) == 0) {
+					if(idx == ARG_DEBUG)
+						flags |= HDR_CARD_DEBUG;
+					else if(idx == ARG_PROTOCOL && m_geti (mx, &sap) == 0) {
 						if((hndl = isdn3_findhndl(sap)) != NULL) {
 							streamchar *stb = mi->b_rptr;
 							mi->b_rptr = sta;
@@ -1774,6 +1778,30 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 				for (hndl = isdn_hndl; hndl != NULL; hndl = hndl->next) {
 					if (hndl->newcard != NULL)
 						(*hndl->newcard) (card);
+				}
+			}
+			if(flags) {
+				mblk_t *mb;
+				isdn23_hdr hdr;
+				int err = 0;
+
+				mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
+
+				if (mb != NULL) {
+					hdr = ((isdn23_hdr) mb->b_wptr)++;
+#ifdef __CHECKER__
+					memset(hdr,0,sizeof (*hdr));
+#endif
+					hdr->key = HDR_CARD;
+					hdr->seqnum = hdrseq; hdrseq += 2;
+					hdr->hdr_card.card = card->nr;
+					hdr->hdr_card.flags = flags;
+					hdr->hdr_card.id = card->id;
+					hdr->hdr_card.dchans = card->dchans;
+					hdr->hdr_card.bchans = card->bchans;
+					hdr->hdr_card.modes = card->modes;
+					if ((err = isdn3_sendhdr (mb)) != 0)
+						freeb (mb);
 				}
 			}
 		}
@@ -2052,8 +2080,6 @@ printf("ErX k\n");
 #endif
 				}
 			}
-			if (mx == NULL || *(ushort_t *) mx->b_rptr != PROTO_AT)
-				conn = NULL;
 #if 0
 			else if (conn == NULL) {
 				err = -EINVAL;
@@ -2063,7 +2089,10 @@ printf("ErX k\n");
 #endif
 			if (mx != NULL) {
 				if(talk != NULL && conn != NULL && talk->hndl->proto != NULL) {
+					mblk_t *mm = mx;
 					err = (*talk->hndl->proto)(conn,&mx,1);
+					if(mx != mm && mx != NULL)
+						origmx = mx->b_rptr;
 					if(err < 0) {
 						printf ("ErrOut hx %d nm %d\n", err, minor);
 						goto err_out;
@@ -2079,6 +2108,8 @@ printf("ErX k\n");
 					goto err_out;
 				}
 			}
+			if (mx == NULL || *(ushort_t *) mx->b_rptr != PROTO_AT)
+				conn = NULL;
 		}
 		break;
 	case CMD_CARDSETUP:
@@ -2967,7 +2998,31 @@ isdn3_rsrv (queue_t * q)
 					}
 					break;
 				case HDR_RAWDATA:
-					log_printmsg (NULL, "RAWDATA", mp, KERN_INFO);
+					{
+						isdn3_card card;
+						mblk_t *mx;
+
+						card = isdn3_findcard(hdr.hdr_rawdata.card);
+						if (card == NULL)
+							break;
+
+						mx = allocb(64,BPRI_LO);
+						if(mx != NULL) {
+							m_putid(mx,IND_TRACE);
+							m_putsx(mx,ARG_CARD);
+							m_putlx(mx,card->id);
+							m_putsx(mx,ARG_SUBCARD);
+							m_puti(mx,hdr.hdr_rawdata.dchan);
+							if(hdr.hdr_rawdata.flags & 01)
+								m_putsx(mx,PROTO_OUTGOING);
+							else
+								m_putsx(mx,PROTO_INCOMING);
+							m_putdelim(mx);
+							linkb(mx,mp);
+							putnext(q,mx);
+							mp = NULL;
+						}
+					}
 					break;
 				case HDR_OPEN:
 					{

@@ -93,6 +93,7 @@
 										 * arg_card arg_bchan arg_modemask. */
 #define IND_NOCARD	CHAR2 ('C','n')		/* Card going offline. IND_NOCARD
 										 * arg_card. */
+#define IND_TRACE CHAR2('t','r')
 
 /*
  * Arguments. short,long,uchar are encoded decimally, ushort and ulong as
@@ -187,6 +188,9 @@
 
 #define ARG_L2KEEP CHAR2('k','l') /* keep L2 open */
 #define ARG_L2CLOSE CHAR2('c','l') /* close L2 when no connection is pending */
+#define ARG_DEBUG CHAR2('d','e')
+#define ARG_EVENT CHAR2('e','v')
+#define ARG_SUBEVENT CHAR2('e','s')
 
 /* Other arguments are protocol dependent. See the appropriate include files. */
 

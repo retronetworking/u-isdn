@@ -45,6 +45,7 @@ typedef int (*C_ch_mode) (struct _isdn1_card * card, short channel, char mode,
 typedef int (*C_ch_prot) (struct _isdn1_card * card, short channel, mblk_t * proto, int flags);
 #define CHP_FROMSTACK 01 /* travels from the channel to the master */
 #define CHP_MODLIST 02 /* module list */
+#define CHP_TOCARD 04 /* internal to isdn_2.c: send to card first, if there's a handler */
 
 /*
  * Check if the card has data for us.

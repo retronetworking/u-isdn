@@ -1228,6 +1228,11 @@ if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
 			freemsg(p_msg);
 			p_msg = NULL;
 		}
+		if (p_msg->b_datap == NULL) {
+			printf("%sGetQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+			freemsg(p_msg);
+			p_msg = NULL;
+		}
 #endif
 	}
 	get_post(p_queue);
@@ -1246,7 +1251,7 @@ if(0)printf("%sG %s:%d  ",KERN_ERR ,deb_file,deb_line);
 	}
 #endif
 #ifdef CONFIG_DEBUG_STREAMS
-	if((p_msg != NULL) && (msgdsize(p_msg) < 0))
+	if((p_msg != NULL) && (deb_msgdsize(deb_file,deb_line,p_msg) < 0))
 		p_msg = NULL;
 #endif
 	splx(s);
@@ -1467,6 +1472,11 @@ putq(queue_t *p_queue, mblk_t *p_msg)
 		freemsg(p_msg);
 		return;
 	}
+	if (p_msg->b_datap == NULL) {
+		printf("%sPutQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		freemsg(p_msg);
+		return;
+	}
 #endif
 
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
@@ -1550,6 +1560,11 @@ putbq(queue_t *p_queue, mblk_t *p_msg)
 	}
 	if (p_msg->b_wptr == NULL) {
 		printf("%sPutBQ NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		freemsg(p_msg);
+		return;
+	}
+	if (p_msg->b_datap == NULL) {
+		printf("%sPutBQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}
@@ -1703,6 +1718,11 @@ appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 		freemsg(p_msg);
 		return;
 	}
+	if (p_msg->b_datap == NULL) {
+		printf("%sAppQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		freemsg(p_msg);
+		return;
+	}
 #endif
 #if defined(CONFIG_DEBUG_STREAMS) && defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
 	deb_kcheck_s(deb_file,deb_line, RDQ(p_queue),2*sizeof(*p_queue));
@@ -1851,6 +1871,11 @@ qreply(queue_t *p_queue, mblk_t *p_msg)
 	}
 	if (p_msg->b_wptr == NULL) {
 		printf("%sQReply NULL stream/wptr at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
+		freemsg(p_msg);
+		return;
+	}
+	if (p_msg->b_datap == NULL) {
+		printf("%sQReply NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
 	}

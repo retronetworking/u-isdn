@@ -63,6 +63,8 @@ typedef struct _isdn23_hdr {
 								   * protocols. */
 			ushort_t len;
 			uchar_t card;
+			uchar_t dchan;
+			uchar_t flags;		  /* 01: outgoing */
 		} _hdr_rawdata;
 
 		struct {				  /* A device has been opened. */
@@ -100,7 +102,7 @@ typedef struct _isdn23_hdr {
 			uchar_t dchans;		  /* for the card */
 			uchar_t bchans;		  /* per D channel */
 			uchar_t flags;		  /* Some stuff */
-#define HDR_CARD_PP 01
+#define HDR_CARD_DEBUG 01		  /* send D channel trace up */
 			long id;			  /* Unique ID of this card, for hardware
 								   * config. Usually the first three characters
 								   * identify the card and the last is a serial

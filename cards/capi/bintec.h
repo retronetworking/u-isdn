@@ -23,6 +23,7 @@
 typedef unsigned char Byte;
 typedef struct _hdlc_buf {
 	struct _smallq q_in, q_out;
+	mblk_t *in_more;
 	ushort_t offset;
 	ushort_t appID, PLCI, NCCI;
 	uchar_t dblock; /* sent data block number, incremented, mostly ignored */
