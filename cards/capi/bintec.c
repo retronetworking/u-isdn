@@ -54,16 +54,12 @@ static void reset_card(struct _bintec *bp);
 static void toss_unknown (struct _bintec *bp);
 static void process_unknown (struct _bintec *bp);
 
-#ifdef linux
 void NAME(REALNAME,poll)(struct _bintec *bp);
-#else
-void NAME(REALNAME,poll)(void *);
-#endif
 
 #define MAXSEND 0x0D00 /* 3000 bytes. Split bigger blocks according to CAPI. */
 
 
-static struct _bintec *bintecmap[16] = { NULL, };
+static struct _bintec *binteclist = NULL;
 
 
 /**** START of Bintec-provided code ******/
@@ -1445,20 +1441,14 @@ DoIRQ(struct _bintec *bp)
 	CTRL_ENABLE(bp);
 }
 
-#ifdef linux
 static void
-bintecintr(int irq, struct pt_regs *regs)
-#else
-void NAME(REALNAME,intr)(int x)
-#endif
+bintecintr(int irq, void *dev, struct pt_regs *regs)
 {
-	struct _bintec *bp;
+	struct _bintec *bp = dev;
 	
-	for(bp=bintecmap[irq];bp != NULL; bp = bp->next) {
-		if(!bp->polled++) {
-			DoIRQ(bp);
-			bp->polled --;
-		}
+	if(!bp->polled++) {
+		DoIRQ(bp);
+		bp->polled --;
 	}
 }
 
@@ -1484,7 +1474,6 @@ void NAME(REALNAME,poll)(struct _bintec *bp)
 }
 
 
-#ifdef linux
 static void
 bintectimer(struct _bintec *bp)
 {
@@ -1494,7 +1483,6 @@ bintectimer(struct _bintec *bp)
 #endif
 		timeout((void *)bintectimer,bp, ((bp->info.irq == 0) || (bp->waitmsg > 0)) ? (HZ/100) : (HZ/2));
 }
-#endif
 
 int NAME(REALNAME,init)(struct cardinfo *inf)
 {
@@ -1528,13 +1516,11 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		kfree(bp);
 		return err;
 	}
-#ifdef linux
-	if((bp->info.irq != 0) && (bintecmap[bp->info.irq] == NULL) && request_irq(bp->info.irq,bintecintr,0,STRING(REALNAME))) {
+	if((bp->info.irq != 0) && request_irq(bp->info.irq,bintecintr,0,STRING(REALNAME),bp)) {
 		printf("IRQ not available.\n");
 		kfree(bp);
 		return -EIO;
 	}
-#endif
 
 	if((err = isdn2_register(&bp->card, bp->info.ID)) != 0) {
 		printf("not installed (ISDN_2), err %d\n",err);
@@ -1548,8 +1534,8 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		printf("polling; ");
 	}
 	bintectimer(bp);
-	bp->next = bintecmap[bp->info.irq];
-	bintecmap[bp->info.irq] = bp;
+	bp->next = binteclist;
+	binteclist = bp;
 	printf("installed at ");
 	if(bp->info.memaddr != 0) 
 		printf("mem 0x%lx ",bp->info.memaddr);
@@ -1567,7 +1553,7 @@ void NAME(REALNAME,exit)(struct cardinfo *inf)
     unsigned long ms = SetSPL(inf->ipl);
     struct _bintec *bp = NULL, **nbp;
 	
-	nbp = &bintecmap[(int)inf->irq]; /* grumble, GCC */
+	nbp = &binteclist;
 	while(*nbp != NULL) {
 		
 		if((*nbp)->infoptr == inf) {
@@ -1590,8 +1576,8 @@ void NAME(REALNAME,exit)(struct cardinfo *inf)
 	reset_card(bp);
 
 	isdn2_unregister(&bp->card);
-	if((bp->info.irq != 0) && (bintecmap[bp->info.irq] == NULL))
-		free_irq(bp->info.irq);
+	if(bp->info.irq != 0)
+		free_irq(bp->info.irq,bp);
 	splx(ms);
 	kfree(bp);
 	LESS_USE;

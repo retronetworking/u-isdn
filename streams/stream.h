@@ -10,10 +10,6 @@
 #include <linux/major.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
-#if 0 && (LINUX_VERSION_CODE >= 66348) /* 1.3.44 -- EXPERIMENTAL */
-#include <linux/skbuff.h>
-#define SK_STREAM
-#endif
 
 #define MAX_STRDEV MAX_CHRDEV /* don't change */
 #define MAX_STRMOD MAX_CHRDEV /* change if necessary */
@@ -37,19 +33,11 @@
 
 #define STREAM_MAGIC 0x53AA
 
-#ifdef SK_STREAM
-#define DATA_BLOCK(m) ((m)->b_skb)
-#define DATA_START(m) ((m)->b_skb->head)
-#define DATA_END(m) ((m)->b_skb->end)
-#define DATA_REFS(m) ((m)->b_skb->count)
-#define DATA_TYPE(m) ((m)->b_skb->pkt_type)
-#else
 #define DATA_BLOCK(m) ((m)->b_datap)
 #define DATA_START(m) ((m)->b_datap->db_base)
 #define DATA_END(m) ((m)->b_datap->db_lim)
 #define DATA_REFS(m) ((m)->b_datap->db_ref)
 #define DATA_TYPE(m) ((m)->b_datap->db_type)
-#endif
 
 /*
  * Grumble. Some Streams subsystems use signed characters, some unsigned.
@@ -99,7 +87,6 @@ struct module_info {
 #define SF_IOCTL	    0200	/* Waiting for ioctl to finish */
 #define SF_PARTIALREAD	0400	/* partially read message in front */
 
-#ifndef SK_STREAM
 /*
  *  Data block descriptor
  */
@@ -112,7 +99,6 @@ typedef struct datab {
 	long		deb_magic;
 #endif
 } dblk_t;
-#endif
 
 
 /*
@@ -122,11 +108,7 @@ typedef struct	msgb {
 	struct	msgb	*b_next;
 	struct	msgb	*b_prev;
 	struct	msgb	*b_cont;
-#ifdef SK_STREAM
-	struct sk_buff	*b_skb;
-#else
 	struct	datab 	*b_datap;
-#endif
 #ifdef CONFIG_DEBUG_STREAMS
 	long		deb_magic;
 	struct queue	*deb_queue;
@@ -136,6 +118,7 @@ typedef struct	msgb {
 	streamchar	*b_rptr;
 	streamchar	*b_wptr;
 } mblk_t;
+
 
 /*
  * stream information
@@ -267,7 +250,6 @@ struct qinit {
 #define QNORM    0			/* normal messages */
 #define QEXP  0100			/* expedited messages */
 #define QPCTL 0200			/* priority cntrl messages */
-
 
 
 /*
@@ -433,10 +415,6 @@ extern void deb_freemsg(const char *, unsigned int, mblk_t *);
 #define freemsg(a) deb_freemsg(__FILE__,__LINE__,a)
 extern mblk_t *deb_dupb(const char *, unsigned int, mblk_t *);
 #define dupb(a) deb_dupb(__FILE__,__LINE__,a)
-#ifdef SK_STREAM
-extern mblk_t *deb_dupskb(const char *, unsigned int, struct sk_buff *);
-#define dupskb(a) deb_dupskb(__FILE__,__LINE__,a)
-#endif
 extern mblk_t *deb_dupmsg(const char *, unsigned int, mblk_t *);
 #define dupmsg(a) deb_dupmsg(__FILE__,__LINE__,a)
 extern mblk_t *deb_copyb(const char *, unsigned int, mblk_t *);
@@ -512,9 +490,6 @@ extern int testb(ushort,ushort);		/* Check if a message can be allocated */
 extern void freeb(mblk_t *);			/* Free a message block */
 extern void freemsg(mblk_t *);			/* Free a message list */
 extern mblk_t *dupb(mblk_t *);			/* Duplicate a message block */
-#ifdef SK_STREAM
-extern mblk_t *dupskb(struct sk_buff *); /* the mblk refers to the skbuff */
-#endif
 extern mblk_t *dupmsg(mblk_t *);		/* Duplicate a message */
 extern mblk_t *copyb(mblk_t *);			/* Copy a message block */
 extern mblk_t *copymsg(mblk_t *);		/* Copy a message */

@@ -51,7 +51,7 @@ Init(struct _dumb * dumb) {
 		}
 		if(ByteIn(dumb->info.ioaddr+0) != 0x51) { return -EINVAL; }
 		if(ByteIn(dumb->info.ioaddr+1) != 0x93) { return -EINVAL; }
-		if((ByteIn(dumb->info.ioaddr+2) & 0xFE) != 0x1E) { return -EINVAL; }
+		if((ByteIn(dumb->info.ioaddr+2) & 0xFC) != 0x1C) { return -EINVAL; }
 
 		timout = jiffies+(HZ/10)+1;
 		ByteOut(dumb->info.ioaddr+4,cfval);

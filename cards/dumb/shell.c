@@ -189,7 +189,7 @@ void NAME(REALNAME,poll)(void *);
 
 
 
-static struct _dumb *dumbmap[16] = { NULL, };
+static struct _dumb *dumblist = NULL;
 
 
 
@@ -1411,26 +1411,23 @@ IRQ_HSCX(struct _dumb * dumb)
 
 
 static void
-intr(int irq, struct pt_regs *regs)
+intr(int irq, void *dev, struct pt_regs *regs)
 {
-	struct _dumb *dumb;
-	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		DEBUG(info)printf(" Pi%d ",dumb->polled);
-		if(!dumb->polled++) {
-			IRQ_HSCX(dumb);
-			IRQ_ISAC(dumb);
-			PostIRQ(dumb);
-			toggle_off(dumb);
-			dumb->polled--;
-		} else if(dumb->polled < 0)
-			dumb->polled--;
+	struct _dumb *dumb = dev;
+
+	DEBUG(info)printf(" Pi%d ",dumb->polled);
+	if(!dumb->polled++) {
+		IRQ_HSCX(dumb);
+		IRQ_ISAC(dumb);
+		PostIRQ(dumb);
+		toggle_off(dumb);
+		dumb->polled--;
+	} else if(dumb->polled < 0)
+		dumb->polled--;
+	if(dumb->polled == 0) {
+		toggle_on(dumb);
 	}
-	for(dumb=dumbmap[irq];dumb != NULL;dumb = dumb->next) {
-		if(dumb->polled == 0) {
-			toggle_on(dumb);
-		}
-		DEBUG(info)printf(" -Pi%d ",dumb->polled);
-	}
+	DEBUG(info)printf(" -Pi%d ",dumb->polled);
 }
 
 
@@ -1527,7 +1524,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return err;
 	}
 #ifdef linux
-	if((dumb->info.irq != 0) && (dumbmap[dumb->info.irq] == NULL) && request_irq(dumb->info.irq,intr,SA_INTERRUPT,STRING(REALNAME))) {
+	if((dumb->info.irq != 0) && request_irq(dumb->info.irq,intr,SA_INTERRUPT,STRING(REALNAME),dumb)) {
 		printf("IRQ not available.\n");
 		kfree(dumb);
 		return -EEXIST;
@@ -1550,8 +1547,8 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		printf("irq %d.\n",dumb->info.irq);
 	else
 		printf("polled.\n");
-	dumb->next = dumbmap[dumb->info.irq];
-	dumbmap[dumb->info.irq] = dumb;
+	dumb->next = dumblist;
+	dumblist = dumb;
 #ifdef linux
 	dumbtimer(dumb);
 #endif
@@ -1566,7 +1563,7 @@ NAME(REALNAME,exit)(struct cardinfo *inf)
 	int j;
 	unsigned long ms = SetSPL(inf->ipl);
 	struct _dumb *dumb = NULL;
-	struct _dumb **ndumb = &dumbmap[inf->irq];
+	struct _dumb **ndumb = &dumblist;
 	while(*ndumb != NULL) {
 		if((*ndumb)->infoptr == inf) {
 			dumb = *ndumb;
@@ -1593,8 +1590,8 @@ NAME(REALNAME,exit)(struct cardinfo *inf)
 		ByteOutHSCX(dumb,j,MASK,0xFF);
 #endif
 	}
-	if((dumb->info.irq > 0) && (dumbmap[dumb->info.irq] == NULL))
-		free_irq(dumb->info.irq);
+	if(dumb->info.irq > 0)
+		free_irq(dumb->info.irq,dumb);
 	isdn2_unregister(&dumb->card);
 	splx(ms);
 	kfree(dumb);

@@ -744,7 +744,9 @@ Parameter:
     kommende abgewiesen werden. (Default: Der abgehende Ruf wird
     abgebrochen.)
 :yi Bei einem ankommeden Ruf wird automatisch ein abgehender gestartet und
-    der ankommende wird abgewiesen (Callback).
+    der ankommende wird abgewiesen (Callback). Das Flag :kl in der DL-Zeile
+    ist manchmal notwendig, Symptom: der abgehende Ruf wird kurz nach
+    dem Aufbau der Verbindung abgebrochen (beobachten mit AT/W).
 :bi Bei einem ankommenden Ruf, der nicht angenommen werden kann (belegt?),
     wird automatisch auf einer anderen Leitung zurückgerufen.
     :fr ebenfalls zu setzen ist meist sinnvoll.
@@ -1013,7 +1015,7 @@ Die Reihenfolge ist wichtig.
 :mt        Verbindung am Bus, feste TEI(0x12). In Spezialfällen notwendig.
 :de        Debugging, macht D-Kanal-Datenaustausch beobachtbar (mit AT/W).
            Vorsicht: Diese Option verlangsamt das gesamte ISDN-System, auch
-           wenn  niemand mit AT/W zusieht.
+           wenn niemand mit AT/W zusieht.
            Die beobachteten Daten sind bei manchen aktiven Karten entweder
            verzögert, oder sie können nicht dargestellt werden!
 
