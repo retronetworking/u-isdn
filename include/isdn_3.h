@@ -146,7 +146,7 @@ typedef struct _isdn3_talk {		  /* one per card's D channel connection */
  ** One struct isdn3_conn represents one ISDN call.
  **/
 #define STACK_LEN 30
-#define NICONN 18
+#define NICONN 25
 #define NSCONN 3
 #define NBCONN 2
 

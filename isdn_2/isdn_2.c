@@ -2627,11 +2627,14 @@ isdn2_wsrv (queue_t *q)
 											h_reply (q, &hdr, -EINVAL);
 											break;
 										}
+										if (chan->card != NULL && chan->card->card != NULL) 
+											qenable(WR(chan->qptr));
 										if((err = do_chprot(crd,hdr.hdr_protocmd.channel,mp,CHP_TOCARD|ismodlist)) < 0) {
 											printf ("%s -- Err SetMode %d\n",KERN_DEBUG,err);
 											hdr.hdr_protocmd.minor = minor;
-										} else 
+										} else {
 											mp = NULL;
+										}
 										h_reply (q, &hdr, err);
 										break;
 									}

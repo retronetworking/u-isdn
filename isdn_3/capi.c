@@ -54,8 +54,8 @@
 #define tstate talki[NBOARD+2] /* State of the current interface */
 #define chanmask talki[NBOARD+3] /* channels we have used up */
 
-#if NICONN <= 17
-#error "Need NICONN > 17"
+#if NICONN <= 18
+#error "Need NICONN > 18"
 #endif
 #if NBCONN <= 1
 #error "Need NBCONN > 1"
@@ -64,20 +64,21 @@
 #define waitflags conni[1] /* what're we waiting for */
 #define msgid0 conni[2] /* for connect_resp */
 #define hl_id conni[3] /* for higher-level stuff, like PPP */
-#define WF_CONNECTACTIVE_IND    4 /* conni[WF_*] for IDs pertaining to that message */
-#define WF_CONNECTB3ACTIVE_IND  5
-#define WF_DISCONNECTB3_IND     6
-#define WF_DISCONNECT_IND       7
-#define WF_SELECTB2_CONF        8
-#define WF_SELECTB3_CONF        9
-#define WF_LISTENB3_CONF       10
-#define WF_CONNECTB3_IND       11
-#define WF_CONNECTB3_CONF      12
-#define WF_DISCONNECTB3_CONF   13
-#define WF_DISCONNECT_CONF     14
-#define WF_CONNECT_CONF        15
-#define WF_CONTROL_EAZ         16
-#define WF_PROTOCOLS           17
+#define capi_callref conni[4] /* for higher-level stuff, like PPP */
+#define WF_CONNECTACTIVE_IND    5 /* conni[WF_*] for IDs pertaining to that message */
+#define WF_CONNECTB3ACTIVE_IND  6
+#define WF_DISCONNECTB3_IND     7
+#define WF_DISCONNECT_IND       8
+#define WF_SELECTB2_CONF        9
+#define WF_SELECTB3_CONF       10
+#define WF_LISTENB3_CONF       11
+#define WF_CONNECTB3_IND       12
+#define WF_CONNECTB3_CONF      13
+#define WF_DISCONNECTB3_CONF   14
+#define WF_DISCONNECT_CONF     15
+#define WF_CONNECT_CONF        16
+#define WF_CONTROL_EAZ         17
+#define WF_PROTOCOLS           18
 
 #define modlist connb
 #define nmodlist NBCONN
@@ -184,7 +185,7 @@ Xsetstate(unsigned int deb_line, isdn3_conn conn, uchar_t state)
 {
     struct capi_info *info = conn->p_data;
 
-printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn->state, state);
+printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->capi_callref, conn->state, state);
 
 	if(conn->state == state)
 		return;
@@ -403,7 +404,7 @@ talk_timer(struct trace_timer *tt)
 static void
 CAPI_TWAITLOCAL(isdn3_conn conn)
 {
-	printf("CAPI_TWAITLOCAL %05lx\n",conn->call_ref);
+	printf("CAPI_TWAITLOCAL %05lx\n",conn->capi_callref);
 	conn->timerflags &= ~RUN_CAPI_TWAITLOCAL;
 	if(conn->state != 6)
 		return;
@@ -414,7 +415,7 @@ CAPI_TWAITLOCAL(isdn3_conn conn)
 static void
 CAPI_TWAITFIRSTLOCAL(isdn3_conn conn)
 {
-	printf("CAPI_TWAITFIRSTLOCAL %05lx\n",conn->call_ref);
+	printf("CAPI_TWAITFIRSTLOCAL %05lx\n",conn->capi_callref);
 	conn->timerflags &= ~RUN_CAPI_TWAITFIRSTLOCAL;
 	if(conn->state != 6)
 		return;
@@ -424,7 +425,7 @@ CAPI_TWAITFIRSTLOCAL(isdn3_conn conn)
 static void
 CAPI_TFOO(isdn3_conn conn)
 {
-	printf("CAPI_TFOO %05lx\n",conn->call_ref);
+	printf("CAPI_TFOO %05lx\n",conn->capi_callref);
 	conn->timerflags &= ~RUN_CAPI_TFOO;
 	setstate(conn,0);
     isdn3_killconn (conn, 1);
@@ -433,7 +434,7 @@ CAPI_TFOO(isdn3_conn conn)
 static void
 CAPI_TCONN(isdn3_conn conn)
 {
-	printf("CAPI_TCONN %05lx\n",conn->call_ref);
+	printf("CAPI_TCONN %05lx\n",conn->capi_callref);
 	conn->timerflags &= ~RUN_CAPI_TCONN;
 	if(conn->state < 1 || conn->state >= 15)
 		return;
@@ -531,7 +532,7 @@ send_setup(isdn3_conn conn)
 	bzero(dl,sizeof(*dl));
 	bzero(c3,sizeof(*c3));
 
-	c2->plci = conn->call_ref;
+	c2->plci = conn->capi_callref;
 	if(!strcmp(s1,"frame")) {
 		c2->B2_proto = 0x02; /* transparent HDLC */
 		c3->B3_proto = 0x04; /* transparent */
@@ -551,19 +552,19 @@ send_setup(isdn3_conn conn)
 	}
 	c2->dlpdlen = sizeof(*dl);
 	dl->data_length = 4096;
-	c3->plci = conn->call_ref;
+	c3->plci = conn->capi_callref;
 	*s2 = sx;
 	if(s4 != NULL)
 		*s4 = sy;
 
 	printf(">SELECTB2_REQ ");
-	err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_SELECTB2_REQ, m2, conn->conni[WF_SELECTB2_CONF] = newmsgid(conn->talk));
+	err = capi_send(conn->talk,conn->capi_callref >> 16, CAPI_SELECTB2_REQ, m2, conn->conni[WF_SELECTB2_CONF] = newmsgid(conn->talk));
 	if(err < 0) {
 		freemsg(m2);
 		freemsg(m3);
 	} else {
 		printf(">SELECTB3_REQ ");
-		err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_SELECTB3_REQ, m3, conn->conni[WF_SELECTB3_CONF] = newmsgid(conn->talk));
+		err = capi_send(conn->talk,conn->capi_callref >> 16, CAPI_SELECTB3_REQ, m3, conn->conni[WF_SELECTB3_CONF] = newmsgid(conn->talk));
 		if(err < 0)
 			freemsg(m3);
 		else {
@@ -714,8 +715,8 @@ capi_findconn(isdn3_talk talk, ushort_t appl, ushort_t plci)
 	ulong_t cref = (appl << 16) | plci;
 
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
-		if(conn->call_ref == cref) {
-			printf(" (conn %05lx) ",conn->call_ref);
+		if(conn->capi_callref == cref) {
+			printf(" (conn %05lx) ",conn->capi_callref);
 			return conn;
 		}
 	}
@@ -728,8 +729,8 @@ capi_findconn3(isdn3_talk talk, ushort_t appl, ushort_t ncci)
 	isdn3_conn conn;
 
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
-		if((conn->call_ref >> 16) == appl && conn->ncci0 == ncci) {
-			printf(" (conn %05lx) ",conn->call_ref);
+		if((conn->capi_callref >> 16) == appl && conn->ncci0 == ncci) {
+			printf(" (conn %05lx) ",conn->capi_callref);
 			return conn;
 		}
 	}
@@ -742,8 +743,8 @@ capi_findconnm(isdn3_talk talk, ushort_t appl, ushort_t msgid, ushort_t index)
 	isdn3_conn conn;
 
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
-		if((conn->call_ref >> 16) == appl && conn->conni[index] == msgid) {
-			printf(" (conn %05lx) ",conn->call_ref);
+		if((conn->capi_callref >> 16) == appl && conn->conni[index] == msgid) {
+			printf(" (conn %05lx) ",conn->capi_callref);
 			return conn;
 		}
 	}
@@ -884,10 +885,10 @@ send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 
 			c3 = ((typeof(c3))m3->b_wptr)++;
 			bzero(c3,sizeof(*c3));
-			c3->plci = conn->call_ref;
+			c3->plci = conn->capi_callref;
 			c3->reject = cause ? ((cause >= 0x100) ? cause : cause | 0x3480) : 0x3480|N1_CallRejected;
 			printf(">CONNECT_RESP ");
-			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_CONNECT_RESP,m3,
+			if((err = capi_send(conn->talk,conn->capi_callref >> 16,CAPI_CONNECT_RESP,m3,
 					conn->msgid0)) < 0) {
 				setstate(conn,0);
 				freemsg(m3);
@@ -908,7 +909,7 @@ send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 			bzero(c3,sizeof(*c3));
 			c3->ncci = conn->ncci0;
 			printf(">DISCONNECTB3_REQ ");
-			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_DISCONNECTB3_REQ,m3,
+			if((err = capi_send(conn->talk,conn->capi_callref >> 16,CAPI_DISCONNECTB3_REQ,m3,
 					conn->conni[WF_DISCONNECTB3_CONF] = newmsgid(conn->talk))) < 0) {
 				freemsg(m3);
 			} else {
@@ -927,10 +928,10 @@ send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 
 			c3 = ((typeof(c3))m3->b_wptr)++;
 			bzero(c3,sizeof(*c3));
-			c3->plci = conn->call_ref;
+			c3->plci = conn->capi_callref;
 			c3->cause = cause;
 			printf(">DISCONNECT_REQ ");
-			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_DISCONNECT_REQ,m3,
+			if((err = capi_send(conn->talk,conn->capi_callref >> 16,CAPI_DISCONNECT_REQ,m3,
 					conn->conni[WF_DISCONNECT_CONF] = newmsgid(conn->talk))) < 0) {
 				freemsg(m3);
 			} else {
@@ -1036,7 +1037,7 @@ send_dialout(isdn3_conn conn)
 		else
 			c2->SRC_eaz = '0';
 	}
-	conn->call_ref = conn->talk->tappl[info->subcard]<<16;
+	conn->capi_callref = conn->talk->tappl[info->subcard]<<16;
 	printf(">CONNECT_REQ ");
 	if((err = capi_send(conn->talk,conn->talk->tappl[info->subcard],CAPI_CONNECT_REQ,m2,conn->conni[WF_CONNECT_CONF]=newmsgid(conn->talk))) < 0) 
 		freemsg(m2);
@@ -1079,8 +1080,9 @@ build_hl(isdn3_conn conn, mblk_t **mss)
 	if((err = m_getstr(mp,sname,FMNAMESZ)) < 0) 
 		goto ret;
 	if(!strcmp(sname,"ppp")) {
-		int do_auth = 0;
+		ushort_t do_auth = 0;
 		streamchar *startmp = mp->b_rptr;
+		ushort_t *lenp;
 
 		ms = allocb(200,BPRI_MED);
 		if(ms == NULL) {
@@ -1091,31 +1093,45 @@ build_hl(isdn3_conn conn, mblk_t **mss)
 		while(m_getsx(mp,&id) >= 0) {
 			switch(id) {
 			case PPP_DO_PAP:
+				do_auth = 0xC221;
+				break;
 			case PPP_DO_CHAP:
-				do_auth = 1;
+				do_auth = 0xC223;
 				break;
 			}
 		}
 		mp->b_rptr = startmp;
 
 		*((ushort_t *)ms->b_wptr)++ = htons(0xC021); /* LCP */
-		*((ushort_t *)ms->b_wptr)++ = htons(do_auth ? 6 : 4); /* Laenge gesamt */
+
+		lenp = (ushort_t *)ms->b_wptr;
+		*((ushort_t *)ms->b_wptr)++ = htons(4+20); /* Laenge gesamt */
+
 		if(do_auth) {
+			*lenp = htons(ntohs(*lenp)+6);
 			*((uchar_t *)ms->b_wptr)++ = 0x03; /* Typ */
 			if(conn->state < 5)  /* outgoing */
 				*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW|OPT_LOC_WANT|OPT_LOC_MAND;
 			else 
 				*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW;
+			*((uchar_t *)ms->b_wptr)++ = 2;
+			*((uchar_t *)ms->b_wptr)++ = 0;
+			*((ushort_t *)ms->b_wptr)++ = htons(do_auth);
 		}
+		*((ulong_t *)ms->b_wptr)++ = htonl(0x01110000); /* MRU */
+		*((ulong_t *)ms->b_wptr)++ = htonl(0x02110000); /* async */
+		*((ulong_t *)ms->b_wptr)++ = htonl(0x05130000); /* magic */
+		*((ulong_t *)ms->b_wptr)++ = htonl(0x07130000); /* protocol compression */
+		*((ulong_t *)ms->b_wptr)++ = htonl(0x08130000); /* ac field compression */
 
 		while(m_getsx(mp,&id) >= 0) {
-			streamchar *len_off;
+			ushort_t *len_off;
 
 			switch(id) {
 			case PROTO_MODULE: break;
 			case PPP_IP_VANJ:
 				*((ushort_t *)ms->b_wptr)++ = htons(0x8021); /* IPCP */
-				len_off = ms->b_wptr;
+				len_off = (ushort_t *)ms->b_wptr;
 				*((ushort_t *)ms->b_wptr)++ = htons(8); /* Laenge gesamt */
 				*((uchar_t *)ms->b_wptr)++ = 0x02; /* Typ */
 				*((uchar_t *)ms->b_wptr)++ = 0x04; /* Laenge */
@@ -1123,13 +1139,14 @@ build_hl(isdn3_conn conn, mblk_t **mss)
 				goto ip_go;
 			case PPP_IP:
 				*((ushort_t *)ms->b_wptr)++ = htons(0x8021); /* IPCP */
-				len_off = ms->b_wptr;
-				*((ushort_t *)ms->b_wptr)++ = htons(4); /* Laenge gesamt */
+				len_off = (ushort_t *)ms->b_wptr;
+				*((ushort_t *)ms->b_wptr)++ = htons(4+4); /* Laenge gesamt */
 			  ip_go:
+				*((ulong_t *)ms->b_wptr)++ = htonl(0x01110000); /* addresses */
 			 	{
 					unsigned long ipaddr;
 					err = m_getip(mp,&ipaddr);
-					*((ushort_t *)len_off) = htons(ntohs(*((ushort_t *)len_off)) + 8);
+					*len_off = htons(ntohs(*len_off) + 8);
 					*((uchar_t *)ms->b_wptr)++ = 0x03;
 					if(err >= 0)
 						*((uchar_t *)ms->b_wptr)++ = OPT_LOC_ALLOW|OPT_REM_ALLOW|OPT_LOC_WANT;
@@ -1158,26 +1175,20 @@ build_hl(isdn3_conn conn, mblk_t **mss)
 					if((err = m_getstr(mp,pwb,sizeof(pwb)-1)) < 0)
 						goto ret;
 
-					if(id == PPP_DO_PAP)
-						*((ushort_t *)ms->b_wptr)++ = htons(0xC021); /* PAP */
-					else if(id == PPP_DO_CHAP)
-						*((ushort_t *)ms->b_wptr)++ = htons(0xC223); /* CHAP */
-					else {
-						err = -EINVAL;
-						goto ret;
-					}
+					*((ushort_t *)ms->b_wptr)++ = htons(do_auth);
+
 					if(!strcmp(usera,"-")) *usera = '\0';
 					if(!strcmp(pwa,"-")) *pwa = '\0';
 					if(!strcmp(userb,"-")) *userb = '\0';
 					if(!strcmp(pwb,"-")) *pwb = '\0';
 					*((ushort_t *)ms->b_wptr)++ = htons(8+strlen(usera)+strlen(userb)+strlen(pwa)+strlen(pwb)); /* Laenge gesamt */
 					*ms->b_wptr++ = strlen(usera);
-					*ms->b_wptr++ = strlen(pwa);
-					*ms->b_wptr++ = strlen(userb);
-					*ms->b_wptr++ = strlen(pwb);
 					for(s=usera;*s;s++) *ms->b_wptr++ = *s;
+					*ms->b_wptr++ = strlen(pwa);
 					for(s=pwa  ;*s;s++) *ms->b_wptr++ = *s;
+					*ms->b_wptr++ = strlen(userb);
 					for(s=userb;*s;s++) *ms->b_wptr++ = *s;
+					*ms->b_wptr++ = strlen(pwb);
 					for(s=pwb  ;*s;s++) *ms->b_wptr++ = *s;
 				}
 				break;
@@ -1227,7 +1238,7 @@ after_active(isdn3_conn conn, int send_assoc)
 			c2 = ((typeof(c2))m2->b_wptr)++;
 			bzero(c2,sizeof(*c2));
 
-			c2->plci = conn->call_ref;
+			c2->plci = conn->capi_callref;
 			if(conn->hl_id) {
 				mblk_t *m3;
 				err = build_hl(conn,&m3);
@@ -1237,7 +1248,7 @@ after_active(isdn3_conn conn, int send_assoc)
 				}
 			}
 			printf(">CONNECTB3_REQ ");
-			err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_CONNECTB3_REQ, m2, conn->conni[WF_CONNECTB3_CONF] = newmsgid(conn->talk));
+			err = capi_send(conn->talk,conn->capi_callref >> 16, CAPI_CONNECTB3_REQ, m2, conn->conni[WF_CONNECTB3_CONF] = newmsgid(conn->talk));
 			if(err < 0) 
 				freemsg(m2);
 			else {
@@ -1271,8 +1282,8 @@ after_active(isdn3_conn conn, int send_assoc)
 			c3 = ((typeof(c3))m3->b_wptr)++;
 			bzero(c2,sizeof(*c2));
 			bzero(c3,sizeof(*c3));
-			c2->plci = conn->call_ref;
-			c3->plci = conn->call_ref;
+			c2->plci = conn->capi_callref;
+			c3->plci = conn->capi_callref;
 #ifdef ALWAYS_ACTIVE
 			if(conn->hl_id) {
 				mblk_t *m4;
@@ -1284,14 +1295,14 @@ after_active(isdn3_conn conn, int send_assoc)
 			}
 #endif
 			printf(">CONNECT_RESP ");
-			if((err = capi_send(conn->talk,conn->call_ref>>16,CAPI_CONNECT_RESP,m3,conn->msgid0)) < 0) {
+			if((err = capi_send(conn->talk,conn->capi_callref>>16,CAPI_CONNECT_RESP,m3,conn->msgid0)) < 0) {
 				freemsg(m2);
 				freemsg(m3);
 			} else
 #ifdef ALWAYS_ACTIVE
-				if(printf(">CONNECTB3_REQ "),(err = capi_send(conn->talk,conn->call_ref>>16,CAPI_CONNECTB3_REQ,m2,conn->conni[WF_CONNECTB3_CONF] = newmsgid(conn->talk))) < 0)
+				if(printf(">CONNECTB3_REQ "),(err = capi_send(conn->talk,conn->capi_callref>>16,CAPI_CONNECTB3_REQ,m2,conn->conni[WF_CONNECTB3_CONF] = newmsgid(conn->talk))) < 0)
 #else
-				if(printf(">LISTENB3_REQ "),(err = capi_send(conn->talk,conn->call_ref>>16,CAPI_LISTENB3_REQ,m2,conn->conni[WF_LISTENB3_CONF] = newmsgid(conn->talk))) < 0)
+				if(printf(">LISTENB3_REQ "),(err = capi_send(conn->talk,conn->capi_callref>>16,CAPI_LISTENB3_REQ,m2,conn->conni[WF_LISTENB3_CONF] = newmsgid(conn->talk))) < 0)
 #endif
 				freemsg(m2);
 			else {
@@ -1321,8 +1332,8 @@ after_active(isdn3_conn conn, int send_assoc)
 
 			m_putid(mz,CMD_CARDPROT);
 			m_putsx(mz,ARG_ASSOC);
-			m_puti(mz,conn->call_ref >> 16);
-			m_puti(mz,conn->call_ref & 0xFF);
+			m_puti(mz,conn->capi_callref >> 16);
+			m_puti(mz,conn->capi_callref & 0xFFFF);
 			m_puti(mz,conn->ncci0);
 			err = isdn3_send_conn(conn->minor,AS_PROTO,mz);
 			if(err < 0) {
@@ -1541,7 +1552,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = -ENXIO;
 				break;
 			}
-			conn->call_ref = (capi->appl << 16) | c2->plci;
+			conn->capi_callref = (capi->appl << 16) | c2->plci;
 			if((c2->info == 0) && (conn->waitflags & (1<<WF_CONNECT_CONF))) {
 				conn->waitflags &=~ (1<<WF_CONNECT_CONF);
 				if(conn->waitflags == 0) {
@@ -1878,7 +1889,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								info->nr[nrlen-1] = '\0';
 						}
 
-						conn->call_ref = (capi->appl << 16) | c2->plci;
+						conn->capi_callref = (capi->appl << 16) | c2->plci;
 						conn->msgid0 = capi->messid;
 						conn->minorstate |= MS_INCOMING;
 
@@ -2033,7 +2044,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			bzero(c3,sizeof(*c3));
 			c3->plci = c2->plci;
 			printf(">INFO_RESP ");
-			if((err = capi_send(conn->talk,conn->call_ref >> 16,CAPI_INFO_RESP,m3,
+			if((err = capi_send(conn->talk,conn->capi_callref >> 16,CAPI_INFO_RESP,m3,
 					capi->messid)) < 0) {
 				/* TODO: Hmmm... */
 				freemsg(m3);
@@ -2477,7 +2488,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 static int
 send (isdn3_conn conn, mblk_t * data)
 {
-	printf("CAPI: send %05lx\n",conn->call_ref);
+	printf("CAPI: send %05lx\n",conn->capi_callref);
 	return -ENXIO;
 #if 0
 	isdn3_prot prot = isdn3_findprot (conn->card->info, conn->subprotocol);
@@ -2506,7 +2517,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	if(conn->talk->tstate == STATE_DEAD)
 		return -ENXIO;
 
-	printf("CAPI: sendcmd %05lx %04x: ",conn->call_ref,id);
+	printf("CAPI: sendcmd %05lx %04x: ",conn->capi_callref,id);
 	{
 		mblk_t *mb = data;
 		if(mb == NULL) printf("NULL"); else
@@ -2714,7 +2725,7 @@ ckill (isdn3_talk talk, char force)
 static void
 killconn (isdn3_conn conn, char force)
 {
-	printf("CAPI: killconn %05lx: %d\n",conn->call_ref,force);
+	printf("CAPI: killconn %05lx: %d\n",conn->capi_callref,force);
 	conn->lockit++;
     if (force) {
         untimer (CAPI_TCONN, conn);
@@ -2734,7 +2745,7 @@ killconn (isdn3_conn conn, char force)
 static void
 hook (isdn3_conn conn)
 {
-	printf("CAPI: hook %05lx\n",conn->call_ref);
+	printf("CAPI: hook %05lx\n",conn->capi_callref);
 }
 
 
@@ -2904,7 +2915,7 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 	ushort_t id;
 	int err;
 
-	printf("CAPI: proto %05lx %s: ",conn->call_ref, down ? "down" : "up");
+	printf("CAPI: proto %05lx %s: ",conn->capi_callref, down ? "down" : "up");
 	if(mb == NULL) printf("NULL"); else
 	while(mb != NULL) {
 		dumpascii(mb->b_rptr,mb->b_wptr-mb->b_rptr);
