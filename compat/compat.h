@@ -89,9 +89,6 @@ int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line);
 #include <string.h>
 #endif /* KERNEL */
 
-#define IRQ_BH 31
-#define STREAMS_BH 30
-
 #if 1
 typedef unsigned char uchar_t;
 typedef unsigned short ushort_t;

@@ -506,12 +506,10 @@ streams_read (struct inode *inode, struct file *file, char *buf, int count)
 					printf("MsgBad at read! %lx %p\n",p_msg->deb_magic,p_msg->b_rptr);
 					p_msg = NULL;
 				} else
-#ifndef SK_STREAM
 				  if(p_msg->b_datap->deb_magic != DEB_DMAGIC) {
 					printf("MsgBad at read! %lx %p\n",p_msg->b_datap->deb_magic,p_msg->b_rptr);
 					p_msg = NULL;
 				} else
-#endif
 				  if(p_msg->b_rptr == NULL) {
 		 			printf("MsgNull from %s:%d\n",p_msg->deb_file,p_msg->deb_line);
 					p_msg->b_wptr = NULL;

@@ -141,7 +141,7 @@ struct arnet_info {
 #define ARNET_NCARDS 4
 #define ARNET_NPORTS 4
 
-static struct arnet_info *arnet_map[NR_IRQS] = { NULL, };
+static struct arnet_info *arnet_list = NULL;
 static struct arnet_info *arnet_cards[ARNET_NCARDS];
 
 const char *astr(char x)
@@ -1295,12 +1295,11 @@ next:
 }
 
 static void
-arnet_intr(int irq, struct pt_regs *foo)
+arnet_intr(int irq, void *dev, struct pt_regs *foo)
 {
-	struct arnet_info *arn;
+	struct arnet_info *arn = dev;
 
-    for(arn=arnet_map[irq];arn != NULL; arn = arn->next) 
-		arnet_intrx(arn);
+	arnet_intrx(arn);
 }
 
 void NAME(REALNAME,exit)(struct cardinfo *inf)
@@ -1311,7 +1310,7 @@ void NAME(REALNAME,exit)(struct cardinfo *inf)
 
 ddprintf(".%d.",__LINE__);
 
-	parn = &arnet_map[inf->irq];
+	parn = &arnet_list;
 	while(*parn != NULL) {
 		if((*parn)->infoptr == inf) {
 			arn = *parn;
@@ -1344,8 +1343,8 @@ dprintf("Port %d: ",cnt);
 	MEM(char,arn, 0x15) = 0x00; /* IRQ off */
 	MEM(char,arn, 0x16) = 0x00; /* IRQ off */
 
-	if((arnet_map[arn->info.irq] == NULL) && (arn->info.irq != 0))
-		free_irq(arn->info.irq);
+	if(arn->info.irq != 0)
+		free_irq(arn->info.irq,arn);
 	release_region(arn->info.ioaddr,16);
 	kfree(arn);
 }
@@ -1532,15 +1531,15 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		MEM(char,arn,0x53) = 0xFF;
 	}
 
-    if((arn->info.irq != 0) && (arnet_map[arn->info.irq] == NULL) && request_irq(arn->info.irq,arnet_intr,0 /* SA_INTERRUPT */,"arnet")) {  
+    if((arn->info.irq != 0) && request_irq(arn->info.irq,arnet_intr,0 /* SA_INTERRUPT */,"arnet",arn)) {  
 		printf("*** IRQ %d not available\n",arn->info.irq);
 		kfree(arn);
 		return -EBUSY;
 	}
 	request_region(arn->info.ioaddr,16,"arnet");
 
-	arn->next = arnet_map[arn->info.irq];
-	arnet_map[arn->info.irq] = arn;
+	arn->next = arnet_list;
+	arnet_list = arn;
 	arnet_cards[arn->info.ipl] = arn;
 
   	printf("\n");

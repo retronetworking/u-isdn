@@ -285,23 +285,7 @@ killconn (isdn3_conn conn, char force)
 	if (prot != NULL)
 		(*prot->killconn) (conn, force);
 
-	if (talk != NULL && talk->conn == NULL && (talk->state & PHONE_UP)) {
-		/* Last talker got closed. Shutdown for level 2. */
-		talk->state &= ~PHONE_UP;
-		if(0)printf ("PHONE i2s DOWN\n");
-		(void) isdn3_chstate (talk, DL_RELEASE_REQ, 0, CH_CLOSEPROT);
-	} else {
-#if 0
-		printf ("Killconn: Phone s1tays up");
-		if (talk == NULL)
-			printf (": Talk NULL");
-		else if (talk->conn != NULL)
-			printf (": talk->conn %x (ref %d, state %d)", talk->conn, talk->conn->call_ref, talk->conn->state);
-		if (!(talk->state & PHONE_UP))
-			if(0)printf (": PHONE i3s DOWN\n");
-		printf ("\n");
-#endif
-	}
+	ckill(talk,0);
 }
 
 static void

@@ -213,14 +213,6 @@ printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
 		return -EAGAIN;
 	}
 
-#if 0 /* def SK_STREAM -- not yet, problems forwarding packets! */
-	mb = dupskb(skb);
-	if(mb == NULL) {
-		printk("%sNo Buffers in str_if:write\n",KERN_WARNING);
-		dev->tbusy = 1;
-		return -ENOBUFS;
-	}
-#else
 	mb = allocb(skb->len+lp->offset, BPRI_LO);
 	if(mb == NULL)  {
 printk("No Buff\n");
@@ -268,7 +260,6 @@ printk("No Buff\n");
 	memcpy(mb->b_wptr,skb->data,skb->len);
 	mb->b_wptr += skb->len;
 	dev_kfree_skb (skb, FREE_WRITE);
-#endif
 	putnext(WR(lp->q),mb);
 	lp->stats.tx_packets++;
 
@@ -364,9 +355,6 @@ str_if_proto (queue_t * q, mblk_t * mp, char isdown)
 					lp->offset = z;
 					z = 0;
 				}
-#ifdef SK_STREAM
-				dev->hard_header_len = lp->offset;
-#endif
 				freemsg(mp);
 				if((mp = allocb(10,BPRI_MED)) != NULL) {
 					m_putid(mp,PROTO_OFFSET);
@@ -746,15 +734,6 @@ str_if_rsrv (queue_t *q)
 				struct sk_buff *skb;
 				int len = msgdsize(mp);
 				int offset = 0;
-#ifdef SK_STREAM
-				if((mp->b_cont == NULL) && (DATA_REFS(mp) == 1)) {
-					skb = DATA_BLOCK(mp);
-					DATA_REFS(mp)++;
-					skb->data = mp->b_rptr;
-					skb->tail = mp->b_wptr;
-					freeb(mp);
-				} else
-#endif
 				{
 					skb = alloc_skb(len, GFP_ATOMIC);
 					if (skb == NULL) {
