@@ -168,30 +168,34 @@ classmatch(char *a, char *b)
 			strcat(classpat,b);
 			return str_enter(classpat);
 		} else {
+			char classpat[50], *classend = classpat;
 			char *aorig,*bplus;
 			if(*a != '+') {
 				char *tmp = a; a = b; b = tmp;
 			}
 			if((bplus=strchr(b,'+')) != NULL) *bplus='\0';
+			strcpy(classpat,b); classend = classpat+strlen(b);
 			aorig = a;
 			do {
+				char *thisa = a;
 				while(*++a != '\0' && *a != '+') {
-					if(strchr(b,*a) != NULL)
-						break;
+					if(strchr(b,*a) != NULL) {
+						while(thisa < a) {
+							if(strchr(b,*thisa) != NULL)
+								*classend++ = *thisa;
+							thisa++;
+						}
+						goto cont;
+					}
 				}
-				if(*a == '\0' || *a == '+') {
-					if(bplus != NULL) *bplus='+';
-					return NULL;
-				}
+				if(bplus != NULL) *bplus='+';
+				return NULL;
+			  cont:;
 			} while((a = strchr(a,'+')) != NULL);
-			{
-				char classpat[50];
-				strcpy(classpat,b);
-				if(bplus != NULL)
-					*bplus='+';
-				strcat(classpat,pluscat(aorig,bplus));
-				return str_enter(classpat);
-			}
+			if(bplus != NULL) *bplus='+';
+			*classend = '\0';
+			strcat(classpat,pluscat(aorig,bplus));
+			return str_enter(classpat);
 		}
 	} else {
 		char classpat[30];

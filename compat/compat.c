@@ -28,7 +28,6 @@
 #include "compat.h"
 
 unsigned long block_mask = 0;
-const char *xdeb_file; unsigned int xdeb_line;
 
 /*
  * Standard Unix-kernel timeout code. Two versions -- the new version
@@ -54,12 +53,14 @@ static void dotimer(void *arg)
 	struct timing *tim = (struct timing *)arg;
 
 	(*tim->proc)(tim->arg);
+
 	sti();
 #ifdef CONFIG_MALLOC_NAMES
 	deb_kfree(tim,__FILE__,__LINE__);
 #else
-	kfree_s(tim,sizeof(struct timing));
+	kfree(tim);
 #endif
+
 #ifdef MODULE
 	MOD_DEC_USE_COUNT;
 #endif
@@ -85,7 +86,7 @@ static void droptimer_old(void (*func)(void *), void *arg, char del)
 #ifdef CONFIG_MALLOC_NAMES
 				deb_kfree(tim,__FILE__,__LINE__);
 #else
-				kfree_s(tim,sizeof(struct timing_old));
+				kfree(tim);
 #endif
 			}
 #ifdef MODULE
@@ -94,6 +95,7 @@ static void droptimer_old(void (*func)(void *), void *arg, char del)
 			return;
 		}
 	}
+
 	restore_flags(flags);
 	printk("Timer %p:%p not found\n", func,arg);
 }
@@ -109,8 +111,9 @@ static void dotimer_old(void *arg)
 #ifdef CONFIG_MALLOC_NAMES
 	deb_kfree(tim,__FILE__,__LINE__);
 #else
-	kfree_s(tim,sizeof(*tim));
+	kfree(tim);
 #endif
+
 }
 
 #ifdef CONFIG_MALLOC_NAMES
@@ -145,6 +148,7 @@ int timeout(void (*func)(void *), void *arg, int expire)
 	MOD_INC_USE_COUNT;
 #endif
 	add_timer(&timer->tim);
+
 	return (int)timer;
 }
 
@@ -188,6 +192,7 @@ void timeout_old(void (*func)(void *), void *arg, int expire)
 	MOD_INC_USE_COUNT;
 #endif
 	add_timer(&timer->tim.tim);
+
 }
 
 #ifdef CONFIG_MALLOC_NAMES
@@ -196,12 +201,17 @@ void deb_untimeout(const char *deb_file, unsigned int deb_line, int timer)
 void untimeout(int timer)
 #endif
 {
-	del_timer(&((struct timing *)timer)->tim);
+	if(!del_timer(&((struct timing *)timer)->tim)) {
+#ifdef CONFIG_MALLOC_NAMES
+		printf("del_timer called freed from %s:%d\n",deb_file,deb_line);
+#endif
+	}
 #ifdef CONFIG_MALLOC_NAMES
 	deb_kfree((void *)timer,deb_file,deb_line);
 #else
-	kfree_s((void *)timer,sizeof(struct timing));
+	kfree((void *)timer);
 #endif
+
 #ifdef MODULE
 	MOD_DEC_USE_COUNT;
 #endif
@@ -378,6 +388,7 @@ void *deb_kmalloc(size_t sz, int prio, const char *deb_file, unsigned int deb_li
 	foo++;
 	if(!mack) printk("%s[M:A %d %p %s:%d]\n",KERN_DEBUG,sz,foo,deb_file,deb_line);
 	*(long *)(sz + (char *)(foo)) = MAGIC_TAIL;
+
 	return foo;
 }
 
@@ -394,6 +405,7 @@ int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line)
 		return 1;
 	}
 	foo->file = deb_file; foo->line = deb_line;
+
 	return 0;
 }
 

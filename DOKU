@@ -101,9 +101,11 @@ Die Konfigurationsdatei ist manchmal etwas undurchsichtig.
 _Ich_ werde das nicht ändern, keine Zeit; wenn jemand ein Frontend
 schreiben will -- nur zu!
 
-Login über ISDN macht noch leichte Probleme.
-
 Die Doku liegt nur auf deutsch vor.
+
+Bei manchen Leuten hängt sich der Treiber bzw. der ganze Rechner bei
+ankommenden (Voice-)anrufen kommentarlos auf. Ich konnte das leider bisher
+nicht nachvollziehen...
 
 
 Fragen? Probleme? (Gleich am Anfang, damit es keiner übersieht...)
@@ -424,6 +426,9 @@ AT/L Karte
         up      Verbindung steht
         ->down
         ->up    Verbindung wird gerade ab- bzw. aufgebaut.
+                Zusätzlich kann hinter <Modus> erscheinen:
+           .N   Nter Anwahlversuch
+           -N   ... nachdem N Serien fehlgeschlagen sind.
     <UnitNow>   Einheiten in der aktuellen Verbindung.
     <UnitAll>   Einheiten insgesamt seit Start des Prozesses.
     <Flags>     interner Zustand der Verbindung, komma remote-Nummer,
@@ -667,6 +672,12 @@ Alle anderen Zeilen werden von oben nach unten durchsucht; die erste
 passende Zeile wird verwendet. (Beim Scannen der P-Zeilen werden Daten aus
 passenden Folgezeilen ebenfalls berücksichtigt -- siehe unten.)
 
+Bei Problemen (Ggeenstelle besetzt...) wird bei permanenten Verbindungen
+ein paarmal probiert, dann werden anstehende Daten weggeworfen und die
+Verbindung eine bestimmte (exponentiell wachsende (ja, das muß sein) Zeit
+auf Eis gelegt. Ein ankommender Anruf weckt diese Verbindung
+selbstverständlich wieder auf.
+
 
 Konfigurationsdatei: Details
 -------------------
@@ -685,13 +696,11 @@ Alle Zeilentypen:
       "ab"  "cd"       -> leere Menge
       "ab"  "xay"      -> "a"
       "ab"  "+x"       -> leere Menge
-      "ab"  "+bx"      -> "ab+bx"
-      "ab"  "+bx"  "a" -> leere Menge
-      Damit läßt sich sehr flexibel einstellen, wer auf welcher Leitung /
-      Nummer mit welchen Parametern anrufen kann.
-      Das Ganze ist noch optimierbar, aber ich bin zu faul...
-      insbesondere ist das obige "ab+bx" zu "ab" reduzierbar
-      (weil nur einer der hinter dem + angegebenen Flags gesetzt ist).
+      "ab"  "+bx"      -> "ab+bx" (oder "ab+b", aber _nicht_ "ab" oder "b")
+      "ab"  "+bx" "a"  -> leere Menge
+      "ab"  "+bx" "+a" -> "ab+bx+a" (oder so ähnlich)
+      Damit läßt sich sehr flexibel einstellen, wer wann auf welcher
+      Leitung / Nummer mit welchen Parametern anrufen kann.
 <Karte> ist der vierstellige Name der ISDN-Karte, der dieser beim Laden
         des Treibers verpaßt wurde; üblich ist eine dreistellike Kennung
         des Kartentyps und eine fortlaufende Numerierung.
@@ -743,6 +752,10 @@ Parameter:
 :fX Ankommende Anrufe, die (zB wegen besetzt) abgewiesen werden, werden
     "schnell" abgelehnt. (Andere Geräte am Bus können nicht abheben, da die
     Vermittlung nicht abwartet, ob sich noch jemand meldet.)
+	Dieses Flag ist bei aktivem Callback meistens notwendig, wenn der
+	andere B-Kanal anderweitig beschäftig ist, weil die Vermittlung den
+	ankommenden Ruf noch hält und den abgehenden wegen Kanalmangel abweist.
+	:-(
 :fr Abgehende Anrufe, die nicht durchkommen, werden "sofort" und "oft"
     wiederholt.
 :ib Wenn ankommend kein B-Kanal mitgeliefert wird, wird die Verbindung
@@ -936,12 +949,15 @@ Form:
 TM <Key> <Zeitangabe>
 
 Beispiel:
-TM abcde SaSu,Am-Fr18-08
+TM abcde SaSu,Mo-Fr18-08
 
 Schlüssel für Zeiten. Zu der angegebenen Zeit werden nur Verbindungen
 zugelassen, deren <Key>-Parameter mit dem angegebenen Key kompatibel ist.
 
-Achtung: es wird immer der erste gefundene TM-Eintrag verwendet!
+Die gefundenen Schlüsselwerte werden geODERt, d.h.
+  TM ab Wk
+  TM cd 08-10
+wird, wenn am Montag um neun Uhr aufgerufen, zu "abcd" aufgelöst.
 
 
 DL-Zeile ("Dial Local")
@@ -1074,14 +1090,17 @@ Definition von Nummernpräfixen, um Vermittlungsbereiche erreichen zu können.
 Das erste Präfix ist für abgehende, das zweite (das weggelassen werden kann)
 für ankommende Verbindungen; 1TR6-Nebenstellenanlagen wollen beim Wählen
 typischerweise eine vorgestellte Null o.ä. sehen, die aber bei ankommenden
-Gesprächen nicht mit angezeigt wird.
+Gesprächen nicht mit angezeigt wird. (Ich habe keine Ahnung, wie Gespräche
+innerhalb einer Anlage signalisiert werden; zum Glück stirbt 1TR6 langsam
+aber sicher aus.)
 
 Die Zeichen sind _immer_ "+" für internationale Verbindungen, "=" für 
 nationale Verbindungen, "-" für Ortsverbindungen, "." für Nummern an einer
 Nebenstellenanlage und "/" für EAZs/MSNs etc. Der Unterschied zwischen "."
 und "/" ist, daß Nummern einer Nebenstellenanlage direkt angerufen werden
 können, während man für eine Verbindung zu einer anderen MSN am gleichen
-Basisanschluß die Teilnehmernummer mitwählen muß.
+Basisanschluß die Teilnehmernummer mitwählen muß. In der DP-Zeile erscheint
+folglich niemals ein "/".
 
 Beispiel: Eine Konfiguration
 D ... -1234/[456]
@@ -1782,4 +1801,18 @@ aber nur eine Version korrekt um.
 
 Workaround: Keiner.
 Bugfix: Hersteller kräftig treten.
+
+(2)
+Manche Anlagen treiben es noch schlimmer und übergeben ankommende Anrufe
+mit "unbekannter Nummerntyp" aber _ohne_ führende Null. Sorry, leider
+daneben -- evtl. hilft :b1 in der DL-Zeile.
+
+Noch schlimmer treibt es zB die Ackerman Euracom 181, Firmware 1.05, die
+ankommend die Nebenstellennummer als "örtliche Nummer" kennzeichnet.
+Workaround: Auch :b1. Abgesehen davon: Hersteller _kräftig_ treten, sowas
+ist einfach Unsinn.
+
+(3)
+Die Niederländer übergeben die Einheiten nicht im dafür vorgesehenen
+Format, sondern als DISPLAY-String. Grummel. :b2 in die DL-Zeile.
 

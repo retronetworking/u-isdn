@@ -383,7 +383,7 @@ van_j_rsrv (queue_t * q)
 				if (van_j->flags & VAN_J_PPP) {
 					mq = pullupm (mp, 2);
 					if (mq == NULL) {
-						putbq (q, mp);
+						putbqf (q, mp);
 						return;
 					}
 					protocol = *(ushort_t *) mq->b_rptr;

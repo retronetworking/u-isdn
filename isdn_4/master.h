@@ -228,7 +228,8 @@ typedef struct proginfo {
 /* States of a connection */
 
 typedef enum connstate {
-	c_forceoff,		/* Unknown */
+	c_unknown,      /* Unknown */
+	c_forceoff,		/* forced inactive due to a serious error */
 	c_offdown,		/* Being turned off */
 	c_off,			/* Turned off, unavailable */
 	c_down,			/* Inactive */
@@ -300,28 +301,29 @@ typedef struct conninfo {
 } *conninfo;
 
 /* Special flags. Ordered for improved readability when debugging. */
-#define F_DIALUP          0x1 /* dialup connection */
-#define F_MULTIDIALUP     0x2 /* dialup connection, independent */
-#define F_PERMANENT       0x4 /* dialup connection which doesn't really die */
-#define F_LEASED          0x8 /* connection on leased line */
-#define F_INCOMING       0x10 /* incoming call */
-#define F_OUTGOING       0x20 /* outgoing call */
-#define F_SETINITIAL     0x40 /* initial connection setup */
-#define F_SETLATER       0x80 /* later re-setup */
-#define F_NRCOMPLETE    0x100 /* remote number is complete */
-#define F_LNRCOMPLETE   0x200 /* local number is complete */
-#define F_OUTCOMPLETE   0x400 /* outgoing call info complete */
-#define F_INTERRUPT     0x800 /* interrupt, don't disconnect */
-#define F_PREFOUT      0x1000 /* drop incoming connection on call collision */
-#define F_FORCEOUT     0x2000 /* always drop incoming connection */
-#define F_IGNORELIMIT  0x4000 /* override connection limit */
-#define F_FASTDROP     0x8000 /* immediate connection reject */
+#define F_DIALUP      0x1 /* dialup connection */
+#define F_MULTIDIALUP 0x2 /* dialup connection, independent */
+#define F_PERMANENT   0x4 /* dialup connection which doesn't really die */
+#define F_LEASED      0x8 /* connection on leased line */
+#define F_INCOMING    0x10 /* incoming call */
+#define F_OUTGOING    0x20 /* outgoing call */
+#define F_SETINITIAL  0x40 /* initial connection setup */
+#define F_SETLATER    0x80 /* later re-setup */
+#define F_NRCOMPLETE  0x100 /* remote number is complete */
+#define F_LNRCOMPLETE 0x200 /* local number is complete */
+#define F_OUTCOMPLETE 0x400 /* outgoing call info complete */
+#define F_INTERRUPT   0x800 /* interrupt, don't disconnect */
+#define F_PREFOUT     0x1000 /* drop incoming connection on call collision */
+#define F_FORCEOUT    0x2000 /* always drop incoming connection */
+#define F_FORCEIN     0x4000 /* always drop incoming connection */
+#define F_FASTDROP    0x8000 /* immediate connection reject */
 #define F_FASTREDIAL  0x10000 /* don't delay much when a dial attempt fails */
 #define F_CHANBUSY    0x20000 /* busy if no free channel */
 #define F_NOREJECT    0x40000 /* don't cause "temp unavailable" messages */
 #define F_BACKCALL    0x80000 /* callback on B if incoming call on A busy */
-#define F_NOSTART    0x100000 /* Do not start the call */
-#define F_FOOBAR     0x200000 /* dummy flag to return non-FALSE passing flags */
+#define F_NOSTART     0x100000 /* Do not start the call */
+#define F_IGNORELIMIT 0x200000 /* override connection limit */
+#define F_FOOBAR      0x400000 /* dummy, to return non-FALSE for zeroed flags */
 
 #define F_MASKFLAGS (F_LEASED|F_PERMANENT|F_DIALUP|F_MULTIDIALUP)
 #define F_DIALFLAGS (F_MULTIDIALUP|F_DIALUP|F_PERMANENT)

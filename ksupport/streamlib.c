@@ -266,7 +266,9 @@ putbqf (queue_t * q, mblk_t * mp)
 	qflag = q->q_flag;
 	q->q_flag |= QENAB;
 #ifdef CONFIG_DEBUG_STREAMS
-	if(0)printf("%sPutBQF %p:%p at %s:%d\n",KERN_DEBUG,q,mp,deb_file,deb_line);
+	/* This is KERN_EMERG message because it just shouldn't happen --
+	   putbqf is for emergencies, putbq is for normal scheduling. */
+	printf("%sPutBQF %p:%p at %s:%d\n",KERN_EMERG,q,mp,deb_file,deb_line);
 	deb_putbq (deb_file,deb_line, q, mp);
 #else
 	putbq (q, mp);

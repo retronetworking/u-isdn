@@ -162,8 +162,10 @@ char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
 		char *xextpos = strchr(extnr,'.');
 		char *xlocpos = strchr(locnr,'.');
 		if(xextpos != NULL && xlocpos != NULL && 
-				(!strcmp(xextpos,xlocpos) || (wildmatch(xextpos+1,xlocpos+1) != NULL)))
+				(!strcmp(xextpos,xlocpos) || (wildmatch(xextpos+1,xlocpos+1) != NULL))) {
 			lastprefpos=".";
+			islocal &=~ 2;
+		}
 	}
 	
 	locpos=strchr(locnr,*lastprefpos);

@@ -413,7 +413,7 @@ strread (struct xstream *xp, streamchar *data, int len, int usehq)
 				 * else free msg and return 0.
 				 */
 				if (nlen)
-					putbq (q, bp);
+					putbqf (q, bp);
 				else
 					freemsg (bp);
 				return nlen;

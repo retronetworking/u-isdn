@@ -11,7 +11,7 @@
 extern int NAME(CARDTYPE,init)(struct cardinfo *inf);
 extern void NAME(CARDTYPE,exit)(struct cardinfo *inf);
 
-struct cardinfo inf;
+struct cardinfo inf = {0,};
 
 int irq = 0;
 int mem = 0;

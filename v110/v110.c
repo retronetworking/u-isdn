@@ -309,7 +309,7 @@ v110_wsrv (queue_t * q)
 				}
 				if (mp != NULL) {
 					log_printmsg (NULL, "Back", mrs, KERN_DEBUG);
-					putbq (q, mp);
+					putbqf (q, mp);
 					return;
 				}
 			}
@@ -385,7 +385,7 @@ v110_rsrv (queue_t * q)
 					putbq (q, mp);
 #ifdef FORCE
 					if (m_off != NULL)
-						putbq (q, m_off);
+						putbqf (q, m_off);
 #endif
 					return;
 				}
@@ -595,7 +595,7 @@ v110_rsrv (queue_t * q)
 #ifdef FORCE
 	if (m_off != NULL) {
 		q->q_flag &= ~QWANTR;
-		putbq (q, m_off);
+		putbqf (q, m_off);
 		q->q_flag |= QWANTR;
 	}
 #endif

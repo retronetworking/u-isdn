@@ -302,7 +302,7 @@ slip_rsrv (queue_t * q)
 									timeout((void *)qenable,q,HZ/10);
 								  out:
 									(uchar_t *) mp->b_rptr = cp;
-									putbq (q, mp);
+									putbqf (q, mp);
 									return;
 								}
 								putnext (q, mp2);

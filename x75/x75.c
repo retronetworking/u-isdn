@@ -633,13 +633,13 @@ x75_wsrv (queue_t * q)
 				 * Not connecting? Forget it...
 				 */
 				if (!(x_75->flags & X75_CONNECT)) {
-					putbq (q, mp);
+					putbqf (q, mp);
 					return;
 				}
 				if (x_75->x75.status == S_down && ((x_75->connmode & (X75CONN_DATA)) == X75CONN_DATA))
 					x75_changestate (&x_75->x75, DL_ESTABLISH_REQ, 0);
 				if (!x75_cansend (&x_75->x75, isUI)) {
-					putbq (q, mp);/* assume backenable gets called */
+					putbqf (q, mp);/* assume backenable gets called */
 					return;
 				} else if ((err = x75_send (&x_75->x75, isUI, mp)) == 0)
 					break;

@@ -4,6 +4,19 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1996-02-08
+
+Update 35. Problem mit Euro-ISDN-Nebenstellenanlagen behoben.
+Achtung: +000=00-0. in die DP-Zeile, der Punkt am Ende ist nicht ganz
+unwichtig.
+
+
+*** 1996-01-05
+
+Update 34. Weitere Crashprobleme (hoffentlich) beseitigt.
+Achtung: Alle zutreffenden Keys in TM-Zeilen werden nun geODERt.
+
+
 *** 1996-01-03
 
 Update 33. Timer wieder umgestellt. Testcode für automatische Anpassung des

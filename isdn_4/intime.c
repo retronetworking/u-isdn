@@ -142,13 +142,13 @@ isintime (char *ztime)
 
 		if (afday[tm->tm_wday]) {
 			if (istart < iend) {
-				if ((istart < now) && (iend > now))
+				if ((istart <= now) && (iend > now))
 					return (iend - now) * 60;
 			} else { /* Wrap around midnight */
-				if (iend > now)
+				if (istart <= now)
 					return (24*60-now) * 60;
-				if (istart > now)
-					return (istart - now) * 60;
+				if (iend > now)
+					return (iend - now) * 60;
 			}
 		}
 	}

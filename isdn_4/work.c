@@ -62,8 +62,6 @@ deadkid (void)
 		}
 	}
 	if(has_dead) {
-		in_boot = 1;
-		connreport("# Blocking connections","*",0);
 		do_run_now++;
 		timeout(run_now,NULL,3*HZ);
 	}
@@ -348,9 +346,11 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	if(conn->cg != cg) {
 		if(conn->state == c_going_down) {
 			if((cg->flags & (F_PREFOUT|F_FORCEOUT)) && (cg->flags & F_INCOMING)) 
-				*ret = "-Callout delayed?";
+				*ret = "-Hmmm, callout delayed?";
+			else if(cg->flags & F_INCOMING)
+				*ret = "+Incoming while old call isn't really down?";
 			else
-				*ret = "+Hmmm, something's not quite right";
+				*ret = "+Hmmm, something's not quite right...";
 			dropgrab(cg);
 			return conn;
 		}
@@ -606,7 +606,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 			char *err;
 
 			if((err = findit (foo,!!(cg->flags & F_PERMANENT))) != NULL) {
-				if(conn != NULL)
+				if(conn != NULL && rconn != NULL && conn != *rconn)
 					free(conn);
 				return err;
 			}
@@ -1198,7 +1198,7 @@ run_now(void *nix)
 	}
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
 		signal (SIGHUP, SIG_DFL);
-	if(quitnow)
+	if((in_boot < 0)|| quitnow)
 		return;
 
 	for(what = cf_R; what != NULL; what = what->next) {
@@ -1286,8 +1286,7 @@ run_now(void *nix)
 					printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0) {
 					if(conn->cg->cclass != NULL) {
-						char *newclass = classmatch(conn->cg->cclass, theclass);
-						if((newclass == NULL) && (conn->state >= c_going_up)) {
+						if((classmatch(conn->cg->cclass, theclass) == NULL) && (conn->state >= c_going_up)) {
 							mblk_t *mb = allocb(80,BPRI_MED);
 
 							setconnstate(conn, c_down);
@@ -1315,10 +1314,6 @@ run_now(void *nix)
 				}
 			}
 		}
-	}
-	if(in_boot) {
-		connreport("# Accepting connections","*",0);
-		in_boot = 0;
 	}
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
     	signal (SIGHUP, (sigfunc__t) read_args_run);
@@ -1350,10 +1345,6 @@ void
 kill_progs(struct conninfo *xconn)
 {
 	struct conninfo *conn, *nconn;
-	if(!quitnow) {
-		in_boot = 1;
-		connreport("# Blocking connections","*",0);
-	}
 	for(conn = isdn4_conn; conn != NULL; conn = nconn) {
 		nconn = conn->next;
 		if(conn->ignore)

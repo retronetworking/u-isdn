@@ -442,7 +442,7 @@ fakeh_rsrv (queue_t * q)
 				}
 				mq = pullupm(mp,4);
 				if(mq == NULL) {
-					putbq (q, mp);
+					putbqf (q, mp);
 					return;
 				}
 				mp = mq;

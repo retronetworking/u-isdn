@@ -17,7 +17,8 @@ char *state2str(CState state) {
 	case c_off: return "off";
 	case c_down: return "down";
 	case c_offdown: return ">off";
-	case c_forceoff: return "XXX";
+	case c_unknown: return "XXX";
+	case c_forceoff: return "error";
 	case c_going_up: return ">up";
 	case c_going_down: return ">down";
 	default: return "unknown";
@@ -66,6 +67,7 @@ char *FlagInfo(int flag)
 	if (flag & F_INTERRUPT)    strcat(fbuf, ":is");
 	if (flag & F_PREFOUT)      strcat(fbuf, ":xi");
 	if (flag & F_FORCEOUT)     strcat(fbuf, ":yi");
+	if (flag & F_FORCEIN)      strcat(fbuf, ":zi");
 	if (flag & F_BACKCALL)     strcat(fbuf, ":bi");
 	if (flag & F_IGNORELIMIT)  strcat(fbuf, ":il");
 	if (flag & F_FASTDROP)     strcat(fbuf, ":fX");

@@ -417,7 +417,7 @@ timer_rsrv (queue_t * q)
 			timer_proto (q, mp, 0);
 			break;
 		default:
-			   if((DATA_TYPE(mp) > QPCTL) || canput (q->q_next)) {
+			if((DATA_TYPE(mp) > QPCTL) || canput (q->q_next)) {
 				putnext (q, mp);
 				continue;
 			} else {

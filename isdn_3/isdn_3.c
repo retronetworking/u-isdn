@@ -225,19 +225,6 @@ isdn3_killconn (isdn3_conn conn, char force)
 	if(force)
 		conn->id = 0;
 	
-	if ((conn->delay > 0) && (conn->minorstate & MS_DELAYING)) {
-#ifdef NEW_TIMEOUT
-		untimeout (conn->later_timer);
-#else
-		untimeout (later_conn, conn);
-#endif
-	} else if (conn->delay == 0 && force == 0 && (conn->minorstate & MS_DELAYING)) {
-		splx (ms);
-		return;
-	}
-	conn->delay = 0;
-	conn->minorstate |= MS_DELAYING;
-
 	if (conn->minorstate & MS_CONNDELAY_TIMER) {
 		conn->minorstate &= ~MS_CONNDELAY_TIMER;
 #ifdef NEW_TIMEOUT
@@ -255,6 +242,19 @@ isdn3_killconn (isdn3_conn conn, char force)
 		untimeout (timeout_conn, conn);
 #endif
 	}
+	if ((conn->delay > 0) && (conn->minorstate & MS_DELAYING)) {
+#ifdef NEW_TIMEOUT
+		untimeout (conn->later_timer);
+#else
+		untimeout (later_conn, conn);
+#endif
+	} else if (conn->delay == 0 && force == 0 && (conn->minorstate & MS_DELAYING)) {
+		splx (ms);
+		return;
+	}
+	conn->delay = 0;
+	conn->minorstate |= MS_DELAYING;
+
 	if (conn->hupdelay
 			&& ((minorflags[conn->minor] & MINOR_STATE_MASK) == MINOR_CONN_SENT
 					|| (minorflags[conn->minor] & MINOR_STATE_MASK) == MINOR_LISTEN_SENT)

@@ -390,7 +390,7 @@ char **fileargs;
 void
 read_args (void *nix)
 {
-	int nexttime = 0;
+	int nexttime;
 #ifdef NEW_TIMEOUT
 	static long classtimer;
 #endif
@@ -416,7 +416,6 @@ read_args (void *nix)
 	seqnum = 0;
 
 	for(conn=isdn4_conn; conn != NULL; conn = conn->next) {
-		char *fp;
 		if((cg = conn->cg) == NULL)
 			continue;
 		cg->dl = NULL;
@@ -440,33 +439,50 @@ read_args (void *nix)
 		untimeout(read_args_run,NULL);
 #endif
 	}
-	theclass = "*";
+	theclass = ""; nexttime = 32767/HZ;
 	for(cft = cf_TM; cft != NULL; cft = cft->next) {
-		if((nexttime = isintime(cft->arg)) > 0) {
-			theclass = cft->cclass;
-			break;
+		int newnexttime;
+		if((newnexttime = isintime(cft->arg)) > 0) {
+			char tmstr[100], *tmptr, elm;
+			if((newnexttime > 0) && (newnexttime < nexttime))
+				nexttime = newnexttime;
+			strcpy(tmstr,cft->cclass);
+			tmptr = tmstr + strlen(tmstr);
+
+			while((elm = *theclass++) != '\0') {
+				if(strchr(cft->cclass,elm) == NULL) {
+					*tmptr++ = elm;
+					*tmptr = '\0';
+				}
+			}
+			theclass = str_enter(tmstr);
 		}
 	}
-	do_run_now++;
-	run_now(NULL);
+	if(*theclass == '\0')
+		theclass = "*";
+	if((nexttime == 0) || (nexttime > 32767/HZ))
+		nexttime = 32767/HZ;
 
-	if((nexttime == 0) || (nexttime > 32767/HZ/60))
-		nexttime = 32767/HZ/60;
 #ifdef NEW_TIMEOUT
 	classtimer =
 #endif
-		timeout(read_args_run,NULL,nexttime * 60 * HZ);
+		timeout(read_args_run,NULL,nexttime * HZ);
 
 	conn = xmalloc(sizeof(*conn));
 	if(conn != NULL) {
+		char causeInfo[100];
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
-		conn->causeInfo = "config files read";
+		sprintf(causeInfo,"config read, next %d", nexttime/60);
+		conn->causeInfo = str_enter(causeInfo);
 		conn->cause = ID_priv_Print;
 		conn->classname = theclass;
 		conn->next = isdn4_conn; isdn4_conn = conn;
 		dropconn(conn);
 	}
+
+	do_run_now++;
+	run_now(NULL);
 }
 
 /* Read all the files and kick off the programs. */

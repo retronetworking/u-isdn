@@ -50,6 +50,8 @@ card_load_close(struct loader *ld, char success)
 		}
 	}
 	free(ld);
+	if(in_boot > 0)
+		in_boot--;
     do_run_now++;
     timeout(run_now,NULL,HZ/3);
 }
