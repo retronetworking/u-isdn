@@ -1203,14 +1203,14 @@ run_now(void *nix)
 	cf what;
 	int spos = 0;
 
-	if(do_run_now > 1) {
-		do_run_now--;
+	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
+		signal (SIGHUP, SIG_DFL);
+
+	if(do_run_now && --do_run_now) {
 		progidx = 0;
 		return;
 	}
-	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
-		signal (SIGHUP, SIG_DFL);
-	if((in_boot < 0)|| quitnow)
+	if((cards_known == 0) || (cards_loading > 0) || quitnow)
 		return;
 
 	for(what = cf_R; what != NULL; what = what->next) {

@@ -44,6 +44,7 @@ extern void panic(const char *x, ...);
 #define __KERNEL__
 #endif
 #include <linux/kernel.h>
+#include <linux/version.h>
 char *loghdr(char level);
 #undef KERN_EMERG
 #undef KERN_ALERT

@@ -857,6 +857,7 @@ prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 								chan->appID = a;
 								chan->PLCI = p;
 								chan->NCCI = n;
+								chan->waitflow = 0;
 								DEBUG(capi) printf("%sBINTEC: chan %d: assoc %04lx %04lx %04lx\n",KERN_DEBUG,channel,a,p,n);
 								process_unknown(bp);
 							}
@@ -968,7 +969,7 @@ sendone(struct _bintec *bp, int thechan)
 	mb = S_dequeue(&chan->q_out);
 	if(mb == NULL) 
 		return 0;
-	else if(chan->q_out.nblocks < 2)
+	else if(chan->q_out.nblocks == 4)
 		isdn2_backenable(&bp->card,thechan);
 
 	len = msgdsize(mb);
@@ -1212,6 +1213,8 @@ static void
 toss_unknown (struct _bintec *bp)
 {
 	mblk_t *mb;
+
+	bp->unknown_timer = 0;
 	while((mb = S_dequeue(&bp->q_unknown)) != NULL)
 		freemsg(mb);
 }
@@ -1272,6 +1275,7 @@ process_unknown (struct _bintec *bp)
 			}
 		}
 	}
+	s = splstr();
 	if(do_timer && !bp->unknown_timer) {
 		bp->unknown_timer = 1;
 #ifdef NEW_TIMEOUT
@@ -1279,6 +1283,7 @@ process_unknown (struct _bintec *bp)
 #endif
 			timeout((void *)toss_unknown,bp,10*HZ);
 	}
+	splx(s);
 }
 
 static void

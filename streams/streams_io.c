@@ -939,11 +939,7 @@ static int xstream_write(struct stream_header *p_stream, int fromuser, const cha
 }
 
 static int 
-streams_write (struct inode *inode, struct file *file,
-#if LINUX_VERSION_CODE > 66304 /* 1.3.0 ?? */
-	const
-#endif
-	char *buf, int count)
+streams_write (struct inode *inode, struct file *file, const char *buf, int count)
 {
 	struct stream_header *p_stream;
 	unsigned long s;
@@ -1627,11 +1623,7 @@ static void tstreams_close(struct tty_struct * tty, struct file * file)
 #endif
 }
 
-static int tstreams_write(struct tty_struct * tty, int fromuser,
-#if LINUX_VERSION_CODE >= 66304 /* 1.3.0 ?? */
-		 const
-#endif
-		 unsigned char *buf, int count)
+static int tstreams_write(struct tty_struct * tty, int fromuser, const unsigned char *buf, int count)
 {
 	struct stream_header *p_stream = (struct stream_header *)tty->driver_data;
 

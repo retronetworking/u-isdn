@@ -156,7 +156,8 @@ EXTERN char *progname;
 EXTERN int log_34 INIT(0);
 EXTERN int testonly INIT(0);	/* set if fd_mon is not actually connected */
 EXTERN int igstdin INIT(1);	/* Ignore stdin */
-EXTERN int in_boot INIT(1);	/* We're still coming up */
+EXTERN int cards_known INIT(0); /* Stuff we know about */
+EXTERN int cards_loading INIT(0); /* Stuff we don't really yet know about */
 #ifdef __linux__
 EXTERN int isdnterm INIT(0);	/* major number of the terminal driver */
 EXTERN int isdnstd INIT(0);	/* major number of the standard driver */
@@ -298,6 +299,7 @@ typedef struct conninfo {
 	unsigned char locked;
 	unsigned ignore:3; /* 0: normal; 1: did drop it; 2: kill it; 3: reporter */
 	unsigned sentsetup:1;
+	unsigned did_bounce:1;
 } *conninfo;
 
 /* Special flags. Ordered for improved readability when debugging. */

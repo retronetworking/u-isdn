@@ -401,6 +401,28 @@ talk_timer(struct trace_timer *tt)
 	capi_sendctl(talk, talk->tappl[tt->dchan], CONTROL_TRACEREC_PLAY, NULL,newmsgid(talk));
 }
 
+static int
+slam_conn(isdn3_talk talk, ushort_t appl, ushort_t plci, int cause)
+{
+	struct CAPI_disconnect_req *c3;
+	int err;
+	mblk_t *m3;
+	
+	m3 = allocb(sizeof(*c3),BPRI_MED);
+	if(m3 == NULL)
+		return -ENOMEM;
+
+	c3 = ((typeof(c3))m3->b_wptr)++;
+	bzero(c3,sizeof(*c3));
+	c3->plci = plci;
+	c3->cause = cause;
+	printf(">DISCONNECT_REQ ");
+	if((err = capi_send(talk,appl,CAPI_DISCONNECT_REQ,m3,
+			newmsgid(talk))) < 0) 
+		freemsg(m3);
+	return err;
+}
+
 static void
 CAPI_TWAITLOCAL(isdn3_conn conn)
 {
@@ -714,6 +736,8 @@ capi_findconn(isdn3_talk talk, ushort_t appl, ushort_t plci)
 	isdn3_conn conn;
 	ulong_t cref = (appl << 16) | plci;
 
+	if(plci == 0)
+		return NULL;
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
 		if(conn->capi_callref == cref) {
 			printf(" (conn %05lx) ",conn->capi_callref);
@@ -728,6 +752,8 @@ capi_findconn3(isdn3_talk talk, ushort_t appl, ushort_t ncci)
 {
 	isdn3_conn conn;
 
+	if(ncci == 0)
+		return NULL;
 	for(conn = talk->conn; conn != NULL; conn = conn->next) {
 		if((conn->capi_callref >> 16) == appl && conn->ncci0 == ncci) {
 			printf(" (conn %05lx) ",conn->capi_callref);
@@ -874,6 +900,8 @@ send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 	conn->waitflags = 0;
 	report_terminate(conn,0,cause);
 	switch(conn->state) {
+	case 2:
+		return -EAGAIN; /* no PLCI yet */
 	case 6:
 	case 7:
 	case 8:
@@ -1549,6 +1577,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			}
 			if((conn = capi_findconnm(talk,capi->appl,capi->messid,WF_CONNECT_CONF)) == NULL) {
 				printf("CAPI error: CONNECT_CONF has unknown msgid %04x.%04x\n",capi->appl,capi->messid);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1583,6 +1612,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: SELECTB2_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1606,6 +1636,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: SELECTB3_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1631,6 +1662,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: CONNECTACTIVE_IND has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1670,6 +1702,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: CONNECTB3_IND has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1712,6 +1745,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: LISTENB3_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1735,6 +1769,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: CONNECTB3_CONF has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1759,7 +1794,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				goto less_room;
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn3(talk,capi->appl,c2->ncci)) == NULL) {
-				printf("CAPI error: CONNECTB3ACTIVE_IND has unknown cref %x%04x\n",capi->appl,c2->ncci);
+				printf("CAPI error: CONNECTB3ACTIVE_IND has unknown cref3 %x%04x\n",capi->appl,c2->ncci);
 				err = -ENXIO;
 				break;
 			}
@@ -1939,6 +1974,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((conn = capi_findconn(talk,capi->appl,c2->plci)) == NULL) {
 				printf("CAPI error: INFO_IND has unknown cref %x%04x\n",capi->appl,c2->plci);
+				slam_conn(talk,capi->appl,c2->plci,0);
 				err = -ENXIO;
 				break;
 			}

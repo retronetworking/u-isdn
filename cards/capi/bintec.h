@@ -40,10 +40,10 @@ typedef struct _bintec {
 #ifdef NEW_TIMEOUT
 	long timer, timer_toss_unknown;
 #endif
-	unsigned unknown_timer:1;
-	unsigned registered:1;
+
 	struct _smallq q_unknown;
 
+	char unknown_timer; char registered;
 	signed char polled; char lastout; int maxoffset;
 
 	int sndoffset; /* buffer position where we send */
