@@ -1533,123 +1533,121 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 	ctl = (isdn2_card) card->ctl;
 	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL)) {
 		return -ENXIO;
-	} else {
-		if (channel == 0) {		  /* D Channel */
-			uchar_t SAPI, TEI, x1, x2;
-			char cmd;
-			isdn2_state state;
+	} else if (channel == 0) {		  /* D Channel */
+		uchar_t SAPI, TEI, x1, x2;
+		char cmd;
+		isdn2_state state;
 
 #ifdef CONFIG_DEBUG_STREAMS
-			if(msgdsize(data) < 0)
-				return 0;
+		if(msgdsize(data) < 0)
+			return 0;
 #endif
-			if(isdn2_log & 0x10) {
-				printf ("%s*** %d", KERN_DEBUG,ctl->nr);
-				log_printmsg (NULL, " Recv", data, KERN_DEBUG);
-			}
-			(void)msgdsize(data);
-			if (card->modes & CHM_INTELLIGENT) {
-				state = ctl->state[0];
-				if(state != NULL)
-					err = D_recv(state,0,data);
-				else
-					err = -ENXIO;
-			} else {
-				if(ctl->flags & HDR_CARD_DEBUG) {
-					isdn23_hdr hdr;
-					mblk_t *m1 = allocb(sizeof(*hdr),BPRI_MED);
-					mblk_t *m2 = dupmsg(data);
-
-					if (m1 == NULL || m2 == NULL) {
-						if(m1 != NULL)
-							freemsg(m1);
-						if(m2 != NULL)
-							freemsg(m2);
-					} else {
-						hdr = ((isdn23_hdr) m1->b_wptr)++;
-						hdr->key = HDR_RAWDATA;
-						hdr->seqnum = hdrseq; hdrseq += 2;
-						hdr->hdr_rawdata.card = ctl->nr;
-						hdr->hdr_rawdata.dchan = 1;
-						hdr->hdr_rawdata.len = dsize (m2);
-						hdr->hdr_rawdata.flags = 0;
-						linkb (m1, m2);
-						if(canput(isdn_chan.qptr->q_next)) 
-							putnext (isdn_chan.qptr, m1);
-						else
-							freemsg(m1);
-					}
-				}
-
-				if (ctl->status != C_up && ctl->status != C_wont_down) {
-					if(isdn2_debug & 0x80)
-						printf("%s  -- L1 up\n",KERN_DEBUG);
-					(void) D_L1_up (ctl);
-				}
-
-				(void)msgdsize(data);
-				data = pullupm (data, 0);
-				if (data == NULL)	  /* Packet too short */
-					return 0;
-				x1 = SAPI = *data->b_rptr++;
-				if (SAPI & 0x01) {	  /* TODO: X25 packet? */
-					if (isdn2_debug & 0x10)
-						printf ("%sisdn2_recv %d: SAPI %x invalid\n",KERN_DEBUG, ctl->nr, SAPI);
-					freemsg (data);
-					return 0 /* ESRCH */ ;
-				}
-				data = pullupm (data, 0);
-				if (data == NULL)
-					return 0;
-				x2 = TEI = *data->b_rptr++;
-				if ((TEI & 0x01) == 0) {
-					if (isdn2_debug & 0x10)
-						printf ("%sisdn2_recv %d: TEI %x invalid\n",KERN_DEBUG, ctl->nr, TEI);
-					goto rawdata;
-				}
-				cmd = (SAPI & 0x02) ? 1 : 0;
-				SAPI >>= 2;
-				TEI >>= 1;
-				for(ch=0;ch <= N_TEI; ch++) {
-					if (ctl->TEI[ch] == TEI || TEI == TEI_BROADCAST)
-						break;
-				}
-				if(ch > N_TEI) {
-					if (isdn2_debug & 0x100)
-						printf("%sisdn2_recv %d: %02x: not my TEI (%02x)\n",KERN_DEBUG,ctl->nr,TEI,ctl->TEI[0]);
-					freemsg (data);
-					return 0;
-				}
-				data = pullupm (data, 0);
-				if (data == NULL)
-					return 0;
-
-				state = D__findstate (ctl, SAPI,ch);
-				if (state != NULL) {
-					if (TEI == TEI_BROADCAST)
-						cmd |= 2;
-					err = x75_recv (&state->state, cmd, data);
-				} else if (TEI == TEI_BROADCAST && isdn_chan.qptr != NULL) {
-				rawdata:
-					err = -ENXIO;
-				} else {
-					err = 0;		  /* Not an error */
-					freemsg (data);
-				}
-			}
-		} else {				  /* B Channel */
-			isdn2_chan chn = ctl->chan[channel];
-
-			if (chn != NULL && chn->qptr != NULL) {
-				putq (chn->qptr, data);
-				err = 0;
-			} else {
+		if(isdn2_log & 0x10) {
+			printf ("%s*** %d", KERN_DEBUG,ctl->nr);
+			log_printmsg (NULL, " Recv", data, KERN_DEBUG);
+		}
+		(void)msgdsize(data);
+		if (card->modes & CHM_INTELLIGENT) {
+			state = ctl->state[0];
+			if(state != NULL)
+				err = D_recv(state,0,data);
+			else
 				err = -ENXIO;
-				(*card->ch_mode) (card, channel, M_FREE, 0);	/* No B Channel. Take it
-																 * down. (Needless to
-																 * say, this shouldn't
-																 * happen.) */
+		} else {
+			if(ctl->flags & HDR_CARD_DEBUG) {
+				isdn23_hdr hdr;
+				mblk_t *m1 = allocb(sizeof(*hdr),BPRI_MED);
+				mblk_t *m2 = dupmsg(data);
+
+				if (m1 == NULL || m2 == NULL) {
+					if(m1 != NULL)
+						freemsg(m1);
+					if(m2 != NULL)
+						freemsg(m2);
+				} else {
+					hdr = ((isdn23_hdr) m1->b_wptr)++;
+					hdr->key = HDR_RAWDATA;
+					hdr->seqnum = hdrseq; hdrseq += 2;
+					hdr->hdr_rawdata.card = ctl->nr;
+					hdr->hdr_rawdata.dchan = 1;
+					hdr->hdr_rawdata.len = dsize (m2);
+					hdr->hdr_rawdata.flags = 0;
+					linkb (m1, m2);
+					if(canput(isdn_chan.qptr->q_next)) 
+						putnext (isdn_chan.qptr, m1);
+					else
+						freemsg(m1);
+				}
 			}
+
+			if (ctl->status != C_up && ctl->status != C_wont_down) {
+				if(isdn2_debug & 0x80)
+					printf("%s  -- L1 up\n",KERN_DEBUG);
+				(void) D_L1_up (ctl);
+			}
+
+			(void)msgdsize(data);
+			data = pullupm (data, 0);
+			if (data == NULL)	  /* Packet too short */
+				return 0;
+			x1 = SAPI = *data->b_rptr++;
+			if (SAPI & 0x01) {	  /* TODO: X25 packet? */
+				if (isdn2_debug & 0x10)
+					printf ("%sisdn2_recv %d: SAPI %x invalid\n",KERN_DEBUG, ctl->nr, SAPI);
+				freemsg (data);
+				return 0 /* ESRCH */ ;
+			}
+			data = pullupm (data, 0);
+			if (data == NULL)
+				return 0;
+			x2 = TEI = *data->b_rptr++;
+			if ((TEI & 0x01) == 0) {
+				if (isdn2_debug & 0x10)
+					printf ("%sisdn2_recv %d: TEI %x invalid\n",KERN_DEBUG, ctl->nr, TEI);
+				goto rawdata;
+			}
+			cmd = (SAPI & 0x02) ? 1 : 0;
+			SAPI >>= 2;
+			TEI >>= 1;
+			for(ch=0;ch <= N_TEI; ch++) {
+				if (ctl->TEI[ch] == TEI || TEI == TEI_BROADCAST)
+					break;
+			}
+			if(ch > N_TEI) {
+				if (isdn2_debug & 0x100)
+					printf("%sisdn2_recv %d: %02x: not my TEI (%02x)\n",KERN_DEBUG,ctl->nr,TEI,ctl->TEI[0]);
+				freemsg (data);
+				return 0;
+			}
+			data = pullupm (data, 0);
+			if (data == NULL)
+				return 0;
+
+			state = D__findstate (ctl, SAPI,ch);
+			if (state != NULL) {
+				if (TEI == TEI_BROADCAST)
+					cmd |= 2;
+				err = x75_recv (&state->state, cmd, data);
+			} else if (TEI == TEI_BROADCAST && isdn_chan.qptr != NULL) {
+			rawdata:
+				err = -ENXIO;
+			} else {
+				err = 0;		  /* Not an error */
+				freemsg (data);
+			}
+		}
+	} else {				  /* B Channel */
+		isdn2_chan chn = ctl->chan[channel];
+
+		if (chn != NULL && chn->qptr != NULL) {
+			putq (chn->qptr, data);
+			err = 0;
+		} else {
+			err = -ENXIO;
+			(*card->ch_mode) (card, channel, M_FREE, 0);	/* No B Channel. Take it
+																* down. (Needless to
+																* say, this shouldn't
+																* happen.) */
 		}
 	}
 	return err;
@@ -3075,7 +3073,7 @@ isdn2_wsrv (queue_t *q)
 									}
 								} else {
 									if(0)printf (",");
-									putbqf (q, mp);
+									putbqff (q, mp);
 									return;
 								}
 							} else {
@@ -3159,12 +3157,6 @@ isdn2_rsrv (queue_t * q)
 	return;
 }
 
-
-#ifdef sun
-/*
- * TODO: Put in SunOS autoload code
- */
-#endif
 
 void
 chkfree (void *x)

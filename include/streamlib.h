@@ -33,6 +33,7 @@ short spl(short);
  * resource shortage.
  */
 void putbqf (queue_t * q, mblk_t * mp);
+void putbqff(queue_t * q, mblk_t * mp);
 
 /*
  * dsize()
@@ -87,7 +88,9 @@ int deb_putctlx (const char *deb_file, unsigned int deb_line, queue_t * q, char 
 int deb_putctlx1 (const char *deb_file, unsigned int deb_line, queue_t * q, char type, streamchar msg);
 
 #define putbqf(q,m) deb_putbqf(__FILE__,__LINE__,(q),(m))
+#define putbqff(q,m) deb_putbqff(__FILE__,__LINE__,(q),(m))
 void deb_putbqf (const char *deb_file, unsigned int deb_line, queue_t * q, mblk_t *mb);
+void deb_putbqff(const char *deb_file, unsigned int deb_line, queue_t * q, mblk_t *mb);
 
 #endif							/* CONFIG_DEBUG_STREAMS */
 
