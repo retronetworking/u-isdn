@@ -1091,7 +1091,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				}
 
 			} else {
-				printf("CAPI error: DISCONNECTB3_CONF in wrong state %d\n",conn->state);
+				printf("CAPI error: DISCONNECTB3_CONF in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				err = -EIO;
 				break;
 			}
@@ -1209,7 +1209,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					setstate(conn,0);
 				}
 			} else {
-				printf("CAPI error: DISCONNECT_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
+				printf("CAPI error: DISCONNECT_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				setstate(conn,0);
 				report_terminate(conn,c2->info,0);
@@ -1251,7 +1251,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 
 				}
 			} else {
-				printf("CAPI error: CONNECT_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
+				printf("CAPI error: CONNECT_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				report_terminate(conn,c2->info,0);
 				if(send_disconnect(conn,0,N1_LocalProcErr) < 0)
@@ -1276,7 +1276,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->waitflags &=~ (1<<WF_SELECTB2_CONF);
 				err = after_active(conn,0);
 			} else {
-				printf("CAPI error: SELECTB2_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
+				printf("CAPI error: SELECTB2_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				report_terminate(conn,c2->info,0);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
@@ -1299,7 +1299,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->waitflags &=~ (1<<WF_SELECTB3_CONF);
 				err = after_active(conn,0);
 			} else {
-				printf("CAPI error: SELECTB3_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
+				printf("CAPI error: SELECTB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				report_terminate(conn,c2->info,0);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
@@ -1322,7 +1322,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->waitflags &=~ (1<<WF_CONNECTACTIVE_IND);
 				err = after_active(conn,0);
 			} else  {
-				printf("CAPI error: CONNECTACTIVE_IND in wrong state %d\n",conn->state);
+				printf("CAPI error: CONNECTACTIVE_IND in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
@@ -1362,7 +1362,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->ncci0 = c2->ncci;
 				err = after_active(conn,1);
 			} else  {
-				printf("CAPI error: CONNECTB3_IND in wrong state %d\n",conn->state);
+				printf("CAPI error: CONNECTB3_IND in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
@@ -1404,7 +1404,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn,0);
 			} else  {
 				err = -EIO;
-				printf("CAPI error: LISTENB3_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
+				printf("CAPI error: LISTENB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
@@ -1428,7 +1428,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn,1);
 			} else  {
 				err = -EIO;
-				printf("CAPI error: CONNECTB3_CONF in wrong state %d, info %04x\n",conn->state,c2->info);
+				printf("CAPI error: CONNECTB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
@@ -1451,7 +1451,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				conn->waitflags &=~ (1<<WF_CONNECTB3ACTIVE_IND);
 				err = after_active(conn,0);
 			} else  {
-				printf("CAPI error: CONNECTB3ACTIVE_IND in wrong state %d\n",conn->state);
+				printf("CAPI error: CONNECTB3ACTIVE_IND in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 					setstate(conn,0);
 			}
@@ -2093,12 +2093,12 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 							err = after_active(conn,0);
 						} else  {
 							err = -EIO;
-							printf("CAPI error: CONTROL_EAZ in wrong state %d, info %04x\n",conn->state,c2->info);
+							printf("CAPI error: CONTROL_EAZ in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 							if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
 								setstate(conn,0);
 						}
 					} else if(talk->tstate < STATE_CONF_FIRST || talk->tstate > STATE_CONF_LAST) {
-						printf("CAPI error: CONTROL_EAZ in wrong state %d, info %04x\n",conn->state,c2->info);
+						printf("CAPI error: CONTROL_EAZ in wrong tstate %ld\n",talk->tstate);
 					}
 					if(c2->info != 0) {
 						printf("CAPI error: EAZMAPPING failed %04x\n",c2->info);

@@ -8,7 +8,7 @@
 #include "f_malloc.h"
 #include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #include "streamlib.h"
 #include "isdn_23.h"
 #include "kernel.h"

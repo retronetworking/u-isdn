@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <string.h>
 #ifdef linux
-#include <linux/syscompat.h>
+#include <compat.h>
 #endif
 
 short mult[] = {2,2,4,8,16,32,64,128};

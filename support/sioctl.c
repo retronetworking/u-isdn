@@ -1,6 +1,6 @@
 #include "primitives.h"
 #include "f_ioctl.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #include <sys/errno.h>
 #ifdef linux
 #include <linux/ioctl.h>

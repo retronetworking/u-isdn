@@ -983,8 +983,10 @@ Xreport_ET_terminate (isdn3_conn conn, uchar_t * data, int len, int deb_line)
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
+	extern int log_34;
 
-printf("\nET Terminate at %d.\n",deb_line);
+	if(log_34 & 2)
+		printf("\nET Terminate at %d.\n",deb_line);
 	if (mb == NULL) {
 		pr_setstate (conn, 0);
 		return;
@@ -2120,7 +2122,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 static int
 chstate (isdn3_conn conn, uchar_t ind, short add)
 {
-	printf ("PHONE state for card %d says %d:%o\n", conn->card->nr, ind, add);
+	if(0)printf ("PHONE state for card %d says %d:%o\n", conn->card->nr, ind, add);
 	switch (ind) {
 	case DL_ESTABLISH_IND:
 	case DL_ESTABLISH_CONF:

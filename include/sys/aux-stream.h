@@ -4,7 +4,7 @@
 #include <linux/types.h>
 #include <linux/syscompat.h>
 #include <linux/fs.h>
-#include <linux/stropts.h>
+#include "stropts.h"
 #include <linux/kernel.h>
 
 #define MAX_STRDEV MAX_CHRDEV /* don't change */

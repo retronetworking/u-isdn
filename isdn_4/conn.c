@@ -73,7 +73,7 @@ Xsetconnref(const char *deb_file, unsigned int deb_line, conninfo conn, int conn
 
 /* Print the text foo onto all ATL/ channels. */
 void
-connreport(char *foo, char *card)
+connreport(char *foo, char *card, int minor)
 {
 	conninfo conn;
 	mblk_t xx;
@@ -91,6 +91,8 @@ connreport(char *foo, char *card)
 		if(conn->ignore < 3 || conn->minor == 0)
 			continue;
 		if(!wildmatch(conn->cardname,card))
+			continue;
+		if(minor != 0 && conn->minor != minor)
 			continue;
 		if(conn->lastMsg != NULL && !strcmp(conn->lastMsg,foo))
 			continue;
@@ -116,14 +118,16 @@ connreport(char *foo, char *card)
 
 /* Print the state of this connection with connreport(). */
 void
-ReportConn(conninfo conn)
+ReportOneConn(conninfo conn, int minor)
 {
-	char sp[200], *spf = sp;
-	spf += sprintf(spf,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s",
+	char is1[10]="",sp[200], *spf = sp;
+	if(conn->state == c_off)
+		sprintf(is1,".%d",conn->retiming);
+	spf += sprintf(spf,"%s%d:%d %s %s %s %d %s%s/%s %ld %ld %s",
 		conn->ignore?"!":"", conn->minor,
 		conn->seqnum, conn->cg ? conn->cg->site : "-",
 		conn->cg ? conn->cg->protocol : "-", conn->cg ? conn->cg->cclass : "-",
-		conn->pid, state2str(conn->state),
+		conn->pid, state2str(conn->state), is1,
 		conn->cg ? conn->cg->card : (conn->cardname ? conn->cardname : "-"),
 		conn->charge, conn->ccharge, FlagInfo(conn->flags));
 	if(conn->cg != NULL && (conn->cg->flags ^ conn->flags) != 0) {
@@ -143,7 +147,20 @@ ReportConn(conninfo conn)
 	else if(conn->cg != NULL && conn->cg->oldlnr != NULL)
 		spf += sprintf(spf, ";%s",conn->cg->oldlnr);
 	spf += sprintf(spf," %s", CauseInfo(conn->cause, conn->causeInfo));
-	connreport(sp,(conn->cg ? conn->cg->card : "*"));
+	connreport(sp,(conn->cg ? conn->cg->card : "*"),minor);
+}
+
+int retimeout(conninfo conn)
+{
+	/* Exponential backoff. Sorry but this is necessary. */
+	if(conn->charge != 0)
+		return 5*60*(1<<++conn->retiming);
+	else if (conn->cause == ID_priv_Busy)
+		return 5*(1<<(++conn->retiming/6));
+	else if(conn->flags & F_FASTREDIAL)
+		return 2+(1<<(++conn->retiming/4));
+	else
+		return 5+(1<<(++conn->retiming/2));
 }
 
 /* Sets the state of a connection; does all the housekeeping associated
@@ -157,11 +174,11 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		printf(" -> %s\n",state2str(state));
 	else
 		printf("\n");
-	if(conn->timer_reconn && (state == c_offdown || (state >= c_going_up
+	if(conn->timer_reconn && (state == c_off || state == c_offdown || (state >= c_going_up
 		&& conn->state < c_going_up))) {
 		conn->timer_reconn = 0;
 		untimeout(time_reconn,conn);
-	} else if(!conn->timer_reconn && state < c_going_up && conn->state >= c_going_up) {
+	} else if(!conn->timer_reconn && state != c_off && state < c_going_up && conn->state >= c_going_up) {
 		if(conn->want_fast_reconn) {
 			conn->want_fast_reconn = 0;
 		} else {
@@ -253,7 +270,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 	}
 	if((state == c_off) && !conn->retime && (conn->flags & F_PERMANENT)) {
 		conn->retime = 1;
-		timeout(retime,conn,((conn->charge != 0) ? 5*60*++conn->retiming : (conn->cause == ID_priv_Busy) ? 5 : (conn->flags & F_FASTREDIAL) ? 2 : 5)*HZ);
+		timeout(retime,conn,retimeout(conn)*HZ);
 	} else if((state != c_off) && conn->retime) {
 		conn->retime = 0;
 		untimeout(retime,conn);
@@ -269,10 +286,10 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 {
 	chkone(conn);
 	if(conn->locked) {
-		if(1)printf ("DropConn %s:%d: LOCK %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
+		if(log_34 & 2)printf ("DropConn %s:%d: LOCK %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
 		return;
 	}
-	if(1)printf ("DropConn %s:%d: %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
+	if(log_34 & 2)printf ("DropConn %s:%d: %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
 	if(!conn->ignore) {
 		conn->ignore=1;
 		setconnstate(conn,c_forceoff);
@@ -314,7 +331,7 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 	{	/* Say that we forgot the thing. */
 		char xs[10];
 		sprintf(xs,"-%d",conn->seqnum);
-		connreport(xs,conn->cg ? conn->cg->card : "*");
+		connreport(xs,conn->cg ? conn->cg->card : "*",0);
 	}
 	dropgrab(conn->cg);
 	if(conn->lastMsg != NULL)
@@ -404,10 +421,8 @@ try_reconn(struct conninfo *conn)
 		cg->lnr = NULL; cg->lnrsuf = NULL;
 		cg->card = conn->cardname ? conn->cardname : "*";
 		cg->cclass = conn->classname ? conn->classname : "*";
-		cg->flags &=~(F_MOVEFLAGS|F_INCOMING|F_OUTCOMPLETE|F_LNRCOMPLETE);
+		cg->flags &=~(F_MASKFLAGS|F_INCOMING|F_OUTCOMPLETE|F_LNRCOMPLETE);
 		cg->flags |= F_OUTGOING;
-		if((cg->flags & (F_PERMANENT|F_LEASED)) == F_PERMANENT)
-			cg->flags |= F_DIALUP;
 		if(cg->par_out != NULL)
 			freemsg(cg->par_out);
 		if((cg->par_out = allocb(256,BPRI_LO)) == NULL) {

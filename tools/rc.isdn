@@ -20,9 +20,6 @@ cd bin-$(uname -r) || cd bin
 
 set +e
 while : ; do
-	master -wdi /etc/isdn.conf >>/tmp/isdn.log 2>>/var/log/isdn
+	master -wdi /etc/isdn.conf 2>>/tmp/isdn.log >>/var/log/isdn
 	sleep 15
 done &
-if test -x /etc/isdn.route ; then
-	/etc/isdn.route
-fi

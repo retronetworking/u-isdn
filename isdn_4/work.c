@@ -16,7 +16,8 @@ deadkid (void)
 	struct conninfo *conn;
 
 	while((pid = wait4 (-1,&val,WNOHANG,NULL)) > 0) {
-		printf ("\n* PID %d died, %x\n", pid, val);
+		if(log_34 & 2)
+			printf ("\n* PID %d died, %x\n", pid, val);
 
 		chkall();
 		for (conn = isdn4_conn; conn != NULL; conn = conn ? conn->next : NULL) {
@@ -78,7 +79,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 	char *mods = NULL;
 
 	for (prot = cf_ML; prot != NULL; prot = prot->next) {
-		if(!matchflag(cg->flags,prot->type)) continue;
+		if (!matchflag (cg->flags,prot->type)) continue;
 		if (!wildmatch (cg->site, prot->site)) continue;
 		if (!wildmatch (cg->protocol, prot->protocol)) continue;
 		if (!wildmatch (cg->card, prot->card)) continue;
@@ -151,7 +152,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 				streamchar *newlim = NULL;
 				mblk_t *mz = NULL;
 
-				if(!matchflag(cg->flags,cm->type)) continue;
+				if (!matchflag (cg->flags,cm->type)) continue;
 				if (!wildmatch (cg->site, cm->site)) continue;
 				if (!wildmatch (cg->protocol, cm->protocol)) continue;
 				if (!wildmatch (cg->card, cm->card)) continue;
@@ -212,7 +213,8 @@ pushprot (conngrab cg, int minor, int connref, char update)
 				io[1].iov_base = mi->b_rptr;
 				io[1].iov_len = mi->b_wptr - mi->b_rptr;
 				DUMPW (mj->b_rptr, io[0].iov_len);
-				printf ("+ ");
+				if(log_34 & 1)
+					printf ("+ ");
 				DUMPW (mi->b_rptr, io[1].iov_len);
 				(void) strwritev (xs_mon, io, 2, 1);
 				freeb (mj);
@@ -258,7 +260,7 @@ pushcardprot (conngrab cg, int minor, int connref)
 	if(card == NULL)
 		return -ENOENT;
 	for (prot = cf_ML; prot != NULL; prot = prot->next) {
-		if(!matchflag(cg->flags,prot->type)) continue;
+		if (!matchflag (cg->flags,prot->type)) continue;
 		if (!wildmatch (cg->site, prot->site)) continue;
 		if (!wildmatch (cg->protocol, prot->protocol)) continue;
 		if (!wildmatch (cg->card, prot->card)) continue;
@@ -351,7 +353,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 		if(conn->cg == cg)
 			break;
 	}
-	if(conn == NULL) {
+	if(conn == NULL && (cg->flags & (F_PERMANENT|F_MULTIDIALUP|F_DIALUP))) {
 		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 			char *sit,*pro,*car,*cla;
 			ulong_t sub;
@@ -360,7 +362,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 				continue;
 			if(conn->pid == 0 || conn->minor == 0)
 				continue;
-			if(!(conn->flags & F_PERMANENT))
+			if(!(conn->flags & (F_PERMANENT|F_DIALUP)))
 				continue;
 			if(conn->cg == NULL)
 				continue;
@@ -374,7 +376,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 			break;
 		}
 	}
-	if(conn == NULL) {
+	if(conn == NULL && (cg->flags & (F_PERMANENT|F_MULTIDIALUP|F_DIALUP))) {
 		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 			char *sit,*pro;
 
@@ -382,7 +384,7 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 				continue;
 			if(conn->pid == 0 || conn->minor == 0)
 				continue;
-			if(!(conn->flags & F_PERMANENT))
+			if(!(conn->flags & (F_PERMANENT|F_DIALUP)))
 				continue;
 			if(conn->cg == NULL)
 				continue;
@@ -399,6 +401,8 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	}
 
 	/* Returning "+" in the first position means keep the new connection. */ 
+	/* Return "-" to keep the old connection. */
+	/* Return "=" to call back. */
 
 	if(conn->state == c_forceoff) {
 		dropgrab(cg);
@@ -407,15 +411,15 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	}
 	if(conn->state == c_going_down) {
 		dropgrab(cg);
-		*ret = "-COLLISION 1b";
+		*ret = "+COLLISION 1b";
 		return conn;
 	}
 	if(conn->state > c_going_down) {
-		*ret = "+COLLISION 1b";
+		*ret = "-COLLISION 1b";
 		if((conn->state == c_going_up) && (cg->flags & F_PREFOUT))
-			**ret = '-';
+			**ret = '+';
 		if((conn->state == c_up) && (cg->flags & (F_PREFOUT | F_FORCEOUT)))
-			**ret = '-';
+			**ret = '+';
 		dropgrab(cg);
 		return conn;
 	}
@@ -425,7 +429,8 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 		return conn;
 	}
 
-printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
+	if(log_34 & 2)
+		printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 	if(((*ret) = findit (&cg,0)) != NULL) {
 		*retcg = cg;
 		dropgrab(rcg);
@@ -452,8 +457,8 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 	m_puti (&yy, cg->delay);
 	if(cg->flags & F_OUTGOING) {
 		m_putsx(&yy,ARG_NOCONN);
-		setconnref(conn,connrefs);
-		connrefs += 2;
+		setconnref(conn,isdn4_connref);
+		isdn4_connref += 2;
 	} else if(connref != 0) {
 		if(conn->connref != 0 && conn->state == c_up) {
 			*ret = "COLLISION 2";
@@ -483,10 +488,12 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 
 	if (cg->lnr != NULL) {
 		char *s = strip_nr(cg->lnr,1);
-		printf("Strip3 %s -> %s\n",cg->lnr,s);
+		if(log_34 & 2)
+			printf("Strip3 %s -> %s\n",cg->lnr,s);
 		if(s == NULL && cg->lnrsuf != NULL) {
 			s = append_nr(cg->lnr,cg->lnrsuf);
-			printf("Append3 %s,%s -> %s\n",cg->lnr,cg->lnrsuf,s);
+			if(log_34 & 2)
+				printf("Append3 %s,%s -> %s\n",cg->lnr,cg->lnrsuf,s);
 		}
 		if(s != NULL) {
 			m_putsx (&yy, ARG_LNUMBER);
@@ -495,10 +502,12 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 	}
 	if (cg->nr != NULL) {
 		char *s = strip_nr(cg->nr,0);
-		printf("Strip3 %s -> %s\n",cg->nr,s);
+		if(log_34 & 2)
+			printf("Strip3 %s -> %s\n",cg->nr,s);
 		if(s == NULL && cg->nrsuf != NULL) {
 			s = append_nr(cg->nr,cg->nrsuf);
-			printf("Append3 %s,%s -> %s\n",cg->nr,cg->nrsuf,s);
+			if(log_34 & 2)
+				printf("Append3 %s,%s -> %s\n",cg->nr,cg->nrsuf,s);
 		}
 		if(s != NULL) {
 			m_putsx (&yy, ARG_NUMBER);
@@ -541,10 +550,12 @@ printf("Start: %s:%s #%s...",cg->site,cg->protocol,cg->nr);
 #endif
 	DUMPW (yy.b_rptr, io[0].iov_len);
 	if (iovlen > 1) {
-		printf ("+ ");
+		if(log_34 & 1)
+			printf ("+ ");
 		DUMPW (xx->b_rptr, io[1].iov_len);
 		if(iovlen > 2) {
-			printf ("+ ");
+			if(log_34 & 1)
+				printf ("+ ");
 			DUMPW (cg->par_out->b_rptr, io[2].iov_len);
 		}
 	}
@@ -657,6 +668,18 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			conn->flags |= conn->cg->flags;
 			conn->pid = (pid_t)~0;
 			ReportConn(conn);
+		}
+		{
+			int flags = 0;
+			if (strchr(cfr->type,'m') != NULL)
+				flags |= F_MULTIDIALUP;
+			if (strchr(cfr->type,'d') != NULL)
+				flags |= F_DIALUP;
+			if (strchr(cfr->type,'p') != NULL)
+				flags |= F_PERMANENT;
+			if (strchr(cfr->type,'f') != NULL)
+				flags |= F_LEASED;
+			cg->flags = (cg->flags &~ (F_MULTIDIALUP|F_DIALUP|F_PERMANENT|F_LEASED)) | flags;
 		}
 	} else {
 		if(conn != NULL) {
@@ -982,8 +1005,8 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 #endif
 		close (pip[0]);
 	}
-	syslog (LOG_INFO, "exec %x:%x %d %s/%s %s", dev, dev2, pid, cfr->site,cfr->protocol, cfr->args);
-	printf ("* PID %d\n", pid);
+	syslog (LOG_INFO, "exec %d:%d %d %s/%s %s", dev, dev2, pid, cfr->site,cfr->protocol, cfr->args);
+	if(0)printf ("* PID %d\n", pid);
 
 	if(prog != NULL) {
 		prog->next = conn->run;

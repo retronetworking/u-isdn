@@ -3,7 +3,7 @@
 #include <sys/file.h>
 #include <sys/errno.h>
 #include "f_signal.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #include "f_termio.h"
 #include "f_user.h"
 #include <sys/uio.h>

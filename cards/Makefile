@@ -6,7 +6,7 @@ REALSOURCE=loader.c
 OBJS=$(addsuffix .o,$(CARDS))
 EXTRA_CFLAGS= -DCARDTYPE=$(basename $@ .o)
 
-SUBDIRS=capi dumb
+SUBDIRS=capi dumb arnet
 
 include $(TOPDIR)/Make.rules
 

@@ -18,7 +18,7 @@
 #include "f_ioctl.h"
 #include "f_ip.h"
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
+#include "stropts.h"
 #include "f_termio.h"
 #include <sys/signal.h>
 #include <sys/socket.h>

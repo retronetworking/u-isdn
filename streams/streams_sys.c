@@ -13,9 +13,10 @@
 #ifdef MODULE
 #include "f_module.h"
 #endif
+#include "kernel.h"
 
 #include <linux/types.h>
-#include <linux/stream.h>
+#include "stream.h"
 #include <linux/errno.h>
 #ifdef __KERNEL__
 #include <linux/mm.h>
@@ -28,13 +29,11 @@
 #else
 unsigned long bh_mask;
 #endif
-#include "kernel.h"
 
 #ifdef linux
 #ifdef __KERNEL__
 #include <linux/interrupt.h>
 #endif
-#include <linux/syscompat.h>
 #ifdef SK_STREAM
 #include <linux/skbuff.h>
 #endif
@@ -439,7 +438,7 @@ freemsg(mblk_t *p_msg)
 
 	if(p_msg == NULL) {
 #ifdef CONFIG_DEBUG_STREAMS
-		printf("%sFreeing NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
+		printf("%sFreeing NULL msg at %s:%d\n",KERN_ERR , deb_file,deb_line);
 #endif
 		return;
 	}

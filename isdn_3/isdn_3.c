@@ -1,5 +1,3 @@
-/* Show the reasons for not changing connection states */
-#define REPORT
 
 /**
  ** ISDN Level 3 control module
@@ -13,7 +11,7 @@
 #include <sys/param.h>
 #include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
@@ -43,6 +41,11 @@
 #include "sapi.h"
 
 ushort_t hdrseq = 2;
+
+/* Show the reasons for not changing connection states? */
+#ifdef DO_DEBUGGING
+#define REPORT
+#endif
 
 /*
  * Global data. These should be allocated dynamically. They are not because
@@ -226,7 +229,9 @@ isdn3_killconn (isdn3_conn conn, char force)
 	isdn3_talk talk = conn->talk;
 
 
+#ifdef REPORT
 	printf ("Conn %ld: Killing %d St %lo: min %d, at %d", conn->call_ref, force, conn->minorstate, conn->minor, conn->fminor);
+#endif
 
 	if(force)
 		conn->id = 0;
@@ -383,7 +388,7 @@ isdn3_killconn (isdn3_conn conn, char force)
 					int i;
 					for(i=0;i<NMINOR;i++) {
 						if(minor2conn[i]==conn) {
-							printf("ISDN_3 DeadConn %p, at pos %d, minor %d\n",minor2conn[i],i,conn->minor);
+							if(0)printf("ISDN_3 DeadConn %p, at pos %d, minor %d\n",minor2conn[i],i,conn->minor);
 							minor2conn[i]=NULL;
 						}
 					}
@@ -877,7 +882,9 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		mblk_t *mp;
 		isdn23_hdr hdr;
 
+#ifdef REPORT
 		printf ("Disconnect %d.",established);
+#endif
 		/* The connection isn't in the process of being established any more. */
 		if (conn->minorstate & MS_CONNDELAY_TIMER) {
 			conn->minorstate &= ~MS_CONNDELAY_TIMER;
@@ -2299,8 +2306,7 @@ printf("ErX k\n");
 			if(call_ref != 0)
 				conn->call_ref = call_ref;
 		}
-if(theID == CMD_OFF) printf(" D1 ");
-		printf ("* Conn%p: min %d at %d; minor %d min %d; callref %ld connref %d \n",
+		if(0)printf ("* Conn%p: min %d at %d; minor %d min %d; callref %ld connref %d \n",
 				conn, conn->minor, conn->fminor, 
 				minor, fminor, conn->call_ref, conn->conn_id);
 		if (conn->minor == 0 && !nodisc && (theID != CMD_OFF)) {
@@ -2308,11 +2314,9 @@ if(theID == CMD_OFF) printf(" D1 ");
 			if (conn->minor != 0)
 				minor2conn[conn->minor] = conn;
 		}
-else printf(" D4 ");
 		if (do_talk)
 			conn->minorstate |= MS_FORCING;
 		if (conn->minor != 0) {
-if(theID == CMD_OFF) printf(" D5 ");
 			if (conn->fminor == 0) 
 				conn->fminor = fminor;
 			minor2conn[conn->minor] = conn;
@@ -2322,7 +2326,6 @@ if(theID == CMD_OFF) printf(" D5 ");
 		if (conn->stack[0] == 0)
 			memcpy(conn->stack,stack,sizeof(conn->stack));
 		if(do_int != 0) {
-if(theID == CMD_OFF) printf(" D6 ");
 			if(conn->minor == 0) {
 				printf("\n*** CM Zero!\n");
 			} else if(do_int > 0)
@@ -2330,11 +2333,9 @@ if(theID == CMD_OFF) printf(" D6 ");
 			else
 				minorflags[conn->minor] &=~ MINOR_INT;
 		}
-if(theID == CMD_OFF) printf(" D7 ");
 		conn->lockit++;
 		isdn3_setup_conn (conn, EST_NO_CHANGE);
 		conn->lockit--;
-if(theID == CMD_OFF) printf(" D8 ");
 		if(conn->state == 0) {
 			/* XXX */
 		}
@@ -2345,7 +2346,6 @@ if(theID == CMD_OFF) printf(" D8 ");
 			printf ("ErrOut t of %d is %d\n", talk->hndl->SAPI, err);
 			goto err_out;
 		}
-if(theID == CMD_OFF) printf(" D9 ");
 		break;
 	}
   /* ok_out: */
@@ -2448,7 +2448,7 @@ isdn3_findminor (ushort_t minor)
 	if (minor2conn[minor] == NULL)
 		return NULL;
 	conn = minor2conn[minor];
-	printf (".FindMinor%p %d gets C %d:%d\n", conn, minor, conn->minor, conn->fminor);
+	if(0)printf (".FindMinor%p %d gets C %d:%d\n", conn, minor, conn->minor, conn->fminor);
 	return conn;
 }
 
@@ -2482,15 +2482,19 @@ isdn3_findtalk (isdn3_card card, isdn3_hndl hndl, mblk_t *info, int create)
 		int i;
 		int err;
 
-char systr[200] = "";
-if(card->info != NULL)
- sprintf(systr+strlen(systr),"'%-*s'",card->info->b_wptr-card->info->b_rptr,card->info->b_rptr);
-else strcat(systr,"NULL");
-strcat(systr," and info ");
-if(info != NULL)
- sprintf(systr+strlen(systr),"'%-*s'",info->b_wptr-info->b_rptr,info->b_rptr);
-else strcat(systr,"NULL");
-syslog(LOG_DEBUG,"====== Create 0x%02x with card %s",hndl->SAPI,systr);
+#if 0
+		char systr[200] = "";
+		if(card->info != NULL)
+ 			sprintf(systr+strlen(systr),"'%-*s'",card->info->b_wptr-card->info->b_rptr,card->info->b_rptr);
+		else
+			strcat(systr,"NULL");
+		strcat(systr," and info ");
+		if(info != NULL)
+ 			sprintf(systr+strlen(systr),"'%-*s'",info->b_wptr-info->b_rptr,info->b_rptr);
+		else
+			strcat(systr,"NULL");
+		syslog(LOG_DEBUG,"====== Create 0x%02x with card %s",hndl->SAPI,systr);
+#endif
 		if(card->info != NULL) {
 			mblk_t *mi = card->info;
 			streamchar *sta = mi->b_rptr;
@@ -2661,7 +2665,7 @@ isdn3_findconn (isdn3_talk talk, long protocol, long call_ref)
 	for (conn = talk->conn; conn != NULL; conn = conn->next)
 		if (conn->subprotocol == protocol && conn->call_ref == call_ref
 		&& (conn->state != 0)) {
-			printf(".FindConn%p, ref %ld:",conn,call_ref);
+			if(0)printf(".FindConn%p, ref %ld:",conn,call_ref);
 			return conn;
 		}
 	return NULL;
@@ -2735,7 +2739,7 @@ isdn3_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	WR (q)->q_ptr = (caddr_t) & isdn3_q;
 	q->q_ptr = (caddr_t) isdn3_q;
 
-	printf ("ISDN Master driver %d opened.\n", dev);
+	if(0)printf ("ISDN Master driver %d opened.\n", dev);
 
 	return 0;
 }
@@ -2746,7 +2750,7 @@ isdn3_close (queue_t *q, int dummy)
 {
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
-	printf ("ISDN Master driver closed.\n");
+	if(0)printf ("ISDN Master driver closed.\n");
 	isdn3_q = NULL;
 	return;
 }
@@ -2942,8 +2946,7 @@ isdn3_rsrv (queue_t * q)
 						isdn3_talk talk;
 
 						if (conn == NULL) {
-							if (0)
-								printf ("XData: Conn for minor %d nf\n", hdr.hdr_detach.minor);
+							if (0) printf ("XData: Conn for minor %d nf\n", hdr.hdr_detach.minor);
 							break;
 						}
 						if ((talk = conn->talk) == NULL) {
@@ -3041,7 +3044,7 @@ isdn3_rsrv (queue_t * q)
 							break;
 						}
 						if (minorflags[hdr.hdr_open.minor] & MINOR_OPEN) {
-							printf ("Open: Minor %d open\n", hdr.hdr_open.minor);
+							if(0)printf ("Open: Minor %d open\n", hdr.hdr_open.minor);
 							break;
 						}
 
@@ -3070,7 +3073,7 @@ isdn3_rsrv (queue_t * q)
 						isdn3_conn conn = isdn3_findminor (hdr.hdr_close.minor);
 						mblk_t *mx;
 
-						printf("\n*** Closed %d\n",hdr.hdr_close.minor);
+						if(0)printf("\n*** Closed %d\n",hdr.hdr_close.minor);
 						minorflags[hdr.hdr_close.minor] = 0;
 						if (conn != 0 && conn->minor == hdr.hdr_close.minor) {
 							SUBDEV cm = conn->minor;
@@ -3239,7 +3242,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 
 						if (hdr.hdr_notify.SAPI == SAPI_INVALID) {
 							for (talk = card->talk; talk != NULL; talk = talk->next) {
-								printf("chstate for SAPI %x\n",talk->hndl->SAPI);
+								if(0)printf("chstate for SAPI %x\n",talk->hndl->SAPI);
 								(*talk->hndl->chstate) (talk, hdr.hdr_notify.ind, hdr.hdr_notify.add);
 							}
 							switch (hdr.hdr_notify.ind) {

@@ -26,7 +26,7 @@
 #include "isdn_proto.h"
 #include "smallq.h"
 #include "isdn_limits.h"
-#include <sys/stream.h>
+#include "stream.h"
 #include "streamlib.h"
 #include <sys/errno.h>
 #include <sys/sysmacros.h>
@@ -48,13 +48,6 @@
 #else
 #define SetSPL(x) spl((x))
 #endif
-
-/* This is ANSI... */
-#define xxappxx(a,b) a##b
-#define NAME(a,b) xxappxx(a,b) /* isn't C wonderful */
-#define xxstrxx(a) #a
-#define STRING(a) xxstrxx(a) /* ditto */
-
 
 extern void log_printmsg (void *log, const char *text, mblk_t * mp, const char*);
 static void reset_card(struct _bintec *bp);
@@ -253,7 +246,8 @@ bd_msgout( struct _bintec *bp )
 		}
 		if(++count > 1000) {
 			printf("\n%sBINTEC: The board seems to be in an infinite loop.\n",KERN_ERR);
-			isdn2_new_state(&bp->card,2);
+			if(bp->waitmsg == 0)
+				isdn2_new_state(&bp->card,2);
 			CTRL_RESET(bp);
 			return -EIO;
 		}
@@ -262,7 +256,8 @@ bd_msgout( struct _bintec *bp )
     if (*bp->state & 0x80) {      /*  board failed  */
 		CTRL_RESET(bp);           /*  reset board  */
 		printf("BINTEC: msgout: board failed???\n");
-		isdn2_new_state(&bp->card,2);
+		if(bp->waitmsg == 0)
+			isdn2_new_state(&bp->card,2);
 		return -EIO;
     }
     return 0;
@@ -1042,8 +1037,7 @@ pushone(struct _bintec *bp, int thechan)
 			if(err == 0) {
 				freeb(mb);
 				S_enqueue(&bp->chan[0].q_out,mr);
-				if(bp->chan[0].q_out.nblocks == 1)
-					sendone(bp,0);
+				sendone(bp,0);
 			} else if(err == -EAGAIN) {
 				S_requeue(&chan->q_in, mb);
 				freemsg(mr);
@@ -1084,8 +1078,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 			isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
 			return -EIO;
 		}
-		if(bp->chan[0].q_out.nblocks == 1)
-			sendone(bp,0);
+		sendone(bp,0);
 		break;
 	case CAPI_DATAB3_IND:
 		{
@@ -1117,8 +1110,7 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 				   card instead. */
 				isdn2_chstate(&bp->card,MDL_ERROR_IND,0);
 			}
-			if(chan->q_in.nblocks == 1)
-				pushone(bp,ch);
+			pushone(bp,ch);
 		}
 		break;
 	case CAPI_DATAB3_CONF:
@@ -1216,8 +1208,7 @@ process_unknown (struct _bintec *bp)
 						cr->ncci = ci->ncci;
 						cr->blknum = ci->blknum;
 						S_enqueue(&bp->chan[0].q_out,mr);
-						if(bp->chan[0].q_out.nblocks == 1)
-							sendone(bp,0);
+						sendone(bp,0);
 					}
 					freemsg(mb);
 				}

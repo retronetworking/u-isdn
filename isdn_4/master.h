@@ -9,10 +9,9 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include "f_signal.h"
+#include "kernel.h"
 #include <sys/wait.h>
-#include <strings.h>
 #include <syslog.h>
 #include "streams.h"
 #include "sioctl.h"
@@ -29,8 +28,7 @@
 #include "f_ioctl.h"
 #include "f_termio.h"
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
-#include "f_signal.h"
+#include "stropts.h"
 #include <sys/wait.h>
 #include "f_strings.h"
 #include <syslog.h>
@@ -41,10 +39,7 @@
 #include <ctype.h>
 #include <malloc.h>
 #include <fcntl.h>
-#include "streams.h"
-#include "sioctl.h"
 #include "streamlib.h"
-#include "isdn_34.h"
 #include "phone_1TR6.h"
 #include "phone_ETSI.h"
 #include "isdn_proto.h"
@@ -57,8 +52,6 @@
 #include "isdn_23.h"
 #endif
 #include "isdn_limits.h"
-#include "dump.h"
-#include "timeout.h"
 #include "x75.h"
 #include "proto.h"
 
@@ -155,10 +148,11 @@ EXTERN uid_t user[NMINOR];
 /* Unique refnum, always incremented by two */
 /* The lower level also has one of these, but with the low bit set */
 
-EXTERN long connrefs INIT(2);
+EXTERN long isdn4_connref INIT(2);
 
 EXTERN int fd_mon;			/* the lower/layer connection */
 EXTERN char *progname;
+EXTERN int log_34 INIT(0);
 EXTERN int testonly INIT(0);	/* set if fd_mon is not actually connected */
 EXTERN int igstdin INIT(1);	/* Ignore stdin */
 EXTERN int in_boot INIT(1);	/* We're still coming up */
@@ -182,7 +176,7 @@ EXTERN int connseq INIT(0);
 
 EXTERN struct xstream *xs_mon;		/* Pseudo-stream for the L3 engine */
 
-#define DUMPW(s,l) do { printf("HL W "); dumpascii((uchar_t *)(s),(l)); printf("\n"); } while(0)
+#define DUMPW(s,l) do { if(!(log_34 & 1)) break; printf("HL W "); dumpascii((uchar_t *)(s),(l)); printf("\n"); } while(0)
 
 /* String database. Should probably be an AVL tree or a hash but I'm lazy. */
 /** The purpose of this thing is to be able not to bother with keeping track
@@ -307,25 +301,27 @@ typedef struct conninfo {
 #define F_INTERRUPT         01 /* interrupt, don't disconnect */
 #define F_PREFOUT           02 /* drop incoming connection on call collision */
 #define F_FORCEOUT          04 /* always drop incoming connection */
-#define F_IGNORELIMIT      010 /* override card limit */
+#define F_IGNORELIMIT      010 /* override connection limit */
 #define F_FASTDROP         020 /* immediate connection reject */
 #define F_FASTREDIAL       040 /* don't delay as much when a dialup attempt fails */
-#define F_PERMANENT       0100 /* connection doesn't really die */
-#define F_LEASED          0200 /* leased line */
+#define F_PERMANENT       0100 /* dialup connection which doesn't really die */
+#define F_LEASED          0200 /* connection on leased line */
 #define F_CHANBUSY        0400 /* busy if no free channel */
 #define F_NRCOMPLETE     01000 /* remote number is complete */
 #define F_LNRCOMPLETE    02000 /* local number is complete */
 #define F_INCOMING       04000 /* incoming call */
 #define F_OUTGOING      010000 /* outgoing call */
-#define F_DIALUP        020000 /* dialup line */
-#define F_IGNORELIMIT2  040000 /* override card limit */
+#define F_DIALUP        020000 /* dialup connection */
+#define F_MULTIDIALUP   040000 /* dialup connection, independent */
 #define F_OUTCOMPLETE  0100000 /* outgoing call info complete */
 #define F_SETINITIAL   0200000 /* initial connection setup */
 #define F_SETLATER     0400000 /* later re-setup */
 #define F_NOREJECT    01000000 /* don't cause "temp unavailable" messages */
 #define F_BACKCALL    02000000 /* callback on B if incoming call on A busy */
+#define F_FOOBAR      04000000 /* dummy flag to return TRUE */
 
-#define F_MOVEFLAGS (F_IGNORELIMIT|F_IGNORELIMIT2)
+#define F_MOVEFLAGS (F_IGNORELIMIT|F_PERMANENT|F_DIALUP|F_MULTIDIALUP|F_LEASED)
+#define F_MASKFLAGS (F_PERMANENT|F_DIALUP|F_MULTIDIALUP)
 	/* FLags we set on start of a connection from the conngrab */
 
 /*
@@ -363,11 +359,12 @@ void do_quitnow(void *nix);
 
 #define setconnref(a,b) Xsetconnref(__FILE__,__LINE__,(a),(b))
 void Xsetconnref(const char *deb_file,unsigned int deb_line, conninfo conn, int connref);
-void connreport(char *foo, char *card); 
+void connreport(char *foo, char *card, int minor); 
 /* Changing a connection status, and things to do */
 const char *CauseInfo(int cause, char *pri);
 
-void ReportConn(conninfo conn);
+void ReportOneConn(conninfo conn, int minor);
+#define ReportConn(a) ReportOneConn((a),0)
 
 #define setconnstate(a,b) Xsetconnstate(__FILE__,__LINE__,(a),(b))
 void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState state);
@@ -462,7 +459,7 @@ void Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_li
 void rdropconn (struct conninfo *conn, int deb_line);
 void deadkid (void);
 
-int matchflag(long flags, char *ts);
+long matchflag(long flags, char *ts);
 cf getcards(conngrab cg, cf list);
 void Xbreak(void);
 

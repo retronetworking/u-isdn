@@ -1,10 +1,10 @@
 #ifndef _INC_KERNEL
 #define _INC_KERNEL
-#ifndef KERNEL
-
 #if defined(linux)
 #include <linux/config.h>
 #endif
+
+#ifndef KERNEL
 #include <malloc.h>
 #include <stdio.h>
 #include <sys/param.h>
@@ -36,7 +36,13 @@ extern void panic(const char *x, ...);
 #define kfree(a) free((a))
 #define kfree_s(a,b) free((a))
 
+#undef HZ
+#define HZ 10 /* don't need more granularity */
+
 #else /* KERNEL */
+#ifndef __KERNEL__
+#define __KERNEL__
+#endif
 #include <linux/kernel.h>
 char *loghdr(char level);
 #undef KERN_EMERG

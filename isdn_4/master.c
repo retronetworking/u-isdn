@@ -37,12 +37,18 @@ main (int argc, char *argv[])
 	else
 		progname++;
 
-	while ((x = getopt (argc, argv, "iIf:dlLwWqQ"))!= EOF) {
+	while ((x = getopt (argc, argv, "iIf:dlLwWqQmM"))!= EOF) {
 		switch (x) {
 		/*
 		 * Logging. Small letters are usermode, capitals log in the kernel.
 		 * 'l' is raw data, 'w' is interpreted data, 'q' is queue info.
 		 */
+		case 'm':
+			log_34 |= 1;
+			break;
+		case 'M':
+			log_34 |= 2;
+			break;
 		case 'l':
 			pushlog |= 1;
 			break;
@@ -124,6 +130,12 @@ main (int argc, char *argv[])
 #ifdef HAVE_SETPGRP_0
 		setpgrp();
 #endif
+	} 
+	{ /* Switch stdout and stderr */
+		int fd = dup(1);
+		dup2(2,1);
+		dup2(fd,2);
+		close(fd);
 	}
 
 #ifdef linux
@@ -166,7 +178,7 @@ main (int argc, char *argv[])
 					mknod (idevname (i), S_IFCHR | S_IRUSR | S_IWUSR, MKDEV(isdnstd,i));
 					chmod (idevname (i), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 				}
-				syslog(LOG_DEBUG,"ISDN: isdn/XX: major number %d",isdnstd);
+				if(0)syslog(LOG_DEBUG,"ISDN: isdn/XX: major number %d",isdnstd);
 			}
 				
 			if(isdnterm == 0) 
@@ -175,7 +187,7 @@ main (int argc, char *argv[])
 				int i;
 				for(i=1;i<NPORT;i++)
 					unlink(devname(i));
-				syslog(LOG_DEBUG,"ISDN: ttyiXX: major number %d",isdnterm);
+				if(0)syslog(LOG_DEBUG,"ISDN: ttyiXX: major number %d",isdnterm);
 			}
 		}
 	}

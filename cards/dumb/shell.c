@@ -50,7 +50,7 @@ CMDR 41
 #include "smallq.h"
 #include "isdn_limits.h"
 #include "isdn_proto.h"
-#include <sys/stream.h>
+#include "stream.h"
 #include "streamlib.h"
 #include <sys/errno.h>
 #ifdef SCO
@@ -198,11 +198,6 @@ typedef struct _hscx {
 
 
 #define DUMBTIME 300 /* poll: times per second */
-
-#define xxappxx(a,b) a##b
-#define NAME(a,b) xxappxx(a,b) /* isn't C wonderful */
-#define xxstrxx(a) #a
-#define STRING(a) xxstrxx(a) /* ditto */
 
 void NAME(REALNAME,poll)(struct _dumb *dumb);
 #else

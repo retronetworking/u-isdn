@@ -1,4 +1,4 @@
-#include <sys/stream.h>
+#include "stream.h"
 /*
  * Compare two feature vectors, mask off certain bits.
  * Return..:

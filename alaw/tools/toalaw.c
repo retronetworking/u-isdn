@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <string.h>
 #ifdef linux
-#include <linux/syscompat.h>
+#include <compat.h>
 #endif
 
 short mx[] = {16,32,64,128,256,512,1024,2048};

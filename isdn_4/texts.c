@@ -57,6 +57,12 @@ char *FlagInfo(int flag)
 	static char fbuf[30];
 
 	fbuf[0]='\0';
+	if (flag & F_INCOMING)     strcat(fbuf, ":in");
+	if (flag & F_OUTGOING)     strcat(fbuf, ":ou");
+	if (flag & F_PERMANENT)    strcat(fbuf, ":dP");
+	if (flag & F_LEASED)       strcat(fbuf, ":dL");
+	if (flag & F_MULTIDIALUP)  strcat(fbuf, ":dM");
+	if (flag & F_DIALUP)       strcat(fbuf, ":dD");
 	if (flag & F_INTERRUPT)    strcat(fbuf, ":is");
 	if (flag & F_PREFOUT)      strcat(fbuf, ":xi");
 	if (flag & F_FORCEOUT)     strcat(fbuf, ":yi");
@@ -64,15 +70,9 @@ char *FlagInfo(int flag)
 	if (flag & F_IGNORELIMIT)  strcat(fbuf, ":il");
 	if (flag & F_FASTDROP)     strcat(fbuf, ":fX");
 	if (flag & F_FASTREDIAL)   strcat(fbuf, ":fr");
-	if (flag & F_PERMANENT)    strcat(fbuf, ":dP");
-	if (flag & F_LEASED)       strcat(fbuf, ":dL");
 	if (flag & F_CHANBUSY)     strcat(fbuf, ":ib");
 	if (flag & F_NRCOMPLETE)   strcat(fbuf, ":nc");
 	if (flag & F_LNRCOMPLETE)  strcat(fbuf, ":lc");
-	if (flag & F_INCOMING)     strcat(fbuf, ":in");
-	if (flag & F_OUTGOING)     strcat(fbuf, ":ou");
-	if (flag & F_DIALUP)       strcat(fbuf, ":dD");
-	if (flag & F_IGNORELIMIT2) strcat(fbuf, ":iL");
 	if (flag & F_OUTCOMPLETE)  strcat(fbuf, ":oc");
 	if (flag & F_SETINITIAL)   strcat(fbuf, ":si");
 	if (flag & F_SETLATER)     strcat(fbuf, ":sl");
@@ -91,6 +91,7 @@ const char *CauseInfo(int cause, char *pri)
 	case 0: return "OK";
 	case ID_priv_Busy:					return "Local Busy";
 	case ID_priv_Print:					if(isdigit(*pri)) return pri+1; else return pri;
+	case CHAR2('?','?'):				return "-unknown-";
 
 #ifdef _capi_
 	case ID_E_REGISTER:					return "application registration";

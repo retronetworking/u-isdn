@@ -438,9 +438,7 @@ read_args (void *nix)
 		}
 	}
 
-	if(nexttime == 0)
-		nexttime = 60;
-	else if(nexttime > 32767/HZ/60)
+	if((nexttime == 0) || (nexttime > 32767/HZ/60))
 		nexttime = 32767/HZ/60;
 #ifdef NEW_TIMEOUT
 	classtimer =

@@ -18,7 +18,7 @@
 #include "f_signal.h"
 #include <sys/param.h>
 #include <sys/sysmacros.h>
-#include <sys/stropts.h>
+#include "stropts.h"
 
 #include "streams.h"
 #include "config.h"

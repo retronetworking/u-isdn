@@ -32,7 +32,7 @@
 
 #include "primitives.h"
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 #include <sys/socket.h>
 #if LINUX_VERSION_CODE >= 66324 /* 1.3.20 ??? */
 #include <linux/if_arp.h>
@@ -42,7 +42,6 @@
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
-#include <linux/syscompat.h>
 #include <sys/socket.h>
 #include <sys/errno.h>
 #include "f_ioctl.h"

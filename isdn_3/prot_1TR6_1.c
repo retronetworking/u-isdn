@@ -1135,11 +1135,13 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			phone_sendback (conn, MT_N1_CONN_ACK, NULL);
 			pr_setstate (conn, 10);
 			break;
-		case MT_N1_INFO:{
+		case MT_N1_INFO:
+			{
 				QD_INIT (data, len) break;
 				report_n1_info (conn, data, len);
 				QD {
-				  QD_CASE (0, PT_N0_netSpecFac):{
+				  QD_CASE (0, PT_N0_netSpecFac):
+					{
 						char nlen;
 						uchar_t facility;
 
@@ -1153,9 +1155,11 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 						if (facility != N1_FAC_Forward1 && facility != N1_FAC_Forward2) {
 							pr_setstate (conn, 3);
 						}
-					} break;
+					}
+					break;
 				}
-			} break;
+			}
+			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL, NULL);
@@ -1801,7 +1805,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 static int
 chstate (isdn3_conn conn, uchar_t ind, short add)
 {
-	printf ("PHONE state for card %d says %d:%o\n", conn->card->nr, ind, add);
+	if(0)printf ("PHONE state for card %d says %d:%o\n", conn->card->nr, ind, add);
 	if(conn->p_data == NULL) {
 		if((conn->p_data = malloc(sizeof(struct t_info))) == NULL) {
 			return -ENOMEM;
@@ -1976,16 +1980,18 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				case ARG_SPV:
 					svc = 1;
 					break;
-				case ARG_LNUMBER:{
+				case ARG_LNUMBER:
+					{
+						char nbuf[MAXNR];
 						m_getskip (data);
-						if (data->b_rptr > data->b_wptr+2) {
-							data->b_rptr = oldpos;
+						if ((err = m_getstr (data, nbuf, MAXNR)) != 0) {
 							printf("GetX EAZ: ");
 							conn->lockit--;
-							return -EINVAL;
+							return err;
 						}
-						((struct t_info *)conn->p_data)->eaz = data->b_rptr[1];
-					} break;
+						((struct t_info *)conn->p_data)->eaz = nbuf[strlen(nbuf)-1];
+					}
+					break;
 				case ARG_NUMBER:
 					m_getskip (data);
 					if ((err = m_getstr (data, (char *) ((struct t_info *)conn->p_data)->nr, MAXNR)) != 0) {
@@ -2164,16 +2170,18 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 							return err;
 						}
 						break;
-					case ARG_LNUMBER:{
+					case ARG_LNUMBER:
+						{
+							char nbuf[MAXNR];
 							m_getskip (data);
-							if (data->b_rptr > data->b_wptr-2) {
-								data->b_rptr = oldpos;
-								printf("GetEAZAns ");
+							if ((err = m_getstr (data, nbuf, MAXNR)) != 0) {
+								printf("GetX EAZans: ");
 								conn->lockit--;
-								return -EINVAL;
+								return err;
 							}
-							((struct t_info *)conn->p_data)->eaz = data->b_rptr[1];
-						} break;
+							((struct t_info *)conn->p_data)->eaz = nbuf[strlen(nbuf)-1];
+						}
+						break;
 					}
 				}
 				{

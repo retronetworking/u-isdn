@@ -18,7 +18,7 @@
 #include "f_malloc.h"
 #include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 /* #ifdef DONT_ADDERROR */
 #include "f_user.h"
 /* #endif */
@@ -2219,7 +2219,13 @@ isdn2_wput (queue_t *q, mblk_t *mp)
 	switch (DATA_TYPE(mp)) {
 	case M_IOCTL:
 		DATA_TYPE(mp) = M_IOCNAK;
-		((struct iocblk *)mp->b_rptr)->ioc_error = EINVAL;
+		((struct iocblk *)mp->b_rptr)->ioc_error =
+#ifdef LINUX
+			ENOIOCTLCMD
+#else
+			EINVAL
+#endif
+				;
 		qreply (q, mp);
 		break;
 	case CASE_DATA:

@@ -3,8 +3,8 @@
 
 #include <linux/config.h>
 #include <linux/types.h>
-#include <linux/syscompat.h>
-#include <linux/stropts.h>
+#include "compat.h"
+#include "stropts.h"
 #ifdef __KERNEL__
 #include <linux/fs.h>
 #include <linux/major.h>

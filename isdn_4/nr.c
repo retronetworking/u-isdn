@@ -99,8 +99,12 @@ char *match_nr (char *extnr, char *locnr, char *locpref)
 			return NULL;
 		extpos++; locpos++;
 	}
-	if(*locpos != '\0')
+	if(*locpos != '\0') {
+		if(*locpos == '/' || *locpos == '.')
+			if(wildmat("",locpos+1))
+				return str_enter(locpos);
 		return NULL;
+	}
 	return "";
 }
 

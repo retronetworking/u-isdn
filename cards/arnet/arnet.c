@@ -14,7 +14,7 @@
 #include "f_malloc.h"
 #include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/stropts.h>
+#include "stropts.h"
 /* #ifdef DONT_ADDERROR */
 #include "f_user.h"
 /* #endif */
@@ -23,14 +23,16 @@
 #include <fcntl.h>
 #include <stddef.h>
 #include "streamlib.h"
-#include "lap.h"
 #include <sys/termios.h>
+#include "loader.h"
 
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/tqueue.h>
 #include <asm/io.h>
+#include <asm/irq.h>
+#include "loader.h"
 
 extern void log_printmsg (void *log, const char *text, mblk_t * mp, const char*);
 extern void logh_printmsg (void *log, const char *text, mblk_t * mp);
@@ -134,16 +136,21 @@ static unsigned short memsz[] = {
 };
 #define NRMEM (sizeof(memsz)/sizeof(memsz[0]))
 
-struct arnet_info { unsigned char *membase; short irq; short ioaddr;
+struct arnet_info {
+		    struct cardinfo info,*infoptr;
+			struct arnet_info *next;
 			unsigned short nports; short handshake;
 			struct tq_struct queue; char usage;
 			unsigned char ena01; unsigned char ena23; unsigned char irqf;
 			struct arnet_port port[4];
 			ARNET_ADDR memsize; ARNET_ADDR freemem[NRMEM]; ARNET_ADDR limmem; 
-			ARNET_ADDR curpage; }
-		arnet_list[3] = {{NULL,}};
+			ARNET_ADDR curpage; };
 
-short arnet_ncards = 0;
+#define ARNET_NCARDS 4
+#define ARNET_NPORTS 4
+
+static struct arnet_info *arnet_map[NR_IRQS] = { NULL, };
+static struct arnet_info *arnet_cards[ARNET_NCARDS];
 
 const char *astr(char x)
 {
@@ -163,7 +170,7 @@ ldprintf(".%d.",__LINE__);
 }
 
 
-#define MEM(type,arn,offset) *(volatile unsigned type *)((void *)((arn)->membase + ((offset) & 0x3FFF)))
+#define MEM(type,arn,offset) *(volatile unsigned type *)((void *)((arn)->info.memaddr + ((offset) & 0x3FFF)))
 
 #define ADDR_SCA0 0xe110babe
 #define ADDR_SCA1 0xca11babe
@@ -175,29 +182,29 @@ arnet_page(struct arnet_info *arn, ARNET_ADDR addr)
 	switch(addr) {
 	case ADDR_NONE:
 if(dodebug) { if(arn->curpage != ADDR_NONE) { arn->curpage = ADDR_NONE; dprintf("C-_"); } }
-		outb_p(0x00,arn->ioaddr+8);
+		outb_p(0x00,arn->info.ioaddr+8);
 		return NULL;
 	case ADDR_SCA0:
 if(dodebug) { if(arn->curpage != ADDR_NONE) { arn->curpage = ADDR_NONE; dprintf("C0_"); } }
-		outb_p(0xC0,arn->ioaddr+8);
+		outb_p(0xC0,arn->info.ioaddr+8);
 		break;
 	case ADDR_SCA1:
 if(dodebug) { if(arn->curpage != ADDR_NONE) { arn->curpage = ADDR_NONE; dprintf("C1_"); } }
-		outb_p(0xE0,arn->ioaddr+8);
+		outb_p(0xE0,arn->info.ioaddr+8);
 		break;
 	default:
 dprintf(" BadPage 0x%lx ",addr);
 		return NULL;
 	}
 	SLOW_DOWN_IO; SLOW_DOWN_IO;
-	return arn->membase;
+	return (void *)arn->info.memaddr;
 }
 inline static void *
 arnet_mempage(struct arnet_info *arn, ARNET_ADDR addr)
 {
-	outb_p(((addr >> 14) & 0x0F) | 0x80, arn->ioaddr+8);
+	outb_p(((addr >> 14) & 0x0F) | 0x80, arn->info.ioaddr+8);
 if(dodebug) { if(arn->curpage != (addr & ~0x3FFF)) { arn->curpage = addr & ~0x3FFF; dprintf("P%lx_",0x0F&(addr >> 14)); } }
-	return arn->membase+(addr & 0x3FFF);
+	return (void *)arn->info.memaddr+(addr & 0x3FFF);
 }
 #define SEL_SCA(arp) arnet_page((arp)->inf,((arp)->portnr > 1) ? ADDR_SCA1 : ADDR_SCA0)
 
@@ -295,7 +302,7 @@ if(dodebug>1)ddprintf("v ");
 			} while(nszoff > 0);
 
 			arn->limmem = (arn->limmem + nlsz) & ~0x3FFF;
-			printf("ARNET %d: mem limit at %ldk\n",arn-arnet_list, (arn->limmem+0x4000) >> 10);
+			printf("ARNET %d: mem limit at %ldk\n",arn->info.ipl, (arn->limmem+0x4000) >> 10);
 		}
 		thisaddr = arn->limmem;
 		arn->limmem += lsz;
@@ -508,7 +515,7 @@ arnet_mode(struct arnet_port *arp, int mode)
 	unsigned char offset;
 	long flags;
 	int err;
-	unsigned char inb3 = inb_p(arn->ioaddr+3);
+	unsigned char inb3 = inb_p(arn->info.ioaddr+3);
 
 dprintf("ARNET_MODE %d of %d: ",mode,arp->portnr);
 
@@ -520,22 +527,22 @@ dprintf("ARNET_MODE %d of %d: ",mode,arp->portnr);
 		case 0:
 			offset = 0x20;
 			arn->ena01 = arn->ena01 & ~0x15;
-			outb_p(arn->ena01,arn->ioaddr+0x09); break;
+			outb_p(arn->ena01,arn->info.ioaddr+0x09); break;
 			break;
 		case 1:
 			offset = 0x40;
 			arn->ena01 = arn->ena01 & ~0x2A;
-			outb_p(arn->ena01,arn->ioaddr+0x09); break;
+			outb_p(arn->ena01,arn->info.ioaddr+0x09); break;
 			break;
 		case 2:
 			offset = 0x20;
 			arn->ena23 = arn->ena23 & ~0x15;
-			outb_p(arn->ena23,arn->ioaddr+0x0E); break;
+			outb_p(arn->ena23,arn->info.ioaddr+0x0E); break;
 			break;
 		case 3:
 			offset = 0x40;
 			arn->ena23 = arn->ena23 & ~0x2A;
-			outb_p(arn->ena23,arn->ioaddr+0x0E); break;
+			outb_p(arn->ena23,arn->info.ioaddr+0x0E); break;
 			break;
 		default:
 			restore_flags(flags);
@@ -560,22 +567,22 @@ dprintf(" ... unknown portnr\n");
 	case 0:
 		offset = 0x20;
 		if(mode & 2) arn->ena01 &= ~0x10;
-		outb_p(arn->ena01,arn->ioaddr+0x09); break;
+		outb_p(arn->ena01,arn->info.ioaddr+0x09); break;
 		break;
 	case 1:
 		offset = 0x40;
 		if(mode & 2) arn->ena01 &= ~0x20;
-		outb_p(arn->ena01,arn->ioaddr+0x09); break;
+		outb_p(arn->ena01,arn->info.ioaddr+0x09); break;
 		break;
 	case 2:
 		offset = 0x20;
 		if(mode & 2) arn->ena23 &= ~0x10;
-		outb_p(arn->ena23,arn->ioaddr+0x0E); break;
+		outb_p(arn->ena23,arn->info.ioaddr+0x0E); break;
 		break;
 	case 3:
 		offset = 0x40;
 		if(mode & 2) arn->ena23 &= ~0x20;
-		outb_p(arn->ena23,arn->ioaddr+0x0E); break;
+		outb_p(arn->ena23,arn->info.ioaddr+0x0E); break;
 		break;
 	default:
 dprintf(" ... unknown portnr\n");
@@ -634,25 +641,25 @@ dprintf(" ... mode unknown\n");
 		offset = 0x20;
 		arn->ena01 |= 0x05;
 		if(((inb3 >> 5) != 3) && !(mode & 2)) arn->ena01 |= 0x10;
-		outb_p(arn->ena01,arn->ioaddr+0x09);
+		outb_p(arn->ena01,arn->info.ioaddr+0x09);
 		break;
 	case 1:
 		offset = 0x40;
 		arn->ena01 |= 0x0A;
 		if(((inb3 >> 5) != 3) && !(mode & 2)) arn->ena01 |= 0x20;
-		outb_p(arn->ena01,arn->ioaddr+0x09);
+		outb_p(arn->ena01,arn->info.ioaddr+0x09);
 		break;
 	case 2:
 		offset = 0x20;
 		arn->ena23 |= 0x05;
 		if(((inb3 >> 5) != 3) && !(mode & 2)) arn->ena23 |= 0x10;
-		outb_p(arn->ena23,arn->ioaddr+0x0E);
+		outb_p(arn->ena23,arn->info.ioaddr+0x0E);
 		break;
 	case 3:
 		offset = 0x40;
 		arn->ena23 |= 0x0A;
 		if(((inb3 >> 5) != 3) && !(mode & 2)) arn->ena23 |= 0x20;
-		outb_p(arn->ena23,arn->ioaddr+0x0E);
+		outb_p(arn->ena23,arn->info.ioaddr+0x0E);
 		break;
 	}
 	arp->mode = mode;
@@ -840,7 +847,7 @@ dprintf("G %d @ %d ",buf[arp->recvcur].buflen,arp->recvcur);
 
 			arp->recvend = (arp->recvend == arp->recvnum) ? 0 : (arp->recvend + 1);
 			thebuf = RBUFPTR(&buf[arp->recvend]);
-dprintf("F %d @ %ld:%x ",arp->recvlen,arp->recvend,thebuf);
+dprintf("F %d @ %d:%lx ",arp->recvlen,arp->recvend,thebuf);
 			SEL_SCA(arp);
 			MEM(long ,arn,dmaoff+0x00) = thebuf;
 			MEM(short,arn,dmaoff+0x0E) = arp->recvlen;
@@ -1101,13 +1108,13 @@ ldprintf(".%d.",__LINE__);
 	}
 	if(irq2 & 0x01) {
 		unsigned char errs = MEM(char,arn,dmaoff+0x10);
-		dprintf(":DMI err rcv, s%02x m%02x ", errs,
+		dprintf(":DMI err rcv %d, s%02x m%02x ", errs,
 			MEM(char ,arn,dmaoff+0x14),
 			MEM(short,arn,dmaoff+0x0E));
 		if(msk2 & 0x01) {
 			errs &= MEM(char,arn,dmaoff+0x14);
 			if(errs & 0x20) { /* buffer overrun receive -- fatal */
-				printf(" * ARNET %d.%d: buffer overrun\n",arp->inf-arnet_list,arp->portnr);
+				printf(" * ARNET %d.%d: buffer overrun\n",arp->inf->info.ipl,arp->portnr);
 				if(!arp->recvsingle) {
 					if(0) {
 						struct dmabuf *buf = arnet_mempage(arn,arp->dmarecv);
@@ -1140,7 +1147,7 @@ ldprintf(".%d.",__LINE__);
 				}
 			}
 			else if(errs & 0x10) { /* counter overflow */
-				printf(" * ARNET %d.%d: counter overrun\n",arp->inf-arnet_list,arp->portnr);
+				printf(" * ARNET %d.%d: counter overrun\n",arp->inf->info.ipl,arp->portnr);
 			}
 		} else 
 			dprintf(" RE-masked-; ");
@@ -1167,7 +1174,7 @@ ldprintf(".%d.",__LINE__);
 			MEM(short,arn,dmaoff+0x2E));
 		if(msk2 & 0x04) {
 			if(errs & 0x20) { /* buffer over/underrun */
-				if(dodebug>1)printf(" * ARNET %d.%d: buffer underrun\n",arp->inf-arnet_list,arp->portnr);
+				if(dodebug>1)printf(" * ARNET %d.%d: buffer underrun\n",arp->inf->info.ipl,arp->portnr);
 				if(0)arnet_memdump(arn,"Buf Underrun");
 				if(arp->sendoverflow > 1) {
 				} else {
@@ -1175,7 +1182,7 @@ ldprintf(".%d.",__LINE__);
 				}
 			}
 			if(errs & 0x10) { /* counter overflow */
-				printf(" * ARNET %d.%d: counter underrun\n",arp->inf-arnet_list,arp->portnr);
+				printf(" * ARNET %d.%d: counter underrun\n",arp->inf->info.ipl,arp->portnr);
 				if(arp->sendsingle) {
 				} else {
 				}
@@ -1256,66 +1263,79 @@ if(dodebug)dprintf("TxI Off; ");
 }
 
 static void
-arnet_intr(int irq, struct pt_regs *foo)
+arnet_intrx(struct arnet_info *arn)
 {
-	int arc = arnet_ncards;
-	struct arnet_info *arn = arnet_list;
+	unsigned long flags;
 	unsigned char irqf;
-ldprintf(".%d.",__LINE__);
 
-	while(arc > 0) {
-		unsigned long flags;
-
-		save_flags(flags); cli();
-		if(arn->usage++) {
-			if(irq != 0) {
-				if(dodebug>1)dprintf(".D.");
-				queue_task(&arn->queue,&tq_timer);
-			}
-			restore_flags(flags);
-			goto next;
-		}
+	save_flags(flags); cli();
+	if(arn->usage++) {
+		if(dodebug>1)dprintf(".D.");
+		queue_task(&arn->queue,&tq_timer);
 		restore_flags(flags);
-
-		if((irq != 0) && (arn->irq != irq))
-			goto next;
-		irqf = inb_p(arn->ioaddr+0x07);
-		if((irq != 0) && !(irqf & 1)) {
-			if(0)dprintf("stray interrupt!  ");
-			goto next;
-		}
-		while(irqf & 0x01) {
-if(dodebug>1)ddprintf("k ");
-			arnet_intr1(&arn->port[0]);
-			if(arn->nports > 1)
-				arnet_intr1(&arn->port[1]);
-			if(arn->nports > 2)
-				arnet_intr1(&arn->port[2]);
-			if(arn->nports > 3)
-				arnet_intr1(&arn->port[3]);
-			irqf = inb_p(arn->ioaddr+0x07);
-		}
-		if((irqf ^ arn->irqf) & 0x1E) {
-			dprintf("ARNET: DCD changed: from %02x to %02x\n",
-				irqf,arn->irqf);
-			/* TODO */
-		}
-		arn->irqf = irqf;
-	  next:
-	  	arn->usage--;
-		arc--;
-		arn++;
+		goto next;
 	}
+	restore_flags(flags);
+
+	irqf = inb_p(arn->info.ioaddr+0x07);
+	while(irqf & 0x01) {
+if(dodebug>1)ddprintf("k ");
+		arnet_intr1(&arn->port[0]);
+		if(arn->nports > 1)
+			arnet_intr1(&arn->port[1]);
+		if(arn->nports > 2)
+			arnet_intr1(&arn->port[2]);
+		if(arn->nports > 3)
+			arnet_intr1(&arn->port[3]);
+		irqf = inb_p(arn->info.ioaddr+0x07);
+	}
+	if((irqf ^ arn->irqf) & 0x1E) {
+		dprintf("ARNET: DCD changed: from %02x to %02x\n",
+			irqf,arn->irqf);
+		/* TODO */
+	}
+	arn->irqf = irqf;
+next:
+	arn->usage--;
 }
 
 static void
-arnet_exit1(struct arnet_info *arn)
+arnet_intr(int irq, struct pt_regs *foo)
 {
-	int cnt;
-	struct arnet_port *arp = arn->port;
-ldprintf(".%d.",__LINE__);
-	arn->usage = 99;
+	struct arnet_info *arn;
 
+    for(arn=arnet_map[irq];arn != NULL; arn = arn->next) 
+		arnet_intrx(arn);
+}
+
+void NAME(REALNAME,exit)(struct cardinfo *inf)
+{
+	struct arnet_info **parn, *arn = NULL;
+	int cnt;
+	struct arnet_port *arp;
+
+ldprintf(".%d.",__LINE__);
+
+	parn = &arnet_map[inf->irq];
+	while(*parn != NULL) {
+		if((*parn)->infoptr == inf) {
+			arn = *parn;
+			*parn = arn->next;
+			break;
+		}
+	}
+	if(arn == NULL) {
+		printf("ARNET error: exit: info record not found!\n");
+		return;
+	}
+	if(arnet_cards[inf->ipl] != arn) {
+		printf("ARNET error: exit: info record not found!\n");
+		return;
+	}
+	arnet_cards[inf->ipl] = NULL;
+
+	arn->usage = 99;
+	arp = arn->port;
 	for(cnt=0;cnt < arn->nports; arp++,cnt++) {
 dprintf("Port %d: ",cnt);
 		if(arp->inf != arn) {
@@ -1328,42 +1348,65 @@ dprintf("Port %d: ",cnt);
 	MEM(char,arn, 0x14) = 0x00; /* IRQ off */
 	MEM(char,arn, 0x15) = 0x00; /* IRQ off */
 	MEM(char,arn, 0x16) = 0x00; /* IRQ off */
-	if(arn->irq != 0)
-		free_irq(arn->irq);
-	release_region(arn->ioaddr,16);
+
+	if((arnet_map[arn->info.irq] == NULL) && (arn->info.irq != 0))
+		free_irq(arn->info.irq);
+	release_region(arn->info.ioaddr,16);
+	kfree(arn);
 }
 
-static int
-arnet_init1(struct arnet_info *arn)
+int NAME(REALNAME,init)(struct cardinfo *inf)
 {
 	uchar_t inb3, inb4, inb5, inb6, inbc;
 	unsigned short x;
 	struct arnet_port *arp;
+	struct arnet_info *arn;
 
 	printf("Arnet: ");
+	if(inf->ioaddr < 0x100) {
+		printf("IOADDR %d bad\n",inf->ioaddr);
+		return -EINVAL;
+	}
+	if(inf->ipl >= ARNET_NCARDS) {
+		printf("IPL %d bad, 0 <= ipl <= %d\n",inf->ipl,ARNET_NCARDS-1);
+		return -EINVAL;
+	}
+	if(arnet_cards[inf->ipl] != NULL) {
+		printf("IPL %d busy!\n",inf->ipl);
+		return -EBUSY;
+	}
+	arn = kmalloc(sizeof(*arn),GFP_KERNEL);
+	if(arn == NULL) {
+		printf("no memory!\n");
+		return -ENOMEM;
+	}
 
+	bzero(arn,sizeof(*arn));
 	arn->usage = 99;
-	bzero(&arn->queue,sizeof(arn->queue));
-	arn->queue.routine = (void *)&arnet_intr;
-	arn->queue.data = (void *)(long)arn->irq;
+	arn->queue.routine = (void *)&arnet_intrx;
+	arn->queue.data = (void *)arn;
+	arn->infoptr = inf;
+	arn->info = *inf;
 
 	for(x=0;x<NRMEM;x++) 
 		arn->freemem[x] = 0;
 	arn->limmem = 256;
 	
-	inb3 = inb_p(arn->ioaddr+3);
-	inb4 = inb_p(arn->ioaddr+4);
-	inb5 = inb_p(arn->ioaddr+5);
-	inb6 = inb_p(arn->ioaddr+6);
-	if(check_region(arn->ioaddr,16)) {
-		printf("*** region 0x%x..0x%x blocked\n",arn->ioaddr,arn->ioaddr+15);
-		return 0;
+	inb3 = inb_p(arn->info.ioaddr+3);
+	inb4 = inb_p(arn->info.ioaddr+4);
+	inb5 = inb_p(arn->info.ioaddr+5);
+	inb6 = inb_p(arn->info.ioaddr+6);
+	if(check_region(arn->info.ioaddr,16)) {
+		printf("*** region 0x%x..0x%x blocked\n",arn->info.ioaddr,arn->info.ioaddr+15);
+		kfree(arn);
+		return -EBUSY;
 	}
 	arn->memsize = 1<<(((inb3&0x1C)>>2)+16);
-	printf("cf %02x: %d kByte, memory at %p, bus %d, adapter %s; %d ports; rev %02x; ", inb3, arn->memsize>>10, arn->membase, inb3&3, astr(inb3>>5), inb5, inb4);
-	if((unsigned long)arn->membase & 0xFF003FFF) {
-		printf("*** invalid membase: 0x%p\n",arn->membase);
-		return 0;
+	printf("cf %02x: %ld kByte, memory at %lx, bus %d, adapter %s; %d ports; rev %02x; ", inb3, arn->memsize>>10, arn->info.memaddr, inb3&3, astr(inb3>>5), inb5, inb4);
+	if(((unsigned long)arn->info.memaddr & 0xFF003FFF) || ((unsigned long)arn->info.memaddr < 0x80000)) {
+		printf("*** invalid memaddr: 0x%lx\n",arn->info.memaddr);
+		kfree(arn);
+		return -EINVAL;
 	}
 	{
 		unsigned long i;
@@ -1379,7 +1422,8 @@ arnet_init1(struct arnet_info *arn)
 	arn->nports = inb5;
 	if(arn->nports != 2 && arn->nports != 4) {
 		printf("huh? card with %d ports?\n",arn->nports);
-		return 0;
+		kfree(arn);
+		return -EIO;
 	}
 	arn->handshake = inb6;
 	if(inb6 == 0) 
@@ -1404,14 +1448,14 @@ arnet_init1(struct arnet_info *arn)
 		arp->mode = -1;
 	}
 
-	outb_p(0x00,arn->ioaddr+0x09);
+	outb_p(0x00,arn->info.ioaddr+0x09);
 	if(arn->nports > 2)
-		outb_p(0x00,arn->ioaddr+0x0E);
+		outb_p(0x00,arn->info.ioaddr+0x0E);
 	udelay(2);
-	outb_p(0x40,arn->ioaddr+0x09);
+	outb_p(0x40,arn->info.ioaddr+0x09);
 	udelay(500);
 	arn->ena01 = arn->ena23 = 0x70;
-	switch(arn->irq) {
+	switch(arn->info.irq) {
 	case  0: inbc = 0; break;
 	case  3: inbc = 1; break;
 	case  5: inbc = 2; break;
@@ -1421,15 +1465,16 @@ arnet_init1(struct arnet_info *arn)
 	case 12: inbc = 6; break;
 	case 15: inbc = 7; break;
 	default:
-		printf("*** unknown IRQ %d\n",arn->irq);
-		return 0;
+		printf("*** unknown IRQ %d\n",arn->info.irq);
+		kfree(arn);
+		return -EBUSY;
 	}
 	inbc <<= 1;
-	inbc |= 1 | (((long)arn->membase >> 10) & 0x30);
-	outb_p((long)arn->membase >> 16, arn->ioaddr+13);
-	outb_p(inbc, arn->ioaddr+12);
-	arn->irqf = inb_p(arn->ioaddr+7);
-	printf("inbc %02x, inbd %02lx; irqf %02x",inbc,(((long)arn->membase)>>16)&0xFF, arn->irqf);
+	inbc |= 1 | (((long)arn->info.memaddr >> 10) & 0x30);
+	outb_p((long)arn->info.memaddr >> 16, arn->info.ioaddr+13);
+	outb_p(inbc, arn->info.ioaddr+12);
+	arn->irqf = inb_p(arn->info.ioaddr+7);
+	printf("inbc %02x, inbd %02lx; irqf %02x",inbc,(((long)arn->info.memaddr)>>16)&0xFF, arn->irqf);
 
 	/* Now checking memory access */
 
@@ -1455,27 +1500,31 @@ arnet_init1(struct arnet_info *arn)
 	if(MEM(char,arn,0x33) != 0xAA) {
 		if((arn->nports <= 2) || (MEM(char,arn,0x33) != 0x5A)) {
 			printf("ERROR: Readback A, %02x\n", MEM(char,arn,0x33));
-			return 0;
+			return -EIO;
 		}
 		printf("ERROR: second chip unselectable A, %02x\n", MEM(char,arn,0x33));
-		return 0;
+		kfree(arn);
+		return -EIO;
 	}
 	if(MEM(char,arn,0x53) != 0x55) {
 		if((arn->nports <= 2) || (MEM(char,arn,0x53) != 0xA5)) {
 			printf("ERROR: Readback B, %02x\n", MEM(char,arn,0x53));
-			return 0;
+			return -EIO;
 		}
 		printf("ERROR: second chip unselectable B, %02x\n", MEM(char,arn,0x53));
-		return 0;
+		kfree(arn);
+		return -EIO;
 	}
 	if(arn->nports > 2) {
 		arnet_page(arn,ADDR_SCA1);
 		if(MEM(char,arn,0x33) != 0x5A) {
 			printf("ERROR: Readback C, %02x\n", MEM(char,arn,0x33));
-			return 0;
+			kfree(arn);
+			return -EIO;
 		} else if(MEM(char,arn,0x53) != 0xA5) {
 			printf("ERROR: Readback D, %02x\n", MEM(char,arn,0x53));
-			return 0;
+			kfree(arn);
+			return -EIO;
 		}
 	}
 
@@ -1488,71 +1537,46 @@ arnet_init1(struct arnet_info *arn)
 		MEM(char,arn,0x53) = 0xFF;
 	}
 
-    if((arn->irq != 0) && request_irq(arn->irq,arnet_intr,0 /* SA_INTERRUPT */,"arnet")) {  
-		printf("*** IRQ %d not available\n",arn->irq);
-		return 0;
+    if((arn->info.irq != 0) && (arnet_map[arn->info.irq] == NULL) && request_irq(arn->info.irq,arnet_intr,0 /* SA_INTERRUPT */,"arnet")) {  
+		printf("*** IRQ %d not available\n",arn->info.irq);
+		kfree(arn);
+		return -EBUSY;
 	}
-	request_region(arn->ioaddr,16,"arnet");
+	request_region(arn->info.ioaddr,16,"arnet");
+
+	arn->next = arnet_map[arn->info.irq];
+	arnet_map[arn->info.irq] = arn;
+	arnet_cards[arn->info.ipl] = arn;
+
   	printf("\n");
 	arn->usage = 0;
-	return 1;
+	return 0;
 }
 
-static int
-arnet_init (void)
-{
-ldprintf(".%d.",__LINE__);
-	arnet_ncards = 0;
-
-	arnet_list[arnet_ncards].membase = (void *)0xCC000;
-	arnet_list[arnet_ncards].irq = 15;
-	arnet_list[arnet_ncards].ioaddr = 0x300;
-	if(arnet_init1(&arnet_list[0])) arnet_ncards++;
-
-	printf ("ARNET: %d cards found\n",arnet_ncards);
-	if(arnet_ncards == 0)
-		return -ESRCH;
-	else
-		return 0;
-}
-
-static void
-arnet_exit(void)
-{
-	int arc = arnet_ncards;
-	struct arnet_info *arn = arnet_list;
-ldprintf(".%d.",__LINE__);
-
-	while(arc > 0) {
-dprintf("Exit, %d ports: ",arn->nports);
-ddprintf("l ");
-		arnet_exit1(arn);
-		arc--;
-		arn++;
-	}
-
-}
 
 /* Streams code to open the driver. */
 static int
 arnet_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 {
-	struct arnet_info *arn = arnet_list;
+	struct arnet_info **parn = arnet_cards;
+	struct arnet_info *arn = NULL;
 	struct arnet_port *arp;
-	int mdev = arnet_ncards;
+	int mdev = ARNET_NCARDS-1;
 	int cdev;
 	int err;
 ldprintf(".%d.",__LINE__);
 
 	dev = minor (dev);
 	cdev = dev & 0x0F;
-	while(mdev > 0 && cdev >= arn->nports) {
+	while(mdev > 0 && cdev >= 0) {
+		if((arn = *parn) != NULL && cdev < arn->nports) 
+			break;
 ddprintf("n ");
-		cdev -= arn->nports;
-		arn++;
+		cdev -= ARNET_NPORTS;
+		parn++;
 		mdev --;
 	}
-	if(mdev == 0) {
+	if(mdev == 0 || cdev < 0) {
 		ERR_RETURN(-ENXIO);
 	}
 	arn->usage++;
@@ -1567,13 +1591,11 @@ ddprintf("n ");
 	arp->q = q;
 	arp->mode = dev >> 4;
 
-	MORE_USE;
 	WR (q)->q_ptr = (caddr_t) arp;
 	q->q_ptr = (caddr_t) arp;
 
 	if((err = arnet_mode(arp,arp->mode)) < 0) {
 		arnet_dmaexit(arp);
-		LESS_USE;
 		arn->usage--;
 		q->q_ptr = NULL;
 		WR(q)->q_ptr = NULL;
@@ -1595,6 +1617,7 @@ ddprintf("n ");
 			arp->recvend,
 			MEM(short,arn,dmaoff+0x0C));
 	}
+	(*arn->info.use_count)++;
 	return dev;
 }
 
@@ -1620,7 +1643,7 @@ arnet_close (queue_t *q, int dummy)
 	arp->q = NULL;
 	arn->usage--;
 
-	LESS_USE;
+	(*arn->info.use_count)--;
 	return;
 }
 
@@ -1630,7 +1653,7 @@ static void
 arnet_wput (queue_t *q, mblk_t *mp)
 {
 	struct arnet_port *arp = (struct arnet_port *) q->q_ptr;
-	struct arnet_info *arn = arp->inf;
+	/* struct arnet_info *arn = arp->inf; */
 ldprintf(".%d.",__LINE__);
 
 #ifdef CONFIG_DEBUG_STREAMS
@@ -1641,13 +1664,13 @@ ldprintf(".%d.",__LINE__);
 		freemsg(mp);
 		return;
 	}
-	switch (DATATYPE(mp)) {
+	switch (DATA_TYPE(mp)) {
 	case M_IOCTL:
 		DATA_TYPE(mp) = M_IOCNAK;
 		((struct iocblk *)mp->b_rptr)->ioc_error = EINVAL;
 		qreply (q, mp);
 		break;
-	CASE_DATA
+	case CASE_DATA:
 		putq (q, mp);
 		break;
 	case M_FLUSH:
@@ -1763,7 +1786,6 @@ if(dodebug>1)ddprintf("q ");
 }
 
 
-
 #ifdef MODULE
 static int devmajor1 = 0;
 static int devmajor2 = 0;
@@ -1773,18 +1795,13 @@ static int do_init_module(void)
 	int err;
 ldprintf(".%d.",__LINE__);
 
-	if((err = arnet_init()) < 0)
-		return err;
 	err = register_strdev(0,&arnet_info,0);
-	if(err < 0) {
-		arnet_exit();
+	if(err < 0) 
 		return err;
-	}
 	devmajor1 = err;
-	err = register_strdev(0,&arnet_tinfo,arnet_ncards);
+	err = register_strdev(0,&arnet_tinfo,ARNET_NCARDS);
 	if(err < 0) {
 		unregister_strdev(devmajor1,&arnet_info,0);
-		arnet_exit();
 		return err;
 	}
 	devmajor2 = err;
@@ -1794,9 +1811,9 @@ ldprintf(".%d.",__LINE__);
 static int do_exit_module(void)
 {
 	int err1 =  unregister_strdev(devmajor1,&arnet_info,0);
-	int err2 =  unregister_strdev(devmajor2,&arnet_tinfo,arnet_ncards);
+	int err2 =  unregister_strdev(devmajor2,&arnet_tinfo,ARNET_NCARDS);
 ldprintf(".%d.",__LINE__);
-	arnet_exit();
 	return err1 || err2;
 }
 #endif
+

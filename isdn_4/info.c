@@ -246,7 +246,7 @@ find_conn(void)
 	if(conn == NULL)
 		conn = xconn;
 	if(conn != NULL) {
-		printf("Found Conn %d/%d, cref %ld\n",conn->minor,conn->fminor,conn->connref);
+		if(0)printf("Found Conn %d/%d, cref %ld\n",conn->minor,conn->fminor,conn->connref);
 	}
 	if (conn != NULL && ind != IND_OPEN) {
 		if (conn->minor == 0 && minor != 0) {
@@ -312,9 +312,11 @@ init_vars (void)
 
 	*(ulong_t *) crd = 0;
 	crd[4] = '\0';
-	printf ("HL R ");
-	dumpascii (data, len);
-	printf ("\n");
+	if(log_34 & 1) {
+		printf ("HL R ");
+		dumpascii (data, len);
+		printf ("\n");
+	}
 	data[len] = '\0';
 	xx.b_rptr = data;
 	xx.b_wptr = data + len;
@@ -406,7 +408,7 @@ do_card(void)
 		io[0].iov_len = xlen;
 		len = 1;
 		if(dl->args != NULL) {
-			printf ("+ ");
+			if(log_34 & 1)printf ("+ ");
 			io[len].iov_base = ":: ";
 			io[len].iov_len = 3;
 			len++;
@@ -514,7 +516,7 @@ do_cardproto(void)
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
-			if(1)printf("Dis10 ");
+			if(log_34 & 2)printf("Dis10 ");
 			m_putid (&xx, CMD_OFF);
 			if(minor > 0) {
 				m_putsx (&xx, ARG_MINOR);
@@ -549,7 +551,7 @@ do_cardproto(void)
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
-			if(1)printf("Dis11 ");
+			if(log_34 & 2)printf("Dis11 ");
 			m_putid (&xx, CMD_OFF);
 			if(minor > 0) {
 				m_putsx (&xx, ARG_MINOR);
@@ -667,7 +669,7 @@ do_incoming(void)
 		incomplete = 0;
 		goto inc_err;
 	}
-	cg->flags = F_INCOMING|F_DIALUP|F_PERMANENT|F_NRCOMPLETE|F_LNRCOMPLETE;
+	cg->flags = F_INCOMING|F_MULTIDIALUP|F_DIALUP|F_PERMANENT|F_NRCOMPLETE|F_LNRCOMPLETE;
 	cinf = allocb(len,BPRI_LO);
 	if(cinf == NULL) {
 		resp = "OutOfMemFoo";
@@ -696,12 +698,13 @@ do_incoming(void)
 	}
 	{
 		char *sit = NULL,*pro = NULL,*car = NULL,*cla = NULL; /* GCC */
+		long flg;
 		ulong_t sub = 0;
 		if(0)printf("Hunt for %s/%s/%s/%s/%o\n",cg->site,cg->protocol,cg->card,cg->cclass,cg->flags);
 		/* Figure out which program to run. */
 		for (cfr = cf_R; cfr != NULL; cfr = cfr->next) {
 			if(cfr->got_err) continue;
-			if (!matchflag(cg->flags,cfr->type)) continue;
+			if ((flg = matchflag (cg->flags,cfr->type)) == 0) continue;
 			if ((sit = wildmatch (cg->site, cfr->site)) == NULL) continue;
 			if ((pro = wildmatch (cg->protocol, cfr->protocol)) == NULL) continue;
 			if ((car = wildmatch (cg->card, cfr->card)) == NULL) continue;
@@ -735,7 +738,7 @@ do_incoming(void)
 		mz = allocb(40,BPRI_HI); if(mz == NULL) goto cont;
 
 		if(*resp != '+') { /* Throw away the incoming call */
-			if(1)printf("Dis1 ");
+			if(log_34 & 2)printf("Dis1 ");
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ARG_FORCE);
@@ -784,7 +787,7 @@ do_incoming(void)
 			}
 			resp = NULL;
 		} else { /* Throw away the outgoing call */
-			if(1)printf("Dis2 ");
+			if(log_34 & 2)printf("Dis2 ");
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ID_N0_cause);
@@ -869,7 +872,7 @@ do_incoming(void)
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
 
-			if(1)printf("Dis3 ");
+			if(log_34 & 2)printf("Dis3 ");
 			m_putid (&xx, CMD_OFF);
 			if(connref != 0) {
 				m_putsx (&xx, ARG_CONNREF);
@@ -1118,7 +1121,7 @@ do_disc(void)
 					xx.b_rptr = xx.b_wptr = ans;
 					db.db_base = ans;
 					db.db_lim = ans + sizeof (ans);
-					if(1)printf("Dis4d ");
+					if(log_34 & 2)printf("Dis4d ");
 					m_putid (&xx, CMD_CLOSE);
 					m_putsx (&xx, ARG_MINOR);
 					m_puti (&xx, minor);
@@ -1189,7 +1192,7 @@ do_disc(void)
 		xx.b_rptr = xx.b_wptr = ans;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
-		if(1)printf("Dis4 ");
+		if(log_34 & 2)printf("Dis4 ");
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
@@ -1222,7 +1225,7 @@ do_close(void)
 			if (conn->pid == 0)
 				dropconn (conn);
 			else {
-				printf("PID still %d\n",conn->pid);
+				if(log_34 & 2)printf("PID still %d\n",conn->pid);
 				kill(conn->pid,SIGHUP);
 			}
 		}
@@ -1239,7 +1242,7 @@ do_close(void)
 					if (conn->pid == 0)
 						dropconn (conn);
 					else {
-						printf("PID still %d\n",conn->pid);
+						if(log_34 & 2)printf("PID still %d\n",conn->pid);
 						kill(conn->pid,SIGHUP);
 					}
 				}
@@ -1378,7 +1381,7 @@ do_hasconnected(void)
 {
 	if (conn != NULL) {
 		if (conn->cg != NULL)
-			conn->flags |= conn->cg->flags & F_MOVEFLAGS;
+			conn->flags = (conn->flags &~ F_MASKFLAGS) | (conn->cg->flags & F_MOVEFLAGS);
 		setconnstate(conn,c_up);
 	}
 	resp = "CONNECT";
@@ -1438,7 +1441,7 @@ do_disconnect(void)
 	xx.b_rptr = xx.b_wptr = ans;
 	db.db_base = ans;
 	db.db_lim = ans + sizeof (ans);
-	if(1)printf("Dis5 ");
+	if(log_34 & 2)printf("Dis5 ");
 	m_putid (&xx, CMD_OFF);
 	m_putsx (&xx, ARG_MINOR);
 	m_puti (&xx, minor);
@@ -1465,7 +1468,7 @@ do_hasdisconnect(void)
 		m_putid (&xx, PROTO_MODULE);
 		m_putsx (&xx, PROTO_MODULE);
 		m_putsz (&xx, (uchar_t *) "proto");
-		printf("On4 %p %d\n",conn,dialin);
+		if(log_34 & 2)printf("On4 %p %d\n",conn,dialin);
 		m_putsx (&xx, ((conn != NULL) || (dialin > 0)) ?  PROTO_ONLINE : PROTO_OFFLINE);
 		xlen = xx.b_wptr - xx.b_rptr;
 		DUMPW (xx.b_rptr, xlen);
@@ -1476,7 +1479,7 @@ do_hasdisconnect(void)
 		xx.b_rptr = xx.b_wptr = ans;
 		db.db_base = ans;
 		db.db_lim = ans + sizeof (ans);
-		if(1)printf("Dis6 ");
+		if(log_34 & 2)printf("Dis6 ");
 		m_putid (&xx, CMD_OFF);
 		m_putsx (&xx, ARG_MINOR);
 		m_puti (&xx, minor);
@@ -1555,7 +1558,7 @@ do_wantconnect(void)
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
-			if(1)printf("Dis7 ");
+			if(log_34 & 2)printf("Dis7 ");
 			m_putid (&xx, CMD_OFF);
 			m_putsx (&xx, ARG_MINOR);
 			m_puti (&xx, minor);
@@ -1715,7 +1718,7 @@ do_atcmd(void)
 								setconnstate(conn, c_forceoff);
 							else
 								setconnstate(conn, c_down);
-							if(1)printf("Dis8 ");
+							if(log_34 & 2)printf("Dis8 ");
 							if(mb != NULL) {
 
 {
@@ -1755,12 +1758,8 @@ do_atcmd(void)
 			case 'L': /* List connections and state changes. */
 				{
 					struct conninfo *fconn;
-					char *sp;
-					msgbuf = malloc(10240);
-					if(msgbuf == NULL) {
-						resp = "NO MEMORY.6";
-						return 1;
-					}
+					char buf[30];
+
 					conn = malloc(sizeof(*conn));
 					if(conn == NULL) {
 						free(msgbuf);
@@ -1791,29 +1790,22 @@ do_atcmd(void)
 						} else
 							conn->cardname = "*";
 					}
-					sp = resp = msgbuf;
-					sp += sprintf(sp,"#:ref id site protocol class pid state/card cost total flags,rem.nr;loc.nr cause\r\n");
+					conn->seqnum = ++connseq;
+					conn->ignore = 3;
+					conn->minor = minor;
+					conn->next = isdn4_conn; isdn4_conn = conn;
+
+					connreport("#:ref id site protocol class pid state/card cost total flags,remNr;locNr cause\r\n","*",minor);
 					for(fconn = isdn4_conn; fconn != NULL; fconn = fconn->next)  {
 						if(fconn->ignore >= 3) 
 							continue;
 						if((fconn->cg != NULL) && (fconn->cg->card != NULL))
 							if(!wildmatch(fconn->cg->card,conn->cardname))
 								continue;
-						sp += sprintf(sp,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s %s\r\n",
-							fconn->ignore?"!":"", fconn->minor, fconn->seqnum,
-							(fconn->cg && fconn->cg->site) ? fconn->cg->site : "-",
-							(fconn->cg && fconn->cg->protocol) ? fconn->cg->protocol : "-",
-							(fconn->cg && fconn->cg->cclass) ? fconn->cg->cclass : "-",
-							fconn->pid, state2str(fconn->state),
-							(fconn->cg && fconn->cg->card) ? fconn->cg->card : (fconn->cardname ? fconn->cardname : "-"),
-							fconn->charge, fconn->ccharge, FlagInfo(fconn->flags),
-							CauseInfo(fconn->cause, fconn->causeInfo));
+						ReportOneConn(fconn,minor);
 					}
-					conn->seqnum = ++connseq;
-					conn->ignore = 3;
-					conn->minor = minor;
-					conn->next = isdn4_conn; isdn4_conn = conn;
-					sp += sprintf(sp,"# Waiting %s...",conn->cardname);
+					sprintf(buf,"# Waiting %s...",conn->cardname);
+					resp = str_enter(buf);
 
 					return 1;
 				}
@@ -1970,7 +1962,7 @@ do_atcmd(void)
 				m_putid (&yy, PROTO_MODULE);
 				m_putsx (&yy, PROTO_MODULE);
 				m_putsz (&yy, (uchar_t *) "proto");
-				printf("On5\n");
+				if(log_34 & 2)printf("On5\n");
 				m_putsx (&yy, PROTO_ONLINE);
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (yy.b_rptr, xlen);
@@ -1988,7 +1980,7 @@ do_atcmd(void)
 				yy.b_rptr = yy.b_wptr = ans;
 				dbb.db_base = ans;
 				dbb.db_lim = ans + sizeof (ans);
-				if(1)printf("Dis9 ");
+				if(log_34 & 2)printf("Dis9 ");
 				m_putid (&yy, CMD_OFF);
 				m_putsx (&yy, ARG_MINOR);
 				m_puti (&yy, minor);
@@ -2095,14 +2087,14 @@ do_atcmd(void)
 				}
 
 				if(conn != NULL) {
-					setconnref(conn,connrefs);
-					connrefs += 2;
+					setconnref(conn,isdn4_connref);
+					isdn4_connref += 2;
 					cg->refs++;
 					dropgrab(conn->cg);
 					conn->cg = cg;
 				}
 
-				cg->flags = F_OUTGOING|F_DIALUP;
+				cg->flags = F_OUTGOING|F_MULTIDIALUP|F_DIALUP;
 				if(m3 != NULL)
 					cg->card = str_enter(m3);
 				else
@@ -2225,7 +2217,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 			cf cfr;
 
 			for (cfr = cf_R; cfr != NULL; cfr = cfr->next) {
-				if (!matchflag(conn->cg->flags,cfr->type)) continue;
+				if (matchflag (conn->cg->flags,cfr->type) == 0) continue;
 				if (wildmatch (conn->cg->site, cfr->site) == NULL) continue;
 				if (wildmatch (conn->cg->protocol, cfr->protocol) == NULL) continue;
 				if (wildmatch (conn->cg->card, cfr->card) == NULL) continue;
@@ -2259,7 +2251,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 		db.db_lim = ans + sizeof (ans);
 
 		*xx.b_wptr++ = PREF_NOERR;
-		if(1)printf("DisA ");
+		if(log_34 & 2)printf("DisA ");
 		m_putid (&xx, CMD_OFF);
 		m_putsx(&xx,ARG_FORCE);
 		if(minor > 0) {
