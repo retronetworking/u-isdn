@@ -290,6 +290,7 @@ proto_prot (queue_t * q, mblk_t * mp)
 		break;
 	case PROTO_INCOMING:
 	case PROTO_OUTGOING:
+	case PROTO_ENABLE: /* FIXME -- this should not get sent, but... */
 		mp->b_rptr = origmp;
 		mm_reply(proto,q,mp,0);
 		mp = NULL;

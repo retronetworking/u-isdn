@@ -145,7 +145,7 @@ typedef struct _isdn3_talk {		  /* one per card's D channel connection */
 /**
  ** One struct isdn3_conn represents one ISDN call.
  **/
-#define STACK_LEN 10
+#define STACK_LEN 30
 #define NICONN 18
 #define NSCONN 3
 #define NBCONN 2
@@ -160,8 +160,8 @@ typedef struct _isdn3_conn {
 								   * card/protocol/subprotocol. */
 	long subprotocol;			  /* Protocol dependent. Phone: Q931 vs Post
 								   * vs... */
-	char stack[STACK_LEN];		  /* Protocol stack to set up on this
-								   * connection */
+	char stack[STACK_LEN];		  /* Protocol stack to set up on this connection */
+	char site[STACK_LEN];		  /* System to talk to */
 	int delay;					  /* don't get at it right away */
 	long conni[NICONN]; /* additional variables, handler dependent */
 	void *conns[NSCONN];

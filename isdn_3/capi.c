@@ -79,8 +79,8 @@
 #define STATE_DEAD 255
 
 #define RUN_CAPI_TCONN 01
-#define RUN_CAPI_TWAITLOCAL 02
-#define RUN_CAPI_TFOO 04
+#define RUN_CAPI_TFOO 02
+#define RUN_CAPI_TWAITLOCAL 04
 #define RUN_CAPI_TWAITFIRSTLOCAL 010
 
 #define VAL_CAPI_TCONN ( 40 *HZ)    /* timer for delaying an ALERT response */
@@ -2396,7 +2396,11 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			}
 			conn->minorstate |= MS_WANTCONN;
 			conn->waitflags |= 1<<WF_PROTOCOLS;
+#if 1
+			setstate(conn, 7);
+#else
 			if(conn->state == 7)
+#endif
             	isdn3_setup_conn (conn, EST_SETUP);
 			err = 0;
 		}

@@ -237,11 +237,15 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 	struct _dumb * dumb = (struct _dumb *) card;
 	unsigned long ms = SetSPL(dumb->ipl);
 	int err = 0;
+	char do_uptimer = dumb->do_uptimer;
+	static int modeloop = -1;
 
+	modeloop++;
 	switch(channel) {
 	case 0:
 		DEBUG(info) printf("%sISDN ISAC %s<%d>%s\n",KERN_INFO ,mode?(mode==1?"standby":"up"):"down",mode,listen?" listen":"");
 		if(dumb->do_uptimer) {
+			dumb->do_uptimer = 0;
 #ifdef NEW_TIMEOUT
 			untimeout(dumb->uptimer);
 #else
@@ -249,20 +253,88 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 #endif
 		}
 		if((dumb->chan[0].mode <= M_STANDBY) && (mode > M_STANDBY)) 
-			dumb->do_uptimer = 1;
+			do_uptimer = 1;
 		else if(mode <= M_STANDBY)
-			dumb->do_uptimer = 0;
-		ISAC_mode(dumb,(mode == M_ON) ? M_HDLC : mode, listen);
+			do_uptimer = 0;
+		if(mode == M_ON)
+			mode = M_HDLC;
+
+		switch(mode) {
+		case M_OFF:
+			DEBUG(info) printk("%sISDN CIX1 0x3F\n",KERN_DEBUG );
+			ByteOutISAC(dumb,CIX0,0x3F);
+			if(dumb->polled==0 && !modeloop) isdn2_new_state(&dumb->card,0);
+			dumb->chan[0].mode = mode;
+			break;
+		case M_STANDBY:
+			switch((ByteInISAC(dumb,CIR0)>>2)&0x0F) {
+			case 0x00:
+			case 0x0F:
+				DEBUG(info) printk("%sISDN CIX2 0x00\n",KERN_DEBUG );
+				ByteOutISAC(dumb,CIX0,0x00);
+				break;
+			case 0x06:
+				DEBUG(info) printk("%sISDN CIX3 0x3F\n",KERN_DEBUG );
+				ByteOutISAC(dumb,CIX0,0x07);
+				break;
+			default:
+				DEBUG(info) printk("%sISDN noCIX0 CIR %02x\n",KERN_DEBUG,ByteInISAC(dumb,CIR0));
+				break;
+
+			}
+			ByteOutISAC(dumb,MODE,0xC9);
+			ByteOutISAC(dumb,MASK,0x00);
+			dumb->chan[0].mode = mode;
+			dumb->chan[0].listen = 1;
+			break;
+		case M_HDLC:
+			ByteOutISAC(dumb,MODE,0xC9);
+			ByteOutISAC(dumb,MASK,0x00);
+			switch((ByteInISAC(dumb,CIR0)>>2)&0x0F) {
+			case 0x00:
+			case 0x0F:
+				if(dumb->chan[0].mode != M_HDLC) {
+					DEBUG(info) printk("%sISDN CIX4 0x3F\n",KERN_DEBUG );
+					ByteOutISAC(dumb,CIX0,0x00);
+				}
+				break;
+			case 0x06:
+				if(dumb->chan[0].mode != M_HDLC) {
+					DEBUG(info) printk("%sISDN CIX5 0x3F\n",KERN_DEBUG );
+					ByteOutISAC(dumb,CIX0,0x3F);
+				}
+				break;
+			case 0x07:
+				if(dumb->chan[0].mode != M_HDLC) {
+					DEBUG(info) printk("%sISDN CIX6 0x27\n",KERN_DEBUG );
+					ByteOutISAC(dumb,CIX0,0x27);
+				}
+				break;
+			case 0x0C:
+			case 0x0D:
+				DEBUG(info) printk("%sISDN noCIX1 CIR %02x\n",KERN_DEBUG,ByteInISAC(dumb,CIR0));
+				if(dumb->polled==0 && !modeloop) isdn2_new_state(&dumb->card,1);
+				do_uptimer = 0;
+				break;
+			default:
+				DEBUG(info) printk("%sISDN CIX9 0x07\n",KERN_DEBUG );
+				ByteOutISAC(dumb,CIX0,0x07);
+				break;
+			}
+			dumb->chan[0].mode = mode;
+			dumb->chan[0].listen = 0;
+			break;
+		}
 		if(mode == M_OFF) {
 			int j;
 			for(j=1;j <= dumb->numHSCX;j++)
 				HSCX_mode(dumb,j,M_OFF,0);
-			dumb->do_uptimer = 0;
-		} else if (dumb->do_uptimer) {
+		} else if (do_uptimer && !dumb->do_uptimer && !modeloop) {
 #ifdef NEW_TIMEOUT
 			dumb->uptimer =
 #endif
 				timeout((void *)fail_up,dumb,10*HZ);
+			dumb->do_uptimer = 1;
 		}
 		break;
 	default:
@@ -271,12 +343,15 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 			if(listen & 2) {
 				err = HSCX_mode(dumb,channel,M_OFF,0);
 			} else {
-				if((mode > M_STANDBY) && (dumb->chan[channel].mode <= M_STANDBY))
+				if((mode > M_STANDBY) && (dumb->chan[channel].mode <= M_STANDBY)) {
+					modeloop--;
 					return -EAGAIN;
+				}
 				err = HSCX_mode(dumb,channel,(mode != M_ON) ? mode : dumb->chan[channel].mode,listen);
 				if (err < 0) {
 					printf("%sISDN err %d %d\n",KERN_WARNING ,channel, err);
 					splx(ms);
+					modeloop--;
 					return err;
 				}
 
@@ -287,9 +362,11 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 		} else {
 			printf("%sISDN badChan %d\n",KERN_WARNING ,channel);
 			splx(ms);
+			modeloop--;
 			return -EINVAL;
 		}
 	}
+	modeloop--;
 	NAME(REALNAME,poll)(dumb);
 	splx(ms);
 	return err;
@@ -319,21 +396,21 @@ prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 			sx = *s2; *s2 = '\0';
 			if(!strcmp(s1,"trans"))
 				dumb->chan[channel].mode = M_TRANSPARENT;
-			else if(!strcmp(s1,"trans_alaw"))
+			else if(!strcmp(s1,"transalaw"))
 				dumb->chan[channel].mode = M_TRANS_ALAW;
-			else if(!strcmp(s1,"trans_V110"))
+			else if(!strcmp(s1,"transv110"))
 				dumb->chan[channel].mode = M_TRANS_V110;
-			else if(!strcmp(s1,"trans_frame"))
+			else if(!strcmp(s1,"transframe"))
 				dumb->chan[channel].mode = M_TRANS_HDLC;
 			else if(!strcmp(s1,"frame"))
 				dumb->chan[channel].mode = M_HDLC;
-			else if(!strcmp(s1,"frame_low"))
+			else if(!strcmp(s1,"framelow"))
 				dumb->chan[channel].mode = M_HDLC_7L;
-			else if(!strcmp(s1,"frame_high"))
+			else if(!strcmp(s1,"framehigh"))
 				dumb->chan[channel].mode = M_HDLC_7H;
-			else if(!strcmp(s1,"frame_zero"))
+			else if(!strcmp(s1,"framezero"))
 				dumb->chan[channel].mode = M_HDLC_N0;
-			else if(!strcmp(s1,"frame_16"))
+			else if(!strcmp(s1,"frame16"))
 				dumb->chan[channel].mode = M_HDLC_16;
 			else {
 				mp->b_rptr = origmp;
@@ -1017,6 +1094,56 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx,
 	}
 }
 
+
+#ifdef __GNUC__
+inline
+#endif
+static void DoCIR (struct _dumb * dumb, Byte CIR)
+{
+	switch(CIR) {
+	case 0x0C:
+	case 0x0D:
+		DEBUG(info) printf(" up");
+		if(dumb->do_uptimer) {
+			dumb->do_uptimer = 0;
+#ifdef NEW_TIMEOUT
+			untimeout(dumb->uptimer);
+#else
+			untimeout(fail_up,dumb);
+#endif
+		}
+		isdn2_new_state(&dumb->card,1);
+		break;
+	case 0x07:
+		if(dumb->chan[0].mode >= M_ON) {
+			DEBUG(info) printk("%sISDN CIX7 0x27\n",KERN_DEBUG );
+			ByteOutISAC(dumb,CIX0,0x27);
+		}
+		/* FALL THRU */
+	case 0x04:
+		if((dumb->chan[0].mode >= M_ON) && !dumb->do_uptimer) {
+#ifdef NEW_TIMEOUT
+			dumb->uptimer =
+#endif
+				timeout((void *)fail_up,dumb,2*HZ);
+			dumb->do_uptimer = 1;
+		}
+		break;
+	case 0x00:
+	case 0x06:
+	case 0x0F:
+		if(dumb->chan[0].mode >= M_ON) {
+			DEBUG(info) printk("%sISDN CIX8 0x03\n",KERN_DEBUG );
+			ByteOutISAC(dumb,CIX0,0x03);
+		}
+		if((CIR != 0x0F) && (dumb->chan[0].mode == M_OFF)) {
+			DEBUG(info) printk("%sISDN CIX9 0x3F\n",KERN_DEBUG );
+			ByteOutISAC(dumb,CIX0,0x3F);
+		}
+		isdn2_new_state(&dumb->card,0);
+	}
+}
+
 #ifdef __GNUC__
 inline
 #endif
@@ -1035,51 +1162,8 @@ static void IRQ_ISAC(struct _dumb * dumb)
 		if (CIR & 0x03) {
 			CIR = ((CIR >> 2) & 0x0F);
 			DEBUG(info) printf("%sISDN CIR %01x",KERN_DEBUG ,CIR);
-			if (dumb->polled >= 0) {
-				if ((CIR == 0x0C) || (CIR == 0x0D)) {
-					DEBUG(info) printf(" up");
-					isdn2_new_state(&dumb->card,1);
-					if(dumb->do_uptimer) {
-						dumb->do_uptimer = 0;
-#ifdef NEW_TIMEOUT
-						untimeout(dumb->uptimer);
-#else
-						untimeout(fail_up,dumb);
-#endif
-					}
-					dumb->circ = 0;
-				} else if ((CIR == 0x00) || (CIR == 0x0F) || (CIR == 0x07))  {
-					if ((CIR == 0x07) && (dumb->circ & 1)) {
-						dumb->circ++;
-					} else {
-						dumb->circ = 0;
-					}
-					DEBUG(info) printf(" down count %d",dumb->circ);
-					if(dumb->do_uptimer) {
-						dumb->do_uptimer = 0;
-#ifdef NEW_TIMEOUT
-						untimeout(dumb->uptimer);
-#else
-						untimeout(fail_up,dumb);
-#endif
-					}
-					isdn2_new_state(&dumb->card,0);
-				} else if (CIR == 0x04) {
-					DEBUG(info) printf(" jitter count %d",dumb->circ);
-					if(dumb->circ > 3) {
-						if(dumb->do_uptimer) {
-							dumb->do_uptimer = 0;
-#ifdef NEW_TIMEOUT
-							untimeout(dumb->uptimer);
-#else
-							untimeout(fail_up,dumb);
-#endif
-						}
-						isdn2_new_state(&dumb->card,2);
-					}
-					dumb->circ++;
-				}
-			}
+			if (dumb->polled >= 0)
+				DoCIR(dumb,CIR);
 			DEBUG(info) printf("\n");
 #if 0
 			ByteOutISAC(dumb,CMDR,0x41);

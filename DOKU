@@ -427,11 +427,41 @@ AT/L Karte
     <UnitNow>   Einheiten in der aktuellen Verbindung.
     <UnitAll>   Einheiten insgesamt seit Start des Prozesses.
     <Flags>     interner Zustand der Verbindung, komma remote-Nummer,
-                strichpunkt lokale-Nummer (jeweils wenn bekannt/vorhanden)
+                strichpunkt lokale-Nummer (jeweils wenn bekannt/vorhanden).
+                Interner Zustand:
+                :in  Ruf ankommend
+                :ou  Ruf abgehend
+                :dP  virtuelle Verbindung
+                :dL  Festverbindung
+                :dM  Dialup, mehrfachaktiv
+                :dD  Dialup, nur einmal aktiv
+                :is  Verbindung ist unterbrechbar
+                :nc  entfernte Nummer ist vollständig
+                :lc  lokale Nummer ist vollständig
+                :oc  Info für abgehende Verbindung ist vollständig
+                :si  Verbindung ist neu gestartet
+                :sl  Verbindung wird wieder aufgebaut
+                :nj, :xi, :yi, :bi, :il, :fX, :fr, :ib
+                     siehe P-Zeile.
+                Der interne Zustand existiert in permanenter (bleibt mehr
+                doer weniger konstant) und in transienter (wird pro
+                Verbindungsaufbau neu generiert) Form. Der permanente Teil
+                wird zuerst ausgegeben, danach folgt entweder ein /
+                (der transiente Teil fängt bei Null an) oder ein ^ (der
+                zweite Teil übernimmt die vorher angegebenen Flags;
+                nochmals aufgeführte Flags werden wieder gelöscht).
     <Status>    Text; Meldung der Vermittlung (Groß/Kleinschreibung) oder
                       interner Zustand (Großschreibung).
     Ein Ausrufezeichen an erster Stelle bedeutet, daß die Verbindung intern
-    nicht mehr bekannt ist, der Zustand aber noch eine Zeitlang angezeigt wird.
+    nicht mehr bekannt ist, der Zustand aber noch eine Zeitlang aufgehoben
+    wird.
+    Ein Minuszeichen am Anfang meldet die Löschung dieses internen
+    Zustands; das ist für Monitorprogramme interessant, die den Status
+    anzeigen wollen, ohne sich darum zu kümmern, wie lange sie alte
+    Meldungen aufheben wollen.
+    Jede Minute wird außerdem ein Zeitstempel der Form "#xx: hh:mm"
+    ausgegeben. xx ist die Zahl der Minuten, die der Master aktiv ist;
+    hh und mm sind die aktuelle Uhrzeit. Alle anderen Zeilen 
 
     Bis zum nächsten AT-Befehl bleibt der Kanal im Monitormodus und meldet
     alle Zustandsänderungen automatisch. Außerdem kommt jede Minute eine
@@ -1153,18 +1183,28 @@ RP login * * * root IDUST$u echo "Login von $PHONE auf $DEVICE" >>/var/log/isdn.
 Hiermit wird ein Programm (plus Parameter) angegeben, das bei Eintreten
 eines bestimmten Zustands einer Verbindung gestartet wird. Parameter siehe
 R-Zeile; zusätzliche Flags sind
+c  Stdin/out des Programms wird auf ein freies ISDN-Device gelegt.
+   (Sonst: /dev/null.)
+s  schicke keine Signale
+
+Die folgenden zusätzlichen Flags werden außerdem in der
+"REASON"-Environmentvariable übergeben:
 u  Start nach erfolgtem Aufbau der Verbindung
 d  Start bei Abbau einer Verbindung
 f  Start nach erfolglosem Verbindungsversuch (abgehend)
 x  Start bei temporärer Deaktivierung eines Interface (zu viele Versuche),
    anstehende Datenpakete werden weggeworfen
 y  Start bei Reaktivierung des Interface
-i  Start bei Aufruf des Verbindungshandlers (zB "des slipto"-Programms)
+i  Start bei Aufruf des Verbindungshandlers (zB des "slipto"-Programms)
 r  Start bei abgelehntem Anruf
 t  Start nach Tod des Verbindungshandlers
-c  Stdin/out des Programms wird auf ein freies ISDN-Device gelegt.
-   (Sonst: /dev/null.)
-s  schicke keine Signale
+k  Start bei laufenden Gebühreninformationen (während oder nach der Verbindung)
+l  Start bei endgültigen Gebühreninformationen (nach Verbindungsende)
+
+Die folgenden Flags werden bei Programmen übergeben, die via R-Zeile
+gestartet wurden:
+B  Start beim Booten oder bei Reload der Konfigdatei
+I  Start bei ankommendem Anruf
 
 Ein mit "u" gestartetes Programm bekommt SIGHUP gesendet, wenn es bei
 Verbindungsende noch läuft; dito ein mit "d" gestartetes Programm zu

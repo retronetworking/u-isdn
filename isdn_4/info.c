@@ -34,7 +34,8 @@ long thelength;
 long seqnum;
 struct conninfo *conn;
 char crd[5];
-char prot[20];
+char prot[40];
+char site[40];
 char nr[MAXNR + 2];
 char lnr[MAXNR + 2];
 long uid;
@@ -199,6 +200,12 @@ parse_arg(void)
 			return 2;
 		}
 		break;
+	case ARG_SITE:
+		if (m_getstr (&xx, site, sizeof(site)-1) != 0) {
+			printf (" XErr 9s\n");
+			return 2;
+		}
+		break;
 	case ARG_STACK:
 		if (m_getstr (&xx, prot, sizeof(prot)-1) != 0) {
 			printf (" XErr 9\n");
@@ -271,6 +278,7 @@ find_conn(void)
 			}
 			conn->charge = charge;
 			ReportConn(conn);
+			run_rp(conn,'k');
 		}
 		if(cause != 0)
 			conn->cause = cause;
@@ -287,6 +295,8 @@ init_vars (void)
 	minor = 0;
 	callref = 0;
 	conn = NULL;
+	site[0] = '*';
+	site[1] = '\0';
 	prot[0] = '*';
 	prot[1] = '\0';
 	nr[0] = '\0';
@@ -592,6 +602,7 @@ do_cardproto(void)
 			return 1;
 		}
 		cg->card = str_enter(crd);
+		cg->site = str_enter(site);
 		cg->protocol = str_enter(prot);
 		if ((resp = findsite (&cg,1)) != NULL) {
 			dropgrab(cg);
@@ -904,7 +915,7 @@ do_incoming(void)
 	setconnstate(conn, c_down);
 	ReportConn(conn);
 	conn->next = isdn4_conn; isdn4_conn = conn;
-	resp = runprog (cfr, &conn, &cg);
+	resp = runprog (cfr, &conn, &cg,'I');
 	if(resp != NULL)
 		dropconn(conn);
 	else 
@@ -1929,7 +1940,6 @@ do_atcmd(void)
 				xlen = yy.b_wptr - yy.b_rptr;
 				DUMPW (yy.b_rptr, xlen);
 				(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
-				resp = NULL;
 			}
 			break;
 		case 'D': /* ATD###, ATD/site, .../protocol, .../card */
@@ -2071,6 +2081,7 @@ do_atcmd(void)
 				dropgrab(conn->cg);
 				conn->cg = cg;
 				setconnstate(conn,c_down);
+				conn->sentsetup = 1; /* Not really, but... */
 				if(startconn(cg,fminor,0,&resp, NULL) != NULL) {
 					freeb(md);
 					break;
@@ -2240,6 +2251,12 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 				kill(conn->pid,SIGHUP);
 		}
 
+		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+			if((conn->ignore >= 3) && (conn->minor == (minor ? minor : fminor))) {
+				dropconn(conn);
+				break;
+			}
+		}
 	}
 	conti:
 	no_error=1;

@@ -234,7 +234,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 			}
 		}
 		
-		if((state == c_down) && conn->sentsetup) {
+		if((conn->state >= c_off) && (state == c_down) && conn->sentsetup) {
 			mblk_t *mb = allocb(30,BPRI_MED);
 			if(mb != NULL) {
 				int xlen;
@@ -271,6 +271,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 				syslog((state > c_going_down) ? LOG_INFO : LOG_WARNING,"COST %s:%s %ld",conn->cg->site,conn->cg->protocol,conn->charge);
 			else
 				syslog(LOG_WARNING,"COST ??? %ld",conn->charge);
+			run_rp(conn,'l');
 		}
 		conn->ccharge += conn->charge;
 		conn->charge = 0;

@@ -42,7 +42,7 @@ typedef struct _dumb {
 #endif
 	struct _dumb *next;
 	int numHSCX;
-	long countme; signed char polled; char circ;
+	long countme; signed char polled;
 	unsigned int do_uptimer:1;
 } *__dumb;
 

@@ -37,6 +37,8 @@ chstate (isdn3_talk talk, uchar_t ind, short add)
 				nconn = conn->next;
 				if(conn->state == STATE_RUN) 
 					conn->state = STATE_DOWN;
+				conn->minorstate &= ~MS_WANTCONN;
+				conn->id = 0;
 				isdn3_killconn (conn, 0);
 			}
 

@@ -329,7 +329,7 @@ tei_recv (isdn3_talk talk, char isUI, mblk_t * data)
 	if (!(TEI & 1))
 		return 0;
 	TEI >>= 1;
-printf("R Key %x for %d\n",TEI, key);
+printf("R state %x Key %x for %d\n",talk->state,key,TEI);
 	switch (key) {
 	case TEI_IDDENY:
 		if (id != (talk->TEI_id & 0xFFFF))
@@ -367,8 +367,10 @@ printf("NonFixed TEI\n");
 		tei_init (talk);
 		break;
 	case TEI_IDASS:
-		if (id != (talk->TEI_id & 0xFFFF))
+		if (id != (talk->TEI_id & 0xFFFF)) {
+printf("BadID TEI %x %lx\n",id,talk->TEI_id);
 			break;
+		}
 		if (talk->state & ST_T202) {
 			talk->state &=~ ST_T202;
 #ifdef NEW_TIMEOUT

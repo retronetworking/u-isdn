@@ -2429,7 +2429,9 @@ killconn (isdn3_conn conn, char force)
 		untimer (N1_TFOO, conn);
 	}
 	if(conn->state != 0) {
-		if(force)
+		if(conn->state == 99)
+			conn->state = 0;
+		else if(force)
 			(void) phone_sendback (conn, MT_N1_REL, NULL);
 		else
 			(void) send_disc (conn, 1, NULL);

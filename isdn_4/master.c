@@ -216,7 +216,6 @@ main (int argc, char *argv[])
 		signal (SIGINT, (void *)do_quitnow); /* Always these "incompatible" pointers... */
 	signal (SIGQUIT, (sigfunc__t) do_quitnow);
 	signal (SIGUSR1, (sigfunc__t) kill_progs);
-	signal (SIGCHLD, (sigfunc__t) deadkid);
 
 	/* Create a stream within the program */
 	xs_mon = stropen (0);
