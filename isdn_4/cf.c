@@ -250,7 +250,6 @@ read_file (FILE * ffile, char *errf)
 				c->arg[strlen(c->arg)-1] = '\0';
 			if (isintime(c->arg) < 0) break;
 			chkone(c);
-			do_subclass(c);
 			c->cclass   = str_enter(c->cclass);
 			c->arg      = str_enter(c->arg);
 			app (&cf_TM, c);
@@ -417,6 +416,7 @@ read_args (void *nix)
 	seqnum = 0;
 
 	for(conn=isdn4_conn; conn != NULL; conn = conn->next) {
+		char *fp;
 		if((cg = conn->cg) == NULL)
 			continue;
 		cg->dl = NULL;
@@ -443,10 +443,12 @@ read_args (void *nix)
 	theclass = "*";
 	for(cft = cf_TM; cft != NULL; cft = cft->next) {
 		if((nexttime = isintime(cft->arg)) > 0) {
-			theclass = cft->arg;
+			theclass = cft->cclass;
 			break;
 		}
 	}
+	do_run_now++;
+	run_now(NULL);
 
 	if((nexttime == 0) || (nexttime > 32767/HZ/60))
 		nexttime = 32767/HZ/60;
@@ -454,6 +456,17 @@ read_args (void *nix)
 	classtimer =
 #endif
 		timeout(read_args_run,NULL,nexttime * 60 * HZ);
+
+	conn = xmalloc(sizeof(*conn));
+	if(conn != NULL) {
+		bzero(conn,sizeof(*conn));
+		conn->seqnum = ++connseq;
+		conn->causeInfo = "config files read";
+		conn->cause = ID_priv_Print;
+		conn->classname = theclass;
+		conn->next = isdn4_conn; isdn4_conn = conn;
+		dropconn(conn);
+	}
 }
 
 /* Read all the files and kick off the programs. */

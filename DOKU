@@ -685,10 +685,13 @@ Alle Zeilentypen:
       "ab"  "cd"       -> leere Menge
       "ab"  "xay"      -> "a"
       "ab"  "+x"       -> leere Menge
-      "ab"  "+bx"      -> "b"
+      "ab"  "+bx"      -> "ab+bx"
       "ab"  "+bx"  "a" -> leere Menge
       Damit läßt sich sehr flexibel einstellen, wer auf welcher Leitung /
       Nummer mit welchen Parametern anrufen kann.
+      Das Ganze ist noch optimierbar, aber ich bin zu faul...
+      insbesondere ist das obige "ab+bx" zu "ab" reduzierbar
+      (weil nur einer der hinter dem + angegebenen Flags gesetzt ist).
 <Karte> ist der vierstellige Name der ISDN-Karte, der dieser beim Laden
         des Treibers verpaßt wurde; üblich ist eine dreistellike Kennung
         des Kartentyps und eine fortlaufende Numerierung.
