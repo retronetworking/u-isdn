@@ -1,7 +1,7 @@
 #ifndef __SMALLQ__
 #define __SMALLQ__
 
-#include <sys/types.h>
+#include "kernel.h"
 #include "streams.h"
 #include "config.h"
 

@@ -8,8 +8,7 @@
 #include "q_data.h"
 #include "isdn_23.h"
 #include "isdn3_phone.h"
-#include <sys/errno.h>
-#include <sys/param.h>
+#include "kernel.h"
 #include "prot_1TR6_0.h"
 #include "prot_1TR6_1.h"
 #include "prot_ETS.h"
@@ -19,7 +18,9 @@
 #include "isdn_12.h"
 #include "asm/byteorder.h"
 #include "sapi.h"
+#ifndef __KERNEL__
 #include <ctype.h>
+#endif
 
 #define PPP_IP_VANJ CHAR2('i','v')
 #define PPP_IP      CHAR2('i','n')

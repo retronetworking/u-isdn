@@ -1,7 +1,7 @@
 #include "f_module.h"
 #include "primitives.h"
 #include "streams.h"
-#include <sys/errno.h>
+#include "kernel.h"
 #ifndef linux
 #include <sys/var.h>
 #endif

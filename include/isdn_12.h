@@ -1,7 +1,11 @@
 #ifndef _ISDN_12
 #define _ISDN_12
 
+#ifdef __KERNEL__
+#include <linux/types.h>
+#else
 #include <sys/types.h>
+#endif
 #include "streams.h"
 
 /*

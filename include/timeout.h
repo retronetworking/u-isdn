@@ -1,9 +1,7 @@
 #ifndef __TIMEOUT
 #define __TIMEOUT
 
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/callout.h>
+#include "kernel.h"
 
 extern struct timeval callout_time;
 

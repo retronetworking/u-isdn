@@ -4,4 +4,6 @@
 ../include/f_strings.h
 ../include/f_termio.h
 ../include/msgtype.h
+../tools/rc.isdn
+../tools/rc.isdnmon
 ../Make.config

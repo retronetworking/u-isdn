@@ -1,7 +1,7 @@
 #include "primitives.h"
 #include "f_ioctl.h"
 #include "stropts.h"
-#include <sys/errno.h>
+#include "kernel.h"
 #ifdef linux
 #include <linux/ioctl.h>
 #endif

@@ -18,11 +18,10 @@
 #include "isdn_proto.h"
 #include "stream.h"
 #include "streamlib.h"
-#include <sys/errno.h>
+#include "kernel.h"
 #ifdef SCO
 #include <sys/immu.h>
 #endif
-#include <sys/sysmacros.h>
 #include <stddef.h>
 #include "loader.h"
 

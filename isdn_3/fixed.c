@@ -6,9 +6,7 @@
 #include "isdn_proto.h"
 #include "lap.h"
 #include "dump.h"
-#include <sys/errno.h>
-#include <sys/time.h>
-#include <sys/param.h>
+#include "kernel.h"
 #include "sapi.h"
 
 #define ST_up 01

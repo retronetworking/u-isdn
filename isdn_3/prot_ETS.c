@@ -6,9 +6,7 @@
 #include "isdn_23.h"
 #include "isdn3_phone.h"
 #include "isdn_34.h"
-#include <sys/errno.h>
-#include <sys/param.h>
-#include <sys/types.h>
+#include "kernel.h"
 #include "q_data.h"
 #include "phone_ETSI.h"
 #include "sapi.h"

@@ -1,8 +1,7 @@
 #if !defined(_LINUX_STREAMS_H)
 #define _LINUX_STREAMS_H
 
-#include <linux/config.h>
-#include <linux/types.h>
+#include "kernel.h"
 #include "compat.h"
 #include "stropts.h"
 #ifdef __KERNEL__

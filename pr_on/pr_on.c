@@ -3,15 +3,11 @@
 
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/param.h>
-#include <sys/sysmacros.h>
+#include "kernel.h"
 #include "streams.h"
 #include "stropts.h"
 #include "f_user.h"
 #include "f_malloc.h"
-#include <sys/errno.h>
 #include "streamlib.h"
 #include "isdn_proto.h"
 #include "msgtype.h"

@@ -3,15 +3,11 @@
 #include "f_module.h"
 #include "primitives.h"
 #include "f_malloc.h"
-#include <sys/types.h>
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
-#include <sys/param.h>
-#include <sys/sysmacros.h>
 #include "stropts.h"
 #include "f_user.h"
-#include <sys/errno.h>
-#include <f_termio.h>
+#include "f_termio.h"
 #ifndef linux
 #include <sys/tty.h>
 #endif

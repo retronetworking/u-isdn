@@ -3,16 +3,13 @@
 
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/param.h>
-#include <sys/sysmacros.h>
 #include "stropts.h"
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
-#include <sys/errno.h>
 #include "streams.h"
 #include "streamlib.h"
 

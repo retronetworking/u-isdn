@@ -1,8 +1,7 @@
 #ifndef _PORT_M
 #define _PORT_M
 
-#include <sys/types.h>
-#include <sys/param.h>
+#include "kernel.h"
 #include "isdn_limits.h"
 #include "smallq.h"
 #include "msgtype.h"

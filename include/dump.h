@@ -1,7 +1,7 @@
 #ifndef _DUMP_H_
 #define _DUMP_H_
 
-#include <sys/types.h>
+#include "kernel.h"
 #include "isdn_23.h"
 
 #ifdef DEBUG

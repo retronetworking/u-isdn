@@ -6,18 +6,14 @@
 #include "f_module.h"
 #include "primitives.h"
 #include "f_ip.h"
-#include <sys/types.h>
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/param.h>
-#include <sys/sysmacros.h>
 #include "streams.h"
 #include "stropts.h"
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
-#include <sys/errno.h>
 #include "ip_mon.h"
 #include "streamlib.h"
 #include "isdn_proto.h"
@@ -244,10 +240,14 @@ ip_mon_timer (struct _ip_mon *ipmon)
 {
 	long s;
 
-	if (ipmon->timer == 0)
+	if (!ipmon->hastimer)
 		return;
 	if (ip_mon.qptr == NULL) {
-		ipmon->timer = 0;
+		ipmon->hastimer = 0;
+		return;
+	}
+	if (!ipmon->timer) {
+		ipmon->hastimer = 0;
 		return;
 	}
 
@@ -268,7 +268,6 @@ ip_mon_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 {
 	struct _ip_mon *ipmon;
 	static int nr = 1;
-	int do_timeout = 1;
 
 	dev = minor (dev);
 	if (sflag == MODOPEN) {
@@ -283,7 +282,6 @@ ip_mon_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		ERR_RETURN(-ENXIO);
 	} else {
 		ipmon = &ip_mon;
-		do_timeout = (ip_mon.qptr == NULL);
 	}
 	memset(ipmon,0,sizeof (*ipmon));
 	if (ipmon != &ip_mon)
@@ -292,9 +290,9 @@ ip_mon_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	q->q_ptr = (char *) ipmon;
 	ipmon->qptr = q;
 
-	ipmon->timer = 10;
+	ipmon->timer = dev ? 10 : 0;
 	ipmon->each = 1;
-	if(do_timeout) {
+	if(ipmon->timer) {
 		ipmon->hastimer = 1;
 #ifdef NEW_TIMEOUT
 		ipmon->timeout =
@@ -485,6 +483,7 @@ ip_mon_close (queue_t * q, int dummy)
 	flushq (WR (q), FLUSHALL);
 	printf ("IP_MON driver %d closed.\n", ipmon->nr);
 	if (ipmon->hastimer) {
+		ipmon->hastimer = 0;
 #ifdef NEW_TIMEOUT
 		untimeout (ipmon->timeout);
 #else

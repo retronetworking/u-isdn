@@ -1,7 +1,11 @@
 #ifndef _ISDN_23
 #define _ISDN_23
 
+#ifdef __KERNEL__
+#include <linux/types.h>
+#else
 #include <sys/types.h>
+#endif
 #include "config.h"
 
 /**

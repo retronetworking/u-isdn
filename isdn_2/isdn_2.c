@@ -17,23 +17,22 @@
 #include "kernel.h"
 #include "primitives.h"
 #include "isdn_2.h"
-#include <sys/time.h>
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/sysmacros.h>
 #include "streams.h"
 #include "stropts.h"
 /* #ifdef DONT_ADDERROR */
 #include "f_user.h"
 /* #endif */
-#include <sys/errno.h>
 #ifndef __linux__
 #include <sys/reg.h>
 #include <sys/var.h>
 #endif
-#include <sys/file.h>
+#if 0
+#include <sys/termios.h>
 #include <fcntl.h>
 #include <stddef.h>
+#endif
 #include "streamlib.h"
 #include "isdn_23.h"
 #include "isdn_12.h"
@@ -43,7 +42,6 @@
 #include "sapi.h"
 #include "isdn_limits.h"
 #include "isdn_proto.h"
-#include <sys/termios.h>
 
 ushort_t hdrseq = 1;
 
@@ -1425,7 +1423,8 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 	int err = 0;
 
 	if (isdn2_debug & 0x4)
-		printf ("%sdo_chprot %d %d 0%o\n",KERN_DEBUG, ctl ? ctl->nr : -1, channel, flags);
+		printf ("%sdo_chprot %d %d 0%o: %p %d %p\n",KERN_DEBUG, ctl ? ctl->nr : -1, channel, flags,
+			ctl, channel, isdn_chan.qptr);
 	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL))
 		return -ENXIO;
 	if(flags & CHP_TOCARD) {
@@ -1479,8 +1478,12 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 			if(canput(isdn_chan.qptr->q_next)) {
 				putnext (isdn_chan.qptr, mb);
 				err = 0;
-			} else 
+			} else {
+				if(isdn2_debug & 0x4)
+					 printf("%sdo_chprot: MasterUpqueue full\n",KERN_DEBUG);
+				freeb(mb);
 				err = -ENXIO;
+			}
 		} else 
 			err = -EAGAIN;
 		return err;
@@ -2603,6 +2606,8 @@ isdn2_wsrv (queue_t *q)
 									ismodlist = (id == PROTO_MODLIST);
 									minor = hdr.hdr_protocmd.minor;
 
+									if (isdn2_debug & 0x10)
+										printk("%sMinorSet %d -> %d %d\n",KERN_DEBUG,minor,(isdnchan[minor]&&isdnchan[minor]->card)?isdnchan[minor]->card->nr:-1,isdnchan[minor]?isdnchan[minor]->channel:-1);
 									if ((minor != 0) && (isdnchan[minor] != NULL) && (isdnchan[minor]->card != NULL)) {
 										/* This is a temporary kludge */
 										hdr.hdr_protocmd.card = isdnchan[minor]->card->nr;

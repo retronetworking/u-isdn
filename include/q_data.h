@@ -1,8 +1,7 @@
 #ifndef _Q_DATA
 #define _Q_DATA
 
-#include <sys/types.h>
-#include <sys/param.h>
+#include "kernel.h"
 
 /**
  ** This module handles the data structure of additional information elements,

@@ -229,10 +229,6 @@ endif
 depend::
 	rm -f .depend
 
-ifneq ($(strip $(PSOURCES)),)
-depend::     Makefile $(PSOURCES) $(HEADERS)
-	$(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(PSOURCES) >> .depend
-endif
 
 ifneq ($(strip $(SOURCES)),)
 ifneq ($(strip $(REALSOURCE)),)
@@ -253,3 +249,7 @@ endif
 endif
 endif
 
+ifneq ($(strip $(PSOURCES)),)
+depend::     Makefile $(PSOURCES) $(HEADERS)
+	$(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(PSOURCES) >> .depend
+endif

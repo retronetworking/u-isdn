@@ -1,6 +1,6 @@
 #ifndef _1TR6_COMMON
 #define _1TR6_COMMON
-#include <sys/types.h>
+#include "kernel.h"
 #include "streams.h"
 #include "phone_1TR6.h"
 #include "q_data.h"

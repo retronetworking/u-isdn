@@ -8,6 +8,12 @@
 
 #define MASTER_MAIN
 #include "master.h"
+#include <sys/mman.h>
+
+#if __GNU_LIBRARY__ - 0 == 6 /* NOCH notwendig, fehlt in glibc */
+#include <syscall.h>
+_syscall1(int,mlockall,int,what);
+#endif
 
 int
 main (int argc, char *argv[])
@@ -19,11 +25,9 @@ main (int argc, char *argv[])
 	int pushlog = 0;
 	int debug = 0;
 	int x;
+	
+	mlockall(MCL_CURRENT | MCL_FUTURE);
 
-#ifdef linux
-	reboot(0xfee1dead,0x17392634,1);		/* Magic to make me nonswappable */
-	/* TODO: 1.3.xx kernel / libc: use appropriate system call */
-#endif
 #ifdef DO_DEBUG_MALLOC
 	mcheck(NULL);
 	mmtrace();
@@ -233,6 +237,8 @@ main (int argc, char *argv[])
 		xquit ("Open Dev", devnam);
 	if (ioctl (fd_mon, I_SRDOPT, RMSGN) < 0) /* Message mode */
 		xquit ("SetStrOpt", "");
+	if (ioctl (fd_mon, I_PUSH, "buffer") < 0)
+		syslog(LOG_WARNING,"Buffer module not found -- unreliable");
 
 	if (pushlog & 2)
 		if (ioctl (fd_mon, I_PUSH, "strlog") < 0)

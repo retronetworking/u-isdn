@@ -4,18 +4,14 @@
  **/
 
 #include "primitives.h"
-#include <sys/types.h>
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "kernel.h"
-#include <sys/param.h>
-#include <sys/sysmacros.h>
 #include "streams.h"
 #include "stropts.h"
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
-#include <sys/errno.h>
 #include "streamlib.h"
 #include "isdn_23.h"
 #include "isdn_3.h"

@@ -1,8 +1,13 @@
 #ifndef _ISDN_34
 #define _ISDN_34
 
+#ifdef __KERNEL__
+#include <linux/types.h>
+#include <linux/ioctl.h>
+#else
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#endif
 #include "config.h"
 
 extern int log_34;

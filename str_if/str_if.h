@@ -1,8 +1,7 @@
 #ifndef _STR_IF_H
 #define _STR_IF_H
 
-#include <sys/types.h>
-#include <sys/ioctl.h>
+#include "kernel.h"
 #include "primitives.h"
 
 #ifndef SIOCGETU

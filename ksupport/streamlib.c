@@ -5,9 +5,9 @@
 #include "primitives.h"
 #include "kernel.h"
 #include "streamlib.h"
-#include <sys/errno.h>
+#ifndef __KERNEL__
 #include <ctype.h>
-#include <sys/time.h>
+#endif
 #include "isdn_proto.h"
 #include "isdn_limits.h"
 #include "msgtype.h"
@@ -155,12 +155,9 @@ dsize (mblk_t * mp)
 
 
 /**
- * pullupmsg
+ * pullupm
  *
  * Concatenate the first n bytes of a message.
- *
- * Note that the caller is responsible for checking that a long-enough
- * message is returned.
  *
  * This code returns NULL if the length is zero and the message is empty.
  */
@@ -171,6 +168,7 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 #endif
 {
 	mblk_t *p_newmsg;
+	short offset = 0;
 
 	if(p_msg == NULL)
 		return NULL;
@@ -188,22 +186,26 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 			return NULL;
 #endif
 	}
-	if(length == 0 && p_msg->b_cont == NULL && p_msg->b_rptr >= p_msg->b_wptr) {
-		freeb(p_msg);
-		return NULL;
-	}
-	if (length == 0 || p_msg->b_cont == NULL) 
+	if((length == 0) && (p_msg->b_cont == NULL)) {
+		if (p_msg->b_rptr >= p_msg->b_wptr) {
+			freeb(p_msg);
+			return NULL;
+		}
 		return p_msg;
-	if(length < 0)
+	}
+	if(length < 0) {
+		offset = -length;
 		length = msgsize(p_msg);
-	if (p_msg->b_wptr - p_msg->b_rptr >= length)
+	}
+	if ((p_msg->b_wptr - p_msg->b_rptr >= length) && (DATA_START(p_msg)+offset <= p_msg->b_rptr))
 		return p_msg;
 
-	if ((p_newmsg = allocb(length, BPRI_MED)) == NULL) {
-		return p_msg;
-	}
+	if ((p_newmsg = allocb(offset+length, BPRI_MED)) == NULL)
+		return NULL;
 	
 	DATA_TYPE(p_newmsg) = DATA_TYPE(p_msg);
+	p_newmsg->b_rptr += offset;
+	p_newmsg->b_wptr = p_newmsg->b_rptr;
 
 	/*
 	 * Copy the data.
@@ -236,6 +238,76 @@ mblk_t *pullupm(mblk_t *p_msg, short length)
 		freeb(p_msg);
 	}
 
+	return p_newmsg;
+}
+
+
+
+/**
+ * embedm
+ *
+ * Concatenate the first n bytes of a message.
+ *
+ * This code returns NULL if the length is zero and the message is empty.
+ */
+#ifdef CONFIG_DEBUG_STREAMS
+mblk_t *deb_embedm(const char *deb_file, unsigned int deb_line, mblk_t *p_msg, short offstart, short offend)
+#else
+mblk_t *embedm(mblk_t *p_msg, short offstart, short offend)
+#endif
+{
+	mblk_t *p_newmsg;
+	int length;
+
+	if(p_msg == NULL)
+		return NULL;
+
+#ifdef CONFIG_DEBUG_STREAMS
+	if(deb_msgdsize(deb_file,deb_line,p_msg) < 0)
+		return NULL;
+#endif
+	while(p_msg != NULL && p_msg->b_rptr >= p_msg->b_wptr && p_msg->b_cont != NULL) {
+		mblk_t *p_temp = p_msg->b_cont;
+		freeb(p_msg);
+		p_msg = p_temp;
+#ifdef CONFIG_DEBUG_STREAMS
+		if(msgdsize(p_msg) < 0)
+			return NULL;
+#endif
+	}
+	length = msgsize(p_msg);
+
+	if ((p_newmsg = allocb(offstart+length+offend, BPRI_MED)) == NULL)
+		return NULL;
+	
+	DATA_TYPE(p_newmsg) = DATA_TYPE(p_msg);
+	p_newmsg->b_rptr += offstart;
+	p_newmsg->b_wptr = p_newmsg->b_rptr;
+
+	/*
+	 * Copy the data.
+	 */ 
+	while (length > 0 && p_msg != NULL) {
+#ifdef CONFIG_DEBUG_STREAMS
+		if(msgdsize(p_msg) < 0)
+			return NULL;
+#endif
+		if(p_msg->b_wptr > p_msg->b_rptr) {
+			short n = min(p_msg->b_wptr - p_msg->b_rptr, length);
+			memcpy(p_newmsg->b_wptr, p_msg->b_rptr, n);
+			p_newmsg->b_wptr += n;
+			p_msg->b_rptr += n;
+			length -= n;
+			if (p_msg->b_rptr != p_msg->b_wptr)
+				break;
+		}
+		{	mblk_t *p_cont;
+			p_cont = p_msg->b_cont;
+			freeb(p_msg);
+			p_msg = p_cont;
+		}
+	}
+	freeb(p_msg);
 	return p_newmsg;
 }
 

@@ -28,11 +28,9 @@
 #include "isdn_limits.h"
 #include "stream.h"
 #include "streamlib.h"
-#include <sys/errno.h>
-#include <sys/sysmacros.h>
-#include <stddef.h>
-#include "loader.h"
 #include "kernel.h"
+#include "loader.h"
+#include <stddef.h>
 
 #ifdef linux
 #include <asm/byteorder.h> /* htons and friends */
