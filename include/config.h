@@ -87,4 +87,7 @@ extern int writev(int fd, struct iovec *vp, int vpcount);
 /* =()<#define ROOTUSER "@<ROOT>@">()= */
 #define ROOTUSER "smurf"
 
+/* =()<#define @<GARBAGE>@_COLLECT>()= */
+#define DONT_COLLECT
+
 #endif							/* _CONFIG_H */

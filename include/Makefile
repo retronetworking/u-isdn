@@ -20,5 +20,7 @@ $(KERNELSRC)/include/linux/autoconf.h $(KERNELSRC)/include/linux/version.h:
 install::
 	-mkdir -p $${MODDIR:-/lib/modules}/$(shell ../tools/getversion)/isdn
 	-mkdir -p $(DESTDIR)/bin-$(shell ../tools/getversion) 
-	cp /dev/null /lib/modules/modules.isdn.all
+	cp /dev/null ../modules.isdn
 
+clean::
+	rm -f ../modules.isdn

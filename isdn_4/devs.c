@@ -124,7 +124,7 @@ lockdev(int dev, char onefailok)
 	char pidnum[7];
 	int f, err, len;
 
-	len = sprintf(pidnum,"%d\n",getpid());
+	len = sprintf(pidnum,"%d",getpid());
 	sprintf(vartt,LOCKNAME,pidnum);
 	sprintf(permtt1,LOCKNAME,mdevname(dev));
 	sprintf(permtt2,LOCKNAME,isdevname(dev));

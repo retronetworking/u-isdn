@@ -6,12 +6,7 @@
 #include <errno.h>
 #include "f_strings.h"
 #include <syslog.h>
-#if __GNU_LIBRARY__ - 0 < 6
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#endif
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <f_ip.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -20,9 +15,6 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#ifdef linux
-#include <linux/fs.h>
-#endif
 #include <sys/uio.h>
 
 #if 0
@@ -190,7 +182,7 @@ int main (int argc, char *argv[])
 				syslog(LOG_CRIT, "No IP monitor driver found!");
 			else {
 				unlink(IP_MON_NAME);
-				mknod (IP_MON_NAME, S_IFCHR | S_IRUSR | S_IWUSR, MKDEV(monitordev,0));
+				mknod (IP_MON_NAME, S_IFCHR | S_IRUSR | S_IWUSR, makedev(monitordev,0));
 				syslog(LOG_DEBUG,"ISDN: monitor: major number %d\n",monitordev);
 			}
 		}

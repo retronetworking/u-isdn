@@ -1,6 +1,6 @@
 /* This is from INN. */
 
-/*  $Revision: 1.1.1.1 $
+/*  $Revision: 1.2 $
 **
 **  A C version of Henry Spencer's "subst" script.
 */

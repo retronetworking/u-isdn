@@ -4,6 +4,32 @@
 #undef DO_DEBUG_MALLOC
 
 /*
+ * gmalloc alloziert einen normalen Block, der Zeiger auf aufzuräumende
+ * Blöcke haben kann, aber selber nicht aufgeräumt wird.
+ *
+ * gcmalloc alloziert einen Block, der aufgeräumt werden kann.
+ * gbmalloc dito, aber ohne interne Zeiger.
+ */
+#ifdef DO_GARBAGE_COLLECT
+#include <gc.h>
+#define gmalloc GC_malloc_uncollectable
+#define gcmalloc GC_malloc
+#define gbmalloc GC_malloc_atomic
+#define gfree GC_free
+#define grealloc GC_realloc
+#define MALLOC_INIT() GC_enable_incremental()
+#define MALLOC_IDLE() GC_collect_a_little()
+#else
+#define gmalloc malloc
+#define gcmalloc malloc
+#define gbmalloc malloc
+#define gfree free
+#define grealloc realloc
+#define MALLOC_INIT() do { } while(0)
+#define MALLOC_IDLE() do { } while(0)
+#endif
+
+/*
  * A large heap of include files. Some may no longer be necessary...
  */
 #include <sys/types.h>
@@ -45,7 +71,7 @@
 #include "isdn_proto.h"
 #include "wildmat.h"
 #include "vectcmp.h"
-#if 0 /* def linux */
+#if __GNU_LIBRARY__ - 0 < 6
 #include <linux/fs.h>
 #endif
 #if LEVEL < 4
@@ -69,6 +95,9 @@ EXTERN char *progname;
 
 void xquit (const char *s, const char *t);
 void *xmalloc(size_t sz);
+void *gxmalloc(size_t sz);
+void *gcxmalloc(size_t sz);
+void *gbxmalloc(size_t sz);
 
 #ifdef DO_DEBUG_MALLOC
 
@@ -547,5 +576,9 @@ int isintime(char *z);
 EXTERN uchar_t *theclass INIT(NULL);
 
 EXTERN uid_t rootuser INIT(0);
+
+EXTERN int GrabAllocs INIT(0);
+EXTERN int GrabFrees INIT(0);
+EXTERN int GrabStrs INIT(0);
 
 #endif

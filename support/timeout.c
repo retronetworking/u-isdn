@@ -196,10 +196,6 @@ callout_alarm (void)
 	if (callout_list)
 		callout_settimeout ();
 	SIG_RESUME (sm);
-
-#if defined(M_UNIX) || defined(linux)
-	 signal (SIGALRM, (sigfunc__t) callout_alarm);
-#endif
 }
 
 void
@@ -217,7 +213,7 @@ callout_sync (void)
 		timerclear (&itm.it_value);
 		setitimer (ITIMER_REAL, &itm, NULL);
 
-		signal (SIGALRM, SIG_DFL);
+		bsd_signal (SIGALRM, SIG_DFL);
 	}
 	SIG_RESUME (sm);
 }
@@ -230,7 +226,7 @@ callout_async (void)
 
 	if (!callout_doasync) {
 		callout_doasync = 1;
-		signal (SIGALRM, (sigfunc__t) callout_alarm);
+		bsd_signal (SIGALRM, (sigfunc__t) callout_alarm);
 		callout_settimeout ();
 	}
 	SIG_RESUME (sm);

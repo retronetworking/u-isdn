@@ -46,7 +46,7 @@ read_line (FILE * ffile, int *theLine)
 	if (sofar == line || remain <= 3 || now == 0)
 		return NULL;
 	*sofar = '\0';
-	out = (struct _cf *)xmalloc (sizeof (struct _cf) + (now = sofar - line + 1));
+	out = (struct _cf *)gxmalloc (sizeof (struct _cf) + (now = sofar - line + 1));
 
 	bcopy (line, (char *) (out + 1), now);
 	bzero ((char *) out, sizeof (struct _cf));
@@ -381,7 +381,7 @@ read_file (FILE * ffile, char *errf)
 			continue;
 		}
 		syslog (LOG_ERR, "Bad line %s:%d: %s", errf, errl, (char *) (c + 1));
-		free (c);
+		gfree (c);
 	}
 	return;
 }
@@ -402,7 +402,7 @@ read_args (void *nix)
 	conngrab cg;
 	cf cft;
 
-#define CFREE(what) do { while(what != NULL) { cf cf2 = what->next;free(what);what = cf2; } } while(0)
+#define CFREE(what) do { while(what != NULL) { cf cf2 = what->next;gfree(what);what = cf2; } } while(0)
 	CFREE (cf_P);
 	CFREE (cf_ML);
 	CFREE (cf_MP);
@@ -470,7 +470,7 @@ read_args (void *nix)
 #endif
 		timeout(read_args_run,NULL,nexttime * HZ);
 
-	conn = xmalloc(sizeof(*conn));
+	conn = gcxmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		char causeInfo[100];
 		bzero(conn,sizeof(*conn));

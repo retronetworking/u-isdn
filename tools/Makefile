@@ -6,9 +6,12 @@ NOCLEAN = catfone
 all:: 
 
 install::
-	@if test ! -f /etc/isdn.conf; then				 		\
-		echo install isdn.conf /etc ;				 		\
-		install isdn.conf /etc ;					 		\
+	@if test ! -f /etc/isdn.conf; then				 			\
+		echo install isdn.conf /etc ;				 			\
+		cp isdn.conf /tmp;										\
+		sed -e 's/^/MOD /' < modules.isdn >> /tmp/isdn.conf;	\
+		install /tmp/isdn.conf /etc;			 				\
+		rm /tmp/isdn.conf;										\
 	fi
 	@if test -d /sbin/init.d/scripts ; then					\
 		echo "*** /sbin/init.d/scripts/uisdn ***";			\

@@ -414,7 +414,7 @@ do_card(void)
 		if (!strcmp(card->name, crd))
 			return -EEXIST;
 	}
-	card = xmalloc(sizeof(*card));
+	card = gcxmalloc(sizeof(*card));
 	if(card == NULL)
 		return -ENOMEM;
 	bzero(card,sizeof(*card));
@@ -426,7 +426,7 @@ do_card(void)
 	card->next = isdn4_card; isdn4_card = card;
 
 	if(cardcap & CHM_INTELLIGENT) {
-		ld = xmalloc(sizeof(struct loader));
+		ld = gcxmalloc(sizeof(struct loader));
 		if(ld == NULL)
 			return -errno;
 		bzero(ld,sizeof(*ld));
@@ -476,7 +476,7 @@ do_card(void)
 		(void) strwritev (xs_mon, io,len, 1);
 	}
 
-	conn = xmalloc(sizeof(*conn));
+	conn = gcxmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
@@ -517,7 +517,7 @@ do_nocard(void)
 					break;
 				}
 			}
-			conn = xmalloc(sizeof(*conn));
+			conn = gcxmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
@@ -551,7 +551,7 @@ do_offcard(void)
 		if (!strcmp(card->name, crd))
 			card->is_down = 1;
 	}
-	conn = xmalloc(sizeof(*conn));
+	conn = gcxmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
@@ -578,7 +578,7 @@ do_recard(void)
 		if (!strcmp(card->name, crd))
 			card->is_down = 0;
 	}
-	conn = xmalloc(sizeof(*conn));
+	conn = gcxmalloc(sizeof(*conn));
 	if(conn != NULL) {
 		bzero(conn,sizeof(*conn));
 		conn->seqnum = ++connseq;
@@ -833,7 +833,7 @@ do_incoming(void)
 				conn->want_fast_reconn = 1;
 			}
 
-			conn = xmalloc(sizeof(*conn));
+			conn = gcxmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
@@ -876,7 +876,7 @@ do_incoming(void)
 			cg->refs++; dropgrab(conn->cg); conn->cg = cg;
 			ReportConn(conn);
 
-			conn = xmalloc(sizeof(*conn));
+			conn = gcxmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
@@ -895,7 +895,7 @@ do_incoming(void)
 			startconn(cg,fminor,connref,&resp, NULL);
 			if(resp != NULL) {
 				printf("OhNo %s\n",resp);
-				conn = xmalloc(sizeof(*conn));
+				conn = gcxmalloc(sizeof(*conn));
 				if(conn != NULL) {
 					bzero(conn,sizeof(*conn));
 					conn->seqnum = ++connseq;
@@ -917,7 +917,7 @@ do_incoming(void)
 	
 	/* At this point we don't have a connection. The call is valid, so
 	   record the thing and start the program for it. */
-	conn = (struct conninfo *)xmalloc (sizeof (struct conninfo));
+	conn = (struct conninfo *)gcxmalloc (sizeof (struct conninfo));
 
 	if (conn == NULL) {
 		resp = "NO MEMORY.5";
@@ -1000,7 +1000,7 @@ do_incoming(void)
 			DUMPW (ans, xlen);
 			(void) strwrite (xs_mon, ans, xlen, 1);
 		}
-		conn = xmalloc(sizeof(*conn));
+		conn = gcxmalloc(sizeof(*conn));
 		if(conn != NULL) {
 			bzero(conn,sizeof(*conn));
 			conn->seqnum = ++connseq;
@@ -1283,11 +1283,12 @@ do_close(void)
 		bzero (&ut, sizeof (ut));
 		strncpy (ut.ut_id, sdevname (minor), sizeof (ut.ut_id));
 		strncpy (ut.ut_line, mdevname (minor), sizeof (ut.ut_line));
-		ut.ut_pid = getpid ();
-		ut.ut_type = DEAD_PROCESS;
-		ut.ut_time = time(NULL);
 		if (getutline (&ut) != 0) {
-			int wf = open ("/etc/wtmp", O_WRONLY | O_APPEND);
+			int wf;
+			ut.ut_pid = getpid ();
+			ut.ut_type = DEAD_PROCESS;
+			ut.ut_time = time(NULL);
+			wf = open ("/etc/wtmp", O_WRONLY | O_APPEND);
 
 			if (wf >= 0) {
 				(void) write (wf, &ut, sizeof (ut));
@@ -1804,9 +1805,9 @@ do_atcmd(void)
 					struct conninfo *fconn;
 					char buf[30];
 
-					conn = xmalloc(sizeof(*conn));
+					conn = gcxmalloc(sizeof(*conn));
 					if(conn == NULL) {
-						free(msgbuf);
+						gfree(msgbuf);
 						resp = "NoMem";
 						return 1;
 					}
@@ -1865,7 +1866,7 @@ do_atcmd(void)
 			case 'W': /* Monitor D channels */
 				{
 					char buf[30];
-					conn = xmalloc(sizeof(*conn));
+					conn = gcxmalloc(sizeof(*conn));
 					if(conn == NULL) {
 						resp = "NoMemConn";
 						return 1;
@@ -1910,7 +1911,7 @@ do_atcmd(void)
 #if LEVEL < 4
 					extern int l3print(char *);
 #endif
-					msgbuf = xmalloc(10240);
+					msgbuf = gbxmalloc(10240);
 					if(msgbuf == NULL) {
 						resp = "NO MEMORY.6";
 						return 1;
@@ -2119,7 +2120,7 @@ do_atcmd(void)
 					m2 = NULL;
 					m3 = NULL;
 				}
-				conn = xmalloc(sizeof(*conn));
+				conn = gcxmalloc(sizeof(*conn));
 				if(conn == NULL) {
 					dropgrab(cg);
 					resp = "NoMemConn";
@@ -2282,7 +2283,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 				if(strchr(cfr->type,'E'))
 					cfr->got_err = 1;
 
-				xconn = xmalloc(sizeof(*xconn));
+				xconn = gcxmalloc(sizeof(*xconn));
 				if(xconn != NULL) {
 					bzero(xconn,sizeof(*xconn));
 					xconn->seqnum = ++connseq;
@@ -2477,7 +2478,7 @@ do_noerror(void)
 			(void) strwrite (xs_mon, ans, xlen, 1);
 		}
 		if(msgbuf != NULL && resp == msgbuf)
-			free(msgbuf);
+			gfree(msgbuf);
 		return;
 	}
 	if(ret < 0 || ret == 2)

@@ -1,6 +1,6 @@
 #include "primitives.h"
 /*
- * $Revision: 1.7 $ *
+ * $Revision: 1.1.1.1 $ *
  * 
  * Do shell-style pattern matching for ?, \, [], and * characters. *  Might not be
  * robust in face of malformed patterns; e.g., "foo[a-" *  could cause a

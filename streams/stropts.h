@@ -1,7 +1,7 @@
 #ifndef _LINUX_STROPTS_H
 #define _LINUX_STROPTS_H
 
-#include <sys/ioctl.h>
+#include "f_ioctl.h"
 
 #ifndef FMNAMESZ
 #define FMNAMESZ	16

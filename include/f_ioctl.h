@@ -9,7 +9,13 @@
 #define _IOWR(a,b,c) _IOSWR((a),(b),(c))
 #endif
 
-#if defined(AUX) || defined(linux)
+#ifdef linux
+#ifdef KERNEL
+#include <linux/ioctl.h>
+#else
+#include <sys/ioctl.h>
+#endif
+#else
 #include <sys/ioctl.h>
 #endif
 

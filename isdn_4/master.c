@@ -27,6 +27,7 @@ main (int argc, char *argv[])
 	int x;
 	
 	mlockall(MCL_CURRENT | MCL_FUTURE);
+	MALLOC_INIT();
 
 #ifdef DO_DEBUG_MALLOC
 	mcheck(NULL);
@@ -193,10 +194,10 @@ main (int argc, char *argv[])
 
 				system("rm -rf /dev/isdn /dev/isdnmon");
 				mkdir("/dev/isdn",0755);
-				mknod ("/dev/isdnmon", S_IFCHR | S_IRUSR | S_IWUSR, MKDEV(isdnstd,0));
+				mknod ("/dev/isdnmon", S_IFCHR | S_IRUSR | S_IWUSR, makedev(isdnstd,0));
 
 				for(i=1;i<NPORT;i++) {
-					mknod (idevname (i), S_IFCHR | S_IRUSR | S_IWUSR, MKDEV(isdnstd,i));
+					mknod (idevname (i), S_IFCHR | S_IRUSR | S_IWUSR, makedev(isdnstd,i));
 					chmod (idevname (i), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 				}
 				if(0)syslog(LOG_DEBUG,"ISDN: isdn/XX: major number %d",isdnstd);
@@ -215,16 +216,13 @@ main (int argc, char *argv[])
 #endif
 
 	/* Standard signal handling -- TODO: Use sigaction() instead. */
-	signal (SIGALRM, (sigfunc__t) alarmsig);
-	signal (SIGPIPE, SIG_IGN);
-	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
-		signal (SIGHUP, (void *)do_quitnow);
-	if(signal(SIGINT,SIG_IGN) != SIG_IGN)
-		signal (SIGINT, (void *)do_quitnow); /* Always these "incompatible" pointers... */
-	if(signal(SIGTERM,SIG_IGN) != SIG_IGN)
-		signal (SIGTERM, (void *)do_quitnow); /* Always these "incompatible" pointers... */
-	signal (SIGQUIT, (sigfunc__t) do_quitnow);
-	signal (SIGUSR1, (sigfunc__t) kill_progs);
+	bsd_signal (SIGALRM, (sigfunc__t) alarmsig);
+	bsd_signal (SIGPIPE, SIG_IGN);
+	bsd_signal (SIGHUP, (void *)do_quitnow);
+	bsd_signal (SIGINT, (void *)do_quitnow); /* Always these "incompatible" pointers... */
+	bsd_signal (SIGTERM, (void *)do_quitnow); /* Always these "incompatible" pointers... */
+	bsd_signal (SIGQUIT, (sigfunc__t) do_quitnow);
+	bsd_signal (SIGUSR1, (sigfunc__t) kill_progs);
 
 	/* Create a stream within the program */
 	xs_mon = stropen (0);

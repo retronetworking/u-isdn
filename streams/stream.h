@@ -294,7 +294,7 @@ struct stroptions {
 /*
  * Default timeout in seconds for ioctls and close
  */
-#define STRTIMOUT 15
+#define STRTIMOUT 5
 
 /*
  * Stream head default high/low water marks 

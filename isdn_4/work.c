@@ -53,7 +53,7 @@ deadkid (void)
 #endif
 						}
 #endif
-						free (fprog);
+						gfree (fprog);
 						conn = NULL;
 						break;
 					}
@@ -120,7 +120,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 		(void) strwrite (xs_mon, (uchar_t *) mj->b_rptr, len, 1);
 		freeb (mj);
 
-		sx = (char *)xmalloc (strlen (prot->args) + 5 + strlen (PROTO_NAME));
+		sx = (char *)gbxmalloc (strlen (prot->args) + 5 + strlen (PROTO_NAME));
 		if (sx == NULL)
 			return -ENOMEM;
 		sprintf (sx, " %s %s", prot->args, PROTO_NAME);
@@ -143,7 +143,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 					break;
 			}
 			if ((mi = allocb (256, BPRI_MED)) == NULL) {
-				free (sx);
+				gfree (sx);
 				return -ENOMEM;
 			}
 			for (cm = cf_MP; cm != NULL; cm = cm->next) {
@@ -220,7 +220,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 			}
 			freeb (mi);
 		}
-		free (sx);
+		gfree (sx);
 		if(!(oupdate & (PUSH_AFTER|PUSH_UPDATE))) {
 			mblk_t *mj = allocb (64, BPRI_LO);
 			int len;
@@ -609,7 +609,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 
 			if((err = findit (foo,!!(cg->flags & F_PERMANENT))) != NULL) {
 				if(conn != NULL && rconn != NULL && conn != *rconn)
-					free(conn);
+					gfree(conn);
 				if(dev > 0)
 					unlockdev(dev);
 				return err;
@@ -617,7 +617,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 			cg = *foo;
 
 			if(conn == NULL) {
-				conn = xmalloc(sizeof(*conn));
+				conn = gcxmalloc(sizeof(*conn));
 				if(conn == NULL) {
 					if(dev > 0)
 						unlockdev(dev);
@@ -662,14 +662,15 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 				id = atoi(ids);
 			if(id != 0) {
 				for(prog = conn->run; prog != NULL; prog = prog->next) {
-					if(prog->id == id)
+					if(prog->id == id) {
 						if(dev > 0)
 							unlockdev(dev);
 						return "Already Running";
+					}
 				}
 			}
 		}
-		prog = (struct proginfo *) xmalloc (sizeof (struct proginfo));
+		prog = (struct proginfo *) gcxmalloc (sizeof (struct proginfo));
 
 		if (prog == NULL) {
 			if(dev > 0)
@@ -709,7 +710,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 
 			zzconn = conn;
 			alarm(15);
-			signal(SIGALRM,(void *)dropdead);
+			bsd_signal(SIGALRM,(void *)dropdead);
 			if (foo != NULL) {
 				close (pip[0]);
 				fcntl (pip[1], F_SETFD, 1);		/* close-on-exec */
@@ -768,7 +769,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 #endif
 			if (cfr != NULL && ((cg != NULL) || strchr(cfr->type,'c') != NULL)) {
 				if (strchr(cfr->type,'T') != NULL) {
-					mknod (devname (dev), S_IFCHR | S_IRUSR | S_IWUSR, MKDEV(isdnterm,dev));
+					mknod (devname (dev), S_IFCHR | S_IRUSR | S_IWUSR, makedev(isdnterm,dev));
 					chown (devname (dev), cfr->num, cfr->num2);
 					chmod (devname (dev), S_IRUSR | S_IWUSR | S_IWGRP);
 					devfd = open(devname(dev), O_RDWR | O_EXCL
@@ -846,13 +847,12 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 					bzero (&ut, sizeof (ut));
 					strncpy (ut.ut_id, sdevname (dev), sizeof (ut.ut_id));
 					strncpy (ut.ut_line, mdevname (dev), sizeof (ut.ut_line));
-#ifndef M_UNIX
-					strncpy (ut.ut_host, cfr->site, sizeof (ut.ut_host));
-#endif
+					getutline (&ut);
+					strncpy (ut.ut_user, cfr->site, sizeof (ut.ut_user));
+					/* strncpy (ut.ut_host, cfr->site, sizeof (ut.ut_host)); */
 					ut.ut_pid = getpid ();
 					ut.ut_type = LOGIN_PROCESS;
 					ut.ut_time = time(NULL);
-					getutline (&ut);
 					pututline (&ut);
 					endutent ();
 					{
@@ -1122,7 +1122,7 @@ kill_rp(struct conninfo *conn, char whatnot)
 		if(maskmatch(pro->mask,conn->cg->mask) == 0) continue;
 		if(classmatch(pro->cclass,conn->cg->cclass) == NULL) continue;
 
-		xconn = xmalloc(sizeof(*xconn));
+		xconn = gcxmalloc(sizeof(*xconn));
 		if(xconn != NULL) {
 			bzero(xconn,sizeof(*xconn));
 			xconn->seqnum = ++connseq;
@@ -1173,7 +1173,7 @@ run_rp(struct conninfo *conn, char what)
 			if(maskmatch(pr->mask,sub) == 0) continue;
 			if(classmatch(pr->cclass,cla) == NULL) continue;
 
-			xconn = xmalloc(sizeof(*xconn));
+			xconn = gcxmalloc(sizeof(*xconn));
 			if(xconn != NULL) {
 				bzero(xconn,sizeof(*xconn));
 				xconn->seqnum = ++connseq;
@@ -1206,8 +1206,7 @@ run_now(void *nix)
 	cf what;
 	int spos = 0;
 
-	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
-		signal (SIGHUP, SIG_DFL);
+	bsd_signal(SIGHUP,SIG_IGN);
 
 	if(do_run_now && --do_run_now) {
 		progidx = 0;
@@ -1268,7 +1267,7 @@ run_now(void *nix)
 					kill_rp(conn,'t');
 					run_rp(conn,'i');
 				} else if(err != NULL) {
-					conn = xmalloc(sizeof(*conn));
+					conn = gcxmalloc(sizeof(*conn));
 					if(conn != NULL) {
 						bzero(conn,sizeof(*conn));
 						conn->seqnum = ++connseq;
@@ -1330,8 +1329,7 @@ run_now(void *nix)
 			}
 		}
 	}
-	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
-    	signal (SIGHUP, (sigfunc__t) read_args_run);
+    bsd_signal (SIGHUP, (sigfunc__t) read_args_run);
 	progidx = 0;
 	do_run_now = 0;
 }
