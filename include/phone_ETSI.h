@@ -1,6 +1,8 @@
 #ifndef __ETSI_H
 #define __ETSI_H
 
+#include "compat.h"
+#include "primitives.h"
 #include <isdn_34.h>
 
 /* CallRef */
@@ -286,5 +288,8 @@
 #define N1_St_Calling 02
 #define ID_N1_St_Calling CHAR2('r','i')
 #endif
+
+uchar_t et_idtocause(ushort_t id);
+ushort_t et_causetoid(uchar_t id);
 
 #endif							/* __ETSI_H */

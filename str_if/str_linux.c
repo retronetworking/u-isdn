@@ -137,6 +137,7 @@ static int
 strl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
 	  void *daddr, void *saddr, unsigned len)
 {
+	printf("%sHardHeader %x\n",KERN_DEBUG,htons(type));
 	skb->protocol = htons(type);
 	return 0;
 }
@@ -498,6 +499,9 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	netdev->init = strl_init;
 	netdev->get_stats = strl_get_stats;
 	netdev->hard_header = strl_header;
+#if LINUX_VERSION_CODE >= 66346 /* 1.3.42 */
+	netdev->header_cache_bind = NULL;
+#endif
 	netdev->hard_start_xmit = strl_send_packet;
 	netdev->hard_header_len = 0;
 	netdev->addr_len = 0;

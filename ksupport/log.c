@@ -269,11 +269,11 @@ log_printmsg (void *xlog, const char *text, mblk_t * mp, const char *prefix)
 				int l = (uchar_t *) mp1->b_wptr - dp;
 
 				printf ("%s%03x ",pprefix,i);
-#if 0
-				if(i >= 2*BLOCKSIZE && l > 3*BLOCKSIZE) { /* Skip the stuff in the middle */
+#if 1
+				if(i >= 3*BLOCKSIZE && l >= 4*BLOCKSIZE) { /* Skip the stuff in the middle */
 					l -= 2*BLOCKSIZE + (l % BLOCKSIZE);
 					printf("[... %d bytes (0x%x) skipped ...]\n",l,l);
-					dp += l; i += l;
+					dp += l-BLOCKSIZE; i += l;
 					continue;
 				}
 #endif

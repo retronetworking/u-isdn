@@ -120,9 +120,13 @@ connreport(char *foo, char *card, int minor)
 void
 ReportOneConn(conninfo conn, int minor)
 {
-	char is1[10]="",sp[200], *spf = sp;
-	if(conn->state == c_off)
-		sprintf(is1,".%d",conn->retiming);
+	char is1[15]="",sp[200], *spf = sp;
+	if(conn->state != c_up) {
+		if(conn->retries > 0)
+			sprintf(is1,".%d",conn->retries);
+		if(conn->retiming > 0)
+			sprintf(is1+strlen(is1),"-%d",conn->retiming);
+	}
 	spf += sprintf(spf,"%s%d:%d %s %s %s %d %s%s/%s %ld %ld %s",
 		conn->ignore?"!":"", conn->minor,
 		conn->seqnum, conn->cg ? conn->cg->site : "-",
@@ -202,10 +206,14 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 			if(conn->cg->d_level < conn->cg->d_nextlevel) {
 				conn->cg->d_level = conn->cg->d_nextlevel;
 				state = c_down;
+				conn->retries = 0;
+			} else {
+				conn->cg->d_level = 0;
+				conn->cg->d_nextlevel = 0;
 			}
 		}
 	}
-	if(conn->flags & F_PERMANENT) {
+	if((conn->minor > 0) && (conn->flags & F_PERMANENT)) {
 		if((conn->state >= c_down) && (state <= c_off) && conn->sentsetup) {
 			mblk_t *mb = allocb(30,BPRI_MED);
 			if(mb != NULL) {
@@ -241,7 +249,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		}
 		
 		if((conn->state < c_up) && (state == c_up))
-			pushprot(conn->cg,conn->minor,conn->connref,1);
+			pushprot(conn->cg,conn->minor,conn->connref,PUSH_UPDATE);
 	}
 
 #if 0
@@ -303,6 +311,11 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 			conn->pid = 0;
 		}
 	}
+	if(conn->state == c_off && state > c_off) {
+		conn->retries = 0;
+		conn->want_reconn = 0;
+	}
+
 	conn->state=state;
 	if(conn->ignore < 2)
 		ReportConn(conn);
@@ -318,15 +331,10 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		conn->retiming = 0;
 		conn->want_reconn = 0;
 	}
-	if(state >= c_going_up) {
-		conn->got_id = 0;
-		if(state > c_going_up)
-			conn->got_hd = 0;
-	}
 	if((state == c_off) && !conn->retime && (conn->flags & F_PERMANENT)) {
 		conn->retime = 1;
 		timeout(retime,conn,retimeout(conn)*HZ);
-	} else if((state != c_off) && conn->retime) {
+	} else if((state > c_off) && conn->retime) {
 		conn->retime = 0;
 		untimeout(retime,conn);
 	}
@@ -400,8 +408,8 @@ retime(struct conninfo *conn)
 {
 	if(conn->retime) {
 		conn->retime = 0;
-		setconnstate(conn,c_down);
-
+		if(conn->state == c_off)
+			setconnstate(conn,c_down);
 	}
 }
 

@@ -155,7 +155,6 @@ str_if_proto (queue_t * q, mblk_t * mp, char down)
 	default:
 		break;
 	case PROTO_CONNECTED:
-	case PROTO_INTERRUPT:
 #if 0
 		if (!(p->flags & PII_FLAGS_CONFIGURED)) {
 			*(ushort_t *) (mp->b_rptr + 1) = PROTO_DISCONNECT;

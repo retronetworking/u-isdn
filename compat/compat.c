@@ -285,7 +285,7 @@ void sysdump(const char *msg, struct pt_regs *regs, unsigned long err)
 				u_long xx = get_seg_long(ss,(i+(unsigned long *)esp));
 				if(dodump > 1 && (xx & 0xfff00000) == 0xbff00000)
 					dodump = 4;
-#define WRAP(n) do { if((linepos+=(n))>=80) { dodump--; nlines++; linepos=(n); printk("\n%s", KERN_EMERG); } } while(0)
+#define WRAP(n) do { if((linepos+=(n))>=80) { dodump--; nlines++; linepos=(n); printk("%s", KERN_EMERG); } } while(0)
 				if     (xx & 0xFF000000UL) { WRAP(9); printk("%08lx ",xx); }
 				else if(xx & 0x00FF0000UL) { WRAP(7); printk("%06lx ",xx); }
 				else if(xx & 0x0000FF00UL) { WRAP(5); printk("%04lx ",xx); }
@@ -355,21 +355,28 @@ struct d_hdr {
 	long magic;
 	const char *file;
 	unsigned int line;
-	size_t size;
+	ssize_t size;
 };
 #define MAGIC_HEAD 0x12348725
 #define MAGIC_TAIL 0x37867489
 
 void *deb_kmalloc(size_t sz, int prio, const char *deb_file, unsigned int deb_line)
 {
+	static unsigned int mack = 0;
+
 	struct d_hdr *foo = kmalloc(sz+sizeof(long)+sizeof(struct d_hdr), prio);
-	if(foo == NULL)
+	if(foo == NULL) {
+		printk("%sNoMem alloc %d from %s:%d\n",KERN_WARNING,sz,deb_file,deb_line);
 		return NULL;
+	}
+	if(++mack == 10000)
+		mack = 0;
 	foo->magic = MAGIC_HEAD;
 	foo->file = deb_file;
 	foo->line = deb_line;
-	foo->size = sz;
+	foo->size = mack ? sz : -sz;
 	foo++;
+	if(!mack) printk("%s[M:A %d %p %s:%d]\n",KERN_DEBUG,sz,foo,deb_file,deb_line);
 	*(long *)(sz + (char *)(foo)) = MAGIC_TAIL;
 	return foo;
 }
@@ -382,8 +389,8 @@ int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line)
 		printk("\n%sBad magic at free in %s:%d\n",KERN_EMERG,deb_file,deb_line);
 		return 1;
 	}
-	if(*(long *)(foo->size + (char *)(fo)) != MAGIC_TAIL) {
-		printk("\n%sMem Overwrite between %s:%d and %s:%d\n",KERN_EMERG,foo->file,foo->line, deb_file,deb_line);
+	if(*(long *)(((foo->size > 0) ? foo->size : -foo->size) + (char *)(fo)) != MAGIC_TAIL) {
+		printk("%sMem Overwrite between %s:%d and %s:%d\n",KERN_EMERG,foo->file,foo->line, deb_file,deb_line);
 		return 1;
 	}
 	foo->file = deb_file; foo->line = deb_line;
@@ -395,13 +402,16 @@ void deb_kfree(void *fo, const char *deb_file, unsigned int deb_line)
 	struct d_hdr *foo = fo;
 	foo--;
 	if(foo->magic != MAGIC_HEAD) {
-		printk("\n%sBad magic at free in %s:%d\n",KERN_EMERG,deb_file,deb_line);
+		printk("%sBad magic at free in %s:%d\n",KERN_EMERG,deb_file,deb_line);
 		return;
 	}
-	if(*(long *)(foo->size + (char *)(fo)) != MAGIC_TAIL) {
-		printk("\n%sMem Overwrite between %s:%d and %s:%d\n",KERN_EMERG,foo->file,foo->line, deb_file,deb_line);
+	if(*(long *)(((foo->size > 0) ? foo->size : -foo->size) + (char *)(fo)) != MAGIC_TAIL) {
+		printk("%sMem Overwrite between %s:%d and %s:%d\n",KERN_EMERG,foo->file,foo->line, deb_file,deb_line);
 		return;
 	}
+	if(foo->size < 0)
+		printk("%s[M:F %d %p %s:%d]\n",KERN_DEBUG,-foo->size,fo,foo->file,foo->line);
+
 	foo->magic = 0x77776666;
 	kfree(foo);
 }

@@ -137,11 +137,12 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					err = -ENOENT;
 					break;
 				}
-				if (!(conn->talk->state & ST_up) || (conn->mode == 0) || ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO))) {
+				if (!(conn->talk->state & ST_up) || ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO))) {
 					if((conn->talk->state & (ST_sent|ST_up)) == 0) {
 						conn->talk->state = ST_sent;
 						isdn3_chstate(conn->talk,PH_ACTIVATE_REQ,0,CH_OPENPROT);
 					}
+					isdn3_setup_conn (conn, EST_SETUP);
 					conn->state = STATE_WAIT;
 					data->b_rptr = oldpos;
 					isdn3_repeat (conn, id, data);
@@ -154,6 +155,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 					if (mb == NULL) {
 						conn->state = 0;
+						conn->lockit--;
 						return -ENOMEM;
 					}
 					m_putid (mb, IND_CONN);
@@ -220,7 +222,7 @@ killconn (isdn3_conn conn, char force)
 		conn->state = 0;
 		return;
 	}
-	m_putid (mb, IND_DISC);
+	m_putid (mb, IND_DISCONNECT);
 	m_putsx (mb, ARG_FORCE);
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
@@ -239,7 +241,7 @@ newcard (isdn3_card card)
 struct _isdn3_hndl FIXED_hndl =
 {
 		NULL, SAPI_FIXED,1,
-		NULL, &newcard, NULL, &chstate, NULL, NULL,
+		NULL, &newcard, &chstate, NULL, NULL,
 		NULL, &sendcmd, NULL, &killconn, NULL, NULL,
 };
 

@@ -90,14 +90,15 @@
 #define M_FREE 0
 #define M_OFF M_FREE
 #define M_STANDBY 1
-#define M_TRANSPARENT 2			  /* no idle */
-#define M_TRANS_ALAW 3			  /* a-law idle */
-#define M_TRANS_V110 4			  /* V.110 idle */
-#define M_TRANS_HDLC 5			  /* HDLC flags */
-#define M_HDLC 10
-#define M_HDLC_7L 11			  /* skip bit 8 */
-#define M_HDLC_7H 12			  /* skip bit 0 */
-#define M_HDLC_N0 13			  /* insert one after seven zeroes */
-#define M_HDLC_16 14			  /* insert one after seven zeroes */
+#define M_ON 2
+
+/* These flags share a common space. PROT_* is for the isdn_2 interaction
+   with the module list, PUSH_* is also for picking which modules to kick. */
+#define PROT_FROMSTACK 01 /* travels from the channel to the master */
+#define PROT_MODLIST 02 /* module list */
+#define PROT_TOCARD 04 /* internal to isdn_2.c: send to card first, if there's a handler */
+#define PUSH_UPDATE 010 /* Do not unload the old stack */
+#define PUSH_BEFORE 020 /* Only unload the modules before reconn */
+#define PUSH_AFTER  040 /* only do the modules after reconn */
 
 #endif							/* _PRIM_H */

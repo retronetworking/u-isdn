@@ -294,8 +294,6 @@ typedef struct conninfo {
 	unsigned want_reconn:3;
 #define MAX_RECONN 7
 	unsigned retime:1;		/* Timer for off->down change is running */
-	unsigned got_hd:2;		/* disconnect... */
-	unsigned got_id:2;
 	unsigned char locked;
 	unsigned ignore:3; /* 0: normal; 1: did drop it; 2: kill it; 3: reporter */
 	unsigned sentsetup:1;
@@ -438,7 +436,6 @@ EXTERN cf cf_DP INIT(NULL);
 EXTERN cf cf_R  INIT(NULL);
 EXTERN cf cf_RP INIT(NULL);
 EXTERN cf cf_C  INIT(NULL);
-EXTERN cf cf_CM INIT(NULL);
 EXTERN cf cf_CL INIT(NULL);
 EXTERN cf cf_LF INIT(NULL);
 EXTERN cf cf_TM INIT(NULL);
@@ -479,7 +476,6 @@ mblk_t * getprot (char *protocol, char *site, char *cclass, char *suffix);
 #endif
 
 int pushprot (conngrab cg, int minor, int connref, char update);
-int pushcardprot (conngrab cg, int minor, int connref);
 
 void xquit (const char *s, const char *t);
 
@@ -542,5 +538,7 @@ EXTERN struct isdncard *isdn4_card INIT(NULL);
 
 int isintime(char *z);
 EXTERN uchar_t *theclass INIT(NULL);
+
+EXTERN uid_t rootuser INIT(0);
 
 #endif

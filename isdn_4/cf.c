@@ -174,7 +174,6 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->cclass = li;
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->type = li;
-			if (skipsp (&li)) break; c->arg = li;
 			if (skipsp (&li)) break; c->args = li;
 			{
 				char *sp = strchr(c->type,',');
@@ -191,7 +190,6 @@ read_file (FILE * ffile, char *errf)
 			c->cclass   = str_enter(c->cclass);
 			c->card     = str_enter(c->card);
 			c->type     = str_enter(c->type);
-			c->arg      = str_enter(c->arg);
 			c->args     = str_enter(c->args);
 			app (&cf_ML, c);
 			continue;
@@ -351,18 +349,6 @@ read_file (FILE * ffile, char *errf)
 			c->arg      = str_enter(c->arg);
 			app (&cf_LF, c);
 			continue;
-		case CHAR2 ('C', 'M'):
-			if (skipsp (&li)) break; c->card = li;
-			if (skipsp (&li)) break;
-			if ((c->num = atoi (li)) == 0 && li[0] != '0')
-				break;
-			if (skipsp (&li)) break;
-			chkone(c);
-			do_subclass(c);
-			c->arg = li;
-			c->card     = str_enter(c->card);
-			app (&cf_CM, c);
-			continue;
 		case CHAR2 ('C', 'L'):
 			if (skipsp (&li)) break; c->protocol = li;
 			if (skipsp (&li)) break; c->site = li;
@@ -416,7 +402,6 @@ read_args (void *nix)
 	CFREE (cf_LF);
 	CFREE (cf_RP);
 	CFREE (cf_C);
-	CFREE (cf_CM);
 	CFREE (cf_CL);
 	seqnum = 0;
 

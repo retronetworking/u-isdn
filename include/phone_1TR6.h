@@ -1,6 +1,8 @@
 #ifndef __POSTL3_H
 #define __POSTL3_H
 
+#include "compat.h"
+#include "primitives.h"
 #include <isdn_34.h>
 
 /* CallRef */
@@ -248,5 +250,14 @@
 #define ID_N1_St_Unknown CHAR2('x','x')
 #define N1_St_Calling 02
 #define ID_N1_St_Calling CHAR2('r','i')
+
+
+ushort_t n1_causetoid(uchar_t id);
+uchar_t n1_idtocause(ushort_t id);
+
+ushort_t n1_facsubtoid(uchar_t id);
+ushort_t n1_factoid(uchar_t id);
+uchar_t n1_idtofacsub(ushort_t id);
+uchar_t n1_idtofac(ushort_t id);
 
 #endif							/* __POSTL3_H */

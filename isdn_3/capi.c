@@ -4,6 +4,7 @@
 #include "dump.h"
 #include "streamlib.h"
 #include "phone_1TR6.h"
+#include "phone_ETSI.h"
 #include "q_data.h"
 #include "isdn_23.h"
 #include "isdn3_phone.h"
@@ -18,6 +19,7 @@
 #include "isdn_12.h"
 #include "asm/byteorder.h"
 #include "sapi.h"
+#include <ctype.h>
 
 #define ALWAYS_ACTIVE /* CONNECTB3_REQ statt LISTENB3_REQ bei passivem Verbindungsaufbau */
 
@@ -38,8 +40,11 @@
 #define tstate talki[NBOARD+2] /* State of the current interface */
 #define chanmask talki[NBOARD+3] /* channels we have used up */
 
-#if NICONN <= 15
-#error "Need NICONN > 15"
+#if NICONN <= 16
+#error "Need NICONN > 16"
+#endif
+#if NBCONN <= 1
+#error "Need NBCONN > 1"
 #endif
 #define ncci0 conni[0]
 #define waitflags conni[1] /* what're we waiting for */
@@ -57,6 +62,9 @@
 #define WF_DISCONNECT_CONF     13
 #define WF_CONNECT_CONF        14
 #define WF_CONTROL_EAZ         15
+#define WF_PROTOCOLS           16
+
+#define modlist connb
 
 /* Card states */
 #define STATE_BOOTING 1
@@ -88,17 +96,17 @@ static void CAPI_TFOO (isdn3_conn conn);
 /* Connection states:
   0: unknown
 
-  1: outgoing, ---
+  1: outgoing, remember to wait for the protocols
                send CONNECT_REQ
-  2: outgoing, wait for CONNECT_CONF CONNECTACTIVE_IND
+  2: outgoing, wait for CONNECT_CONF CONNECTACTIVE_IND protocols
                send SELECTB2_REQ SELECTB3_REQ
   3: outgoing, wait for SELECTB2_CONF SELECTB3_CONF
                send CONNECTB3_REQ
   4: outgoing, wait for CONNECTB3_CONF CONNECTB3ACTIVE_IND
                say "CONNECTED"
 
-  6: incoming, wait for EAZ
-  7: incoming, wait for master program
+  6: incoming, wait for EAZ, remember to wait for the protocols
+  7: incoming, wait for master program and protocols
                send SELECTB2_REQ SELECTB3_REQ
   8: incoming, wait for SELECTB2_CONF SELECTB3_CONF
                send LISTENB3_REQ CONNECT_RESP
@@ -194,6 +202,9 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 		break;
 	}
 
+	if(state >= 20)
+		isdn3_setup_conn (conn, EST_DISCONNECT);
+
 	/* Select/free a fake B channel. This is _not_ related to the channel
 	   the ISDN is actually using, as it's shared if there's more than one
 	   ISDN on the card. */
@@ -215,9 +226,12 @@ printf ("Conn CAPI:%d %05lx: State %d --> %d\n", deb_line, conn->call_ref, conn-
 			}
 		}
 		if(conn->bchan != 0) {
-			conn->minorstate |= MS_BCHAN;
-			conn->talk->chanmask |= 1<<(conn->bchan-1);
-			isdn3_setup_conn (conn, EST_NO_CHANGE);
+			if(!(conn->minorstate & MS_BCHAN)) {
+				conn->minorstate |= MS_BCHAN;
+				conn->talk->chanmask |= 1<<(conn->bchan-1);
+				isdn3_setup_conn (conn, EST_SETUP);
+			} else
+				isdn3_setup_conn (conn, EST_NO_CHANGE);
 		}
 	}
 }
@@ -426,9 +440,44 @@ send_setup(isdn3_conn conn)
 	struct dlpd *dl;
 	mblk_t *m2,*m3;
 
+	streamchar *s1,*s2,sx;
+	mblk_t *mb = conn->modlist[0];
+
+	if(mb == NULL)
+		return -EAGAIN;
+	if((mb = mb->b_cont) == NULL) {
+		ushort_t id;
+		streamchar *xi;
+		mblk_t *mb1 = dupmsg(conn->modlist[0]);
+		mblk_t *mb2 = dupmsg(conn->modlist[0]);
+		if(mb1 == NULL || mb2 == NULL) {
+			if(mb1 != NULL)
+				freemsg(mb1);
+			if(mb2 != NULL)
+				freemsg(mb2);
+			return -ENOMEM;
+		}
+		xi = mb1->b_rptr;
+		while(m_getsx(mb1,&id) == 0) ;
+		mb1->b_wptr = mb1->b_rptr;
+		mb1->b_rptr = xi;
+		while(m_getsx(mb2,&id) == 0) ;
+		mb = mb2;
+		mb1->b_cont = mb2;
+		conn->modlist[0] = mb1;
+	}
+	s1 = mb->b_rptr;
+	while(s1 < mb->b_wptr && isspace(*s1))
+		s1++;
+	s2 = s1;
+	while(s2 < mb->b_wptr && !isspace(*s2))
+		s2++;
+	sx = *s2; *s2 = '\0';
+
 	m2 = allocb(sizeof(*c2)+sizeof(*dl),BPRI_MED);
 	m3 = allocb(sizeof(*c3),BPRI_MED);
 	if(m2 == NULL || m3 == NULL) {
+		*s2 = sx;
 		if(m2 != NULL)
 			freemsg(m2);
 		if(m3 != NULL)
@@ -444,11 +493,22 @@ send_setup(isdn3_conn conn)
 	bzero(c3,sizeof(*c3));
 
 	c2->plci = conn->call_ref;
-	c2->B2_proto = 0x02; /* transparent HDLC */
+	if(!strcmp(s1,"frame"))  {
+		mb->b_rptr = s2+1;
+		c2->B2_proto = 0x02; /* transparent HDLC */
+	} else if(!strcmp(s1,"trans")) {
+		mb->b_rptr = s2+1;
+		c2->B2_proto = 0x03; /* bittransparent */
+	} else if(!strcmp(s1,"transalaw")) {
+		mb->b_rptr = s2+1;
+		c2->B2_proto = 0x03; /* bittransparent -- hmmm, need to send idle? */
+	}
 	c2->dlpdlen = sizeof(*dl);
 	dl->data_length = 4096;
 	c3->plci = conn->call_ref;
 	c3->B3_proto = 0x04; /* transparent */
+	*s2 = sx;
+
 	printf(">SELECTB2_REQ ");
 	err = capi_send(conn->talk,conn->call_ref >> 16, CAPI_SELECTB2_REQ, m2, conn->conni[WF_SELECTB2_CONF] = newmsgid(conn->talk));
 	if(err < 0) {
@@ -462,6 +522,14 @@ send_setup(isdn3_conn conn)
 		else {
 			conn->waitflags  = 1 << WF_SELECTB2_CONF;
 			conn->waitflags |= 1 << WF_SELECTB3_CONF;
+			switch(conn->state) {
+				case 2:
+					setstate(conn,3);
+					break;
+				case 7:
+					setstate(conn,8);
+					break;
+			}
 		}
 	}
 	return err;
@@ -487,7 +555,7 @@ send_open(isdn3_talk talk)
 			streamchar *sta = inf->b_rptr;
 			ushort_t idx;
 
-			while(m_getid(inf,&idx) == 0) {
+			while(m_getsx(inf,&idx) == 0) {
 				long sap;
 				switch(idx) {
 				case ARG_PROTOCOL:
@@ -689,8 +757,6 @@ report_incoming (isdn3_conn conn)
 static void 
 report_addcause(mblk_t *mb, ushort_t info, ushort_t cause)
 {
-	extern ushort_t n1_causetoid(uchar_t id);
-
 	if((cause == 0) && ((info == 0) || (info == 0x3400)))
 		return;
 
@@ -723,13 +789,10 @@ report_terminate (isdn3_conn conn, ushort_t info, ushort_t cause)
 
     mblk_t *mb = allocb (256, BPRI_MED);
 
-    if (conn->minorstate & MS_TERM_SENT) {
-        m_putid (mb, IND_INFO);
-        m_putid (mb, ID_N1_REL);
-    } else {
-        conn->minorstate |= MS_TERM_SENT;
-        m_putid (mb, IND_DISC);
-    }
+	if(conn->state == 99 || conn->state == 0)
+		m_putid(mb,IND_DISCONNECT);
+	else
+		m_putid(mb,IND_DISCONNECTING);
 	report_addcause(mb,info,cause);
     conn_info (conn, mb);
     if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
@@ -825,7 +888,9 @@ send_disconnect(isdn3_conn conn, char do_L3, ushort_t cause)
 				freemsg(m3);
 			} else {
 				conn->waitflags |= 1 << WF_DISCONNECT_CONF;
-				conn->waitflags |= 1 << WF_DISCONNECT_IND;
+				if(((conn->state > 3) && (conn->state < 6)) || (conn->state == 9) || (conn->state == 15))
+					conn->waitflags |= 1 << WF_DISCONNECT_IND;
+
 				if(conn->state < 20)
 					setstate(conn,21);
 				else
@@ -860,7 +925,7 @@ send_dialout(isdn3_conn conn)
 			streamchar *sta = inf->b_rptr;
 			ushort_t idx;
 
-			while(m_getid(inf,&idx) == 0) {
+			while(m_getsx(inf,&idx) == 0) {
 				long sap;
 				switch(idx) {
 				case ARG_PROTOCOL:
@@ -929,7 +994,8 @@ send_dialout(isdn3_conn conn)
 	if((err = capi_send(conn->talk,conn->talk->tappl[info->subcard],CAPI_CONNECT_REQ,m2,conn->conni[WF_CONNECT_CONF]=newmsgid(conn->talk))) < 0) 
 		freemsg(m2);
 	else {
-		conn->waitflags = 1<<WF_CONNECT_CONF;
+		conn->waitflags  = 1<<WF_CONNECT_CONF;
+		conn->waitflags |= 1<<WF_PROTOCOLS;
 		setstate(conn,2);
 	}
 	return err;
@@ -939,6 +1005,7 @@ static int
 after_active(isdn3_conn conn, int send_assoc)
 {
 	int err;
+
 	switch(conn->state) {
 	default:
 		err = -EIO;
@@ -1123,13 +1190,13 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			if((c2->info == 0) && (conn->waitflags & (1<<WF_DISCONNECTB3_IND))) {
 				conn->waitflags &=~ (1<<WF_DISCONNECTB3_IND);
 				if(conn->waitflags == 0) {
-					report_terminate(conn,0,0);
 					if(conn->state == 20) {
 						err = send_disconnect(conn,0,0);
 						if(err < 0)
 							setstate(conn,0);
 					} else 
 						setstate(conn,0);
+					report_terminate(conn,0,0);
 				}
 			} else if((c2->info != 0) || (conn->state >= 20)) {
 				printf("CAPI error: DISCONNECTB3_IND in wrong state %d, info %04x\n",conn->state,c2->info);
@@ -1170,17 +1237,20 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = -ENXIO;
 				break;
 			}
-			if((c2->info == 0) && (conn->waitflags & (1<<WF_DISCONNECT_IND))) {
+			if(conn->waitflags & (1<<WF_DISCONNECT_IND)) {
 				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
 				if(conn->waitflags == 0) {
-					report_terminate(conn,0,0);
-					setstate(conn,0);
+					setstate(conn,99);
+					report_terminate(conn,c2->info,0);
 				}
-			} else if((conn->state != 99) && ((c2->info != 0) || (conn->state >= 21))) {
+			} else if((conn->state != 0) && (conn->state != 99) && ((c2->info != 0) || (conn->state >= 21))) {
+				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				report_terminate(conn,c2->info,0);
+			} else {
+				printf("CAPI: ??? problem with DISCONNECT\n");
+				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
 			}
-			setstate(conn,99);
 			{
 				int err3 = 0;
 				struct CAPI_disconnect_resp *c3;
@@ -1216,8 +1286,8 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			if((c2->info == 0) || (conn->waitflags & (1<<WF_DISCONNECT_CONF))) {
 				conn->waitflags &=~ (1<<WF_DISCONNECT_CONF);
 				if(conn->waitflags == 0) {
+					setstate(conn,99);
 					report_terminate(conn,c2->info,0);
-					setstate(conn,0);
 				}
 			} else {
 				printf("CAPI error: DISCONNECT_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
@@ -1237,8 +1307,8 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			c2 = ((typeof(c2))data->b_rptr)++;
 			if((c2->info == 0) && ((conn = capi_findconn(talk,capi->appl,c2->plci)) != NULL)) {
 				printf("CAPI error: CONNECT_CONF has known cref %x%04x\n",capi->appl,c2->plci);
-				report_terminate(conn,c2->info,0);
 				setstate(conn,0);
+				report_terminate(conn,c2->info,0);
 				err = -ENXIO;
 				break;
 			}
@@ -1253,20 +1323,18 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				if(conn->waitflags == 0) {
 					if((err = send_setup(conn)) < 0) {
 						if(send_disconnect(conn,0,N1_OutOfOrder) < 0) {
-							setstate(conn,0);
+							setstate(conn,99);
 						}
 					} else {
 						conn->waitflags |= 1<<WF_CONNECTACTIVE_IND;
-						setstate(conn,3);
 					}
-
 				}
 			} else {
 				printf("CAPI error: CONNECT_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_terminate(conn,c2->info,0);
 				if(send_disconnect(conn,0,N1_LocalProcErr) < 0)
-					setstate(conn,0);
+					setstate(conn,99);
+				report_terminate(conn,c2->info,0);
 			}
 		}
 		break;
@@ -1288,9 +1356,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn,0);
 			} else {
 				printf("CAPI error: SELECTB2_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
-				report_terminate(conn,c2->info,0);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
+				report_terminate(conn,c2->info,0);
 			}
 		}
 		break;
@@ -1311,9 +1379,9 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn,0);
 			} else {
 				printf("CAPI error: SELECTB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
-				report_terminate(conn,c2->info,0);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
+				report_terminate(conn,c2->info,0);
 			}
 		}
 		break;
@@ -1335,7 +1403,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			} else  {
 				printf("CAPI error: CONNECTACTIVE_IND in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
 			}
 			{
 				int err3 = 0;
@@ -1375,7 +1443,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			} else  {
 				printf("CAPI error: CONNECTB3_IND in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
 			}
 			{
 				int err3 = 0;
@@ -1417,7 +1485,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = -EIO;
 				printf("CAPI error: LISTENB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
 			}
 		}
 		break;
@@ -1441,7 +1509,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = -EIO;
 				printf("CAPI error: CONNECTB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
 			}
 		}
 		break;
@@ -1464,7 +1532,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			} else  {
 				printf("CAPI error: CONNECTB3ACTIVE_IND in wrong state %d, wf 0x%lx\n",conn->state,conn->waitflags);
 				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,0);
+					setstate(conn,99);
 			}
 			{
 				int err3 = 0;
@@ -1528,7 +1596,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 								streamchar *sta = inf->b_rptr;
 								ushort_t idx;
 
-								while(m_getid(inf,&idx) == 0) {
+								while(m_getsx(inf,&idx) == 0) {
 									long sap;
 									switch(idx) {
 									case ARG_PROTOCOL:
@@ -1650,7 +1718,6 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				case AI_CAUSE:
 					printf("CAUSE ");
 					{
-						extern ushort_t n1_causetoid(uchar_t);
 						int len = c2->infolen;
 						m_putid(m4,IND_INFO);
 						m_putid(m4,ID_N1_INFO);
@@ -1767,7 +1834,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 					ushort_t idx;
 					char skip = 0, subskip = 0;
 
-					while(m_getid(inf,&idx) == 0) {
+					while(m_getsx(inf,&idx) == 0) {
 						long sap;
 						switch(idx) {
 						case ARG_PROTOCOL:
@@ -1872,7 +1939,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 						streamchar *sta = inf->b_rptr;
 						ushort_t idx;
 
-						while(m_getid(inf,&idx) == 0) {
+						while(m_getsx(inf,&idx) == 0) {
 							long sap;
 							switch(idx) {
 							case ARG_PROTOCOL:
@@ -2106,7 +2173,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 							err = -EIO;
 							printf("CAPI error: CONTROL_EAZ in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
 							if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-								setstate(conn,0);
+								setstate(conn,99);
 						}
 					} else if(talk->tstate < STATE_CONF_FIRST || talk->tstate > STATE_CONF_LAST) {
 						printf("CAPI error: CONTROL_EAZ in wrong tstate %ld\n",talk->tstate);
@@ -2235,7 +2302,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			switch(typ) {
             case ARG_CAUSE:
 				{
-					extern uchar_t n1_idtocause(ushort_t);
 					ushort_t causeid;
 
 					if (m_getid (data, &causeid) != 0)
@@ -2320,14 +2386,9 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				return -EINVAL;
 			}
 			conn->minorstate |= MS_WANTCONN;
-			err = send_setup(conn);
-			if(err == 0) {
-				setstate(conn,8);
-				isdn3_setup_conn (conn, EST_NO_CHANGE);
-				freemsg(data);
-			} else
-				send_disconnect(conn,0,N1_OutOfOrder);
-				isdn3_setup_conn (conn, EST_DISCONNECT);
+			conn->waitflags = 1<<WF_PROTOCOLS;
+            isdn3_setup_conn (conn, EST_SETUP);
+			err = 0;
 		}
 		break;
     case CMD_DIAL:
@@ -2336,15 +2397,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				return -ENXIO;
             conn->minorstate |= MS_OUTGOING | MS_WANTCONN;
 
-            isdn3_setup_conn (conn, EST_NO_CHANGE);
-
-            if ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO)) {
-                if (data != NULL)
-                    data->b_rptr = oldpos;
-                isdn3_repeat (conn, id, data);
-                conn->lockit--;
-                return 0;
-            }
+            isdn3_setup_conn (conn, EST_SETUP);
 
             if (data == NULL) {
                 printf("DataNull: ");
@@ -2357,7 +2410,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				return -EINVAL;
 			}
 			err = send_dialout(conn);
-			if(err < 0)
+			if(err >= 0)
 				isdn3_setup_conn (conn, EST_NO_CHANGE);
 			else
 				isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -2467,18 +2520,81 @@ newcard (isdn3_card card)
 		chstate (talk, DL_ESTABLISH_CONF,0);
 }
 
-static ulong_t
-modeflags (long protocol)
-{
-	printf("CAPI: modeflags %lx\n",protocol);
-	return 1 << M_HDLC || 1 << CHM_INTELLIGENT;
-}
 
+static int
+setup_complete(struct _isdn3_conn *conn)
+{
+	streamchar *s0,*s1,*s2,sx;
+	mblk_t *mb = conn->modlist[0];
+	int err;
+
+	if(mb == NULL)
+		return -EAGAIN;
+	if((mb = mb->b_cont) == NULL) {
+		ushort_t id;
+		streamchar *xi;
+		mblk_t *mb1 = dupmsg(conn->modlist[0]);
+		mblk_t *mb2 = dupmsg(conn->modlist[0]);
+		if(mb1 == NULL || mb2 == NULL) {
+			if(mb1 != NULL)
+				freemsg(mb1);
+			if(mb2 != NULL)
+				freemsg(mb2);
+			return -ENOMEM;
+		}
+		xi = mb1->b_rptr;
+		while(m_getsx(mb1,&id) == 0) ;
+		mb1->b_wptr = mb1->b_rptr;
+		mb1->b_rptr = xi;
+		while(m_getsx(mb2,&id) == 0) ;
+		mb = mb2;
+		mb1->b_cont = mb2;
+		conn->modlist[0] = mb1;
+	}
+	s0 = s1 = mb->b_rptr;
+	while(s1 < mb->b_wptr && isspace(*s1))
+		s1++;
+	s2 = s1;
+	while(s2 < mb->b_wptr && !isspace(*s2))
+		s2++;
+	sx = *s2; *s2 = '\0';
+	if(!strcmp(s1,"frame")) {
+		err = 1;
+	} else if(!strcmp(s1,"trans"))
+		err = 1;
+	else if(!strcmp(s1,"transalaw"))
+		err = 1;
+	else
+		err = -ENOENT;
+	*s2 = sx;
+	if((err > 0) && (conn->waitflags & (1<<WF_PROTOCOLS))) {
+		int err2, i = 0;
+		do {
+			mblk_t *ms;
+			ms = dupmsg(conn->modlist[i]);
+			if(ms == NULL)
+				return -ENOMEM;
+			if(i == 0) 
+				ms->b_cont->b_rptr += s2-s0;
+			err2 = isdn3_send_conn(conn->minor,AS_PROTO,ms);
+			if(err2 < 0) {
+				freemsg(ms);
+				break;
+			}
+		} while(conn->modlist[++i] != NULL);
+		if(err2 < 0)
+			err = err2;
+	}
+	return err;
+}
 
 static int
 proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 {
 	mblk_t *mb = *data;
+	streamchar *olds;
+	ushort_t id;
+	int err;
 
 	printf("CAPI: proto %05lx %s: ",conn->call_ref, down ? "down" : "up");
 	if(mb == NULL) printf("NULL"); else
@@ -2487,8 +2603,45 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 		mb = mb->b_cont;
 	}
 	printf("\n");
+	mb = *data;
+	olds = mb->b_rptr;
+	if((err = m_getid(mb,&id)) < 0)
+		return err;
+	mb->b_rptr = olds;
+	switch(id) {
+	case PROTO_MODLIST:
+		if(!down)
+			return -EINVAL;
+		{
+			int i;
+			for(i=0;i<NBCONN;i++) {
+				if(conn->modlist[i] == NULL)
+					break;
+				freemsg(conn->modlist[i]);
+				conn->modlist[i] = NULL;
+			}
+		}
+		conn->modlist[0] = *data;
+		if((err = setup_complete(conn)) >= 0) {
+			*data = NULL;
+			if(err > 0) {
+				if ((conn->waitflags & (1<<WF_PROTOCOLS))) {
+					conn->waitflags &=~ (1<<WF_PROTOCOLS);
+					if(conn->waitflags == 0) {
+						err = send_setup(conn);
+						if(err < 0)
+							*data = mb;
+					}
+				}
+			}
+		}
+		if(err < 0)
+			conn->modlist[0] = NULL;
+
+		break;
+	}
 	
-	return 0;
+	return err;
 }
 
 
@@ -2497,8 +2650,8 @@ proto(struct _isdn3_conn * conn, mblk_t **data, char down)
 ushort_t
 capi_infotoid(ushort_t info)
 {
-	extern ushort_t n1_causetoid(uchar_t);
-
+	if((info & 0xFF00) == 0x8000) 
+		return et_causetoid(info & 0x7F);
 	if((info & 0xFF00) == 0x3400) 
 		return n1_causetoid(info & 0x7F);
 	switch(info) {
@@ -2571,7 +2724,7 @@ init (void)
 struct _isdn3_hndl CAPI_hndl =
 {
 		NULL, /* SAPI */ 65,0,
-		&init, &newcard, &modeflags, &chstate, &report, &recv, &send,
+		&init, &newcard, &chstate, &report, &recv, &send,
 		&sendcmd, &ckill, &killconn, &hook, &proto,
 };
 

@@ -104,122 +104,6 @@ struct e_info {
 	unsigned char lnr[MAXNR+2];
 };
 
-uchar_t et_idtocause(ushort_t id)
-{
-	switch(id) {
-		default:							return 0;
-		case ID_ET_NumberUnassigned:		return ET_NumberUnassigned;
-		case ID_ET_NoRouteTransit:			return ET_NoRouteTransit;
-		case ID_ET_NoRouteDest:				return ET_NoRouteDest;
-		case ID_ET_InvChan:					return ET_InvChan;
-		case ID_ET_CallAwarded:				return ET_CallAwarded;
-		case ID_ET_NormalClear:				return ET_NormalClear;
-		case ID_ET_UserBusy:				return ET_UserBusy;
-		case ID_ET_NoUserResponding:		return ET_NoUserResponding;
-		case ID_ET_NoAnswer:				return ET_NoAnswer;
-		case ID_ET_CallRejected:			return ET_CallRejected;
-		case ID_ET_NumberChanged:			return ET_NumberChanged;
-		case ID_ET_NonSelected:				return ET_NonSelected;
-		case ID_ET_OutOfOrder:				return ET_OutOfOrder;
-		case ID_ET_InvNumberFormat:			return ET_InvNumberFormat;
-		case ID_ET_FacRejected:				return ET_FacRejected;
-		case ID_ET_RestSTATUS:				return ET_RestSTATUS;
-		case ID_ET_NormalUnspec:			return ET_NormalUnspec;
-		case ID_ET_NoChanAvail:				return ET_NoChanAvail;
-		case ID_ET_NetworkDown:				return ET_NetworkDown;
-		case ID_ET_TempFailure:				return ET_TempFailure;
-		case ID_ET_SwitchCongest:			return ET_SwitchCongest;
-		case ID_ET_AccessInfoDiscard:		return ET_AccessInfoDiscard;
-		case ID_ET_ChanNotAvail:			return ET_ChanNotAvail;
-		case ID_ET_ResourceUnavail:			return ET_ResourceUnavail;
-		case ID_ET_QualityUnavail:			return ET_QualityUnavail;
-		case ID_ET_FacNotSubscr:			return ET_FacNotSubscr;
-		case ID_ET_CapNotAuth:				return ET_CapNotAuth;
-		case ID_ET_CapNotAvail:				return ET_CapNotAvail;
-		case ID_ET_UnavailUnspec:			return ET_UnavailUnspec;
-		case ID_ET_CapNotImpl:				return ET_CapNotImpl;
-		case ID_ET_ChanTypeNotImpl:			return ET_ChanTypeNotImpl;
-		case ID_ET_FacNotImpl:				return ET_FacNotImpl;
-		case ID_ET_RestrictedInfoAvail:		return ET_RestrictedInfoAvail;
-		case ID_ET_UnimplUnspec:			return ET_UnimplUnspec;
-		case ID_ET_InvCRef:					return ET_InvCRef;
-		case ID_ET_ChanNotExist:			return ET_ChanNotExist;
-		case ID_ET_WrongCallID:				return ET_WrongCallID;
-		case ID_ET_CIDinUse:				return ET_CIDinUse;
-		case ID_ET_NoCallSusp:				return ET_NoCallSusp;
-		case ID_ET_CIDcleared:				return ET_CIDcleared;
-		case ID_ET_DestIncompat:			return ET_DestIncompat;
-		case ID_ET_InvTransitNet:			return ET_InvTransitNet;
-		case ID_ET_InvalUnspec:				return ET_InvalUnspec;
-		case ID_ET_MandatoryMissing:		return ET_MandatoryMissing;
-		case ID_ET_MandatoryNotImpl:		return ET_MandatoryNotImpl;
-		case ID_ET_MandatoryNotCompatible:	return ET_MandatoryNotCompatible;
-		case ID_ET_InfoElemMissing:			return ET_InfoElemMissing;
-		case ID_ET_InfoInvalid:				return ET_InfoInvalid;
-		case ID_ET_InfoNotCompatible:		return ET_InfoNotCompatible;
-		case ID_ET_TimerRecovery:			return ET_TimerRecovery;
-		case ID_ET_ProtocolUnspec:			return ET_ProtocolUnspec;
-	}
-}
- 
-ushort_t et_causetoid(uchar_t id)
-{
-	switch(id) {
-		default:						return CHAR2('?','?');
-		case ET_NumberUnassigned:		return ID_ET_NumberUnassigned;
-		case ET_NoRouteTransit:			return ID_ET_NoRouteTransit;
-		case ET_NoRouteDest:			return ID_ET_NoRouteDest;
-		case ET_InvChan:				return ID_ET_InvChan;
-		case ET_CallAwarded:			return ID_ET_CallAwarded;
-		case ET_NormalClear:			return ID_ET_NormalClear;
-		case ET_UserBusy:				return ID_ET_UserBusy;
-		case ET_NoUserResponding:		return ID_ET_NoUserResponding;
-		case ET_NoAnswer:				return ID_ET_NoAnswer;
-		case ET_CallRejected:			return ID_ET_CallRejected;
-		case ET_NumberChanged:			return ID_ET_NumberChanged;
-		case ET_NonSelected:			return ID_ET_NonSelected;
-		case ET_OutOfOrder:				return ID_ET_OutOfOrder;
-		case ET_InvNumberFormat:		return ID_ET_InvNumberFormat;
-		case ET_FacRejected:			return ID_ET_FacRejected;
-		case ET_RestSTATUS:				return ID_ET_RestSTATUS;
-		case ET_NormalUnspec:			return ID_ET_NormalUnspec;
-		case ET_NoChanAvail:			return ID_ET_NoChanAvail;
-		case ET_NetworkDown:			return ID_ET_NetworkDown;
-		case ET_TempFailure:			return ID_ET_TempFailure;
-		case ET_SwitchCongest:			return ID_ET_SwitchCongest;
-		case ET_AccessInfoDiscard:		return ID_ET_AccessInfoDiscard;
-		case ET_ChanNotAvail:			return ID_ET_ChanNotAvail;
-		case ET_ResourceUnavail:		return ID_ET_ResourceUnavail;
-		case ET_QualityUnavail:			return ID_ET_QualityUnavail;
-		case ET_FacNotSubscr:			return ID_ET_FacNotSubscr;
-		case ET_CapNotAuth:				return ID_ET_CapNotAuth;
-		case ET_CapNotAvail:			return ID_ET_CapNotAvail;
-		case ET_UnavailUnspec:			return ID_ET_UnavailUnspec;
-		case ET_CapNotImpl:				return ID_ET_CapNotImpl;
-		case ET_ChanTypeNotImpl:		return ID_ET_ChanTypeNotImpl;
-		case ET_FacNotImpl:				return ID_ET_FacNotImpl;
-		case ET_RestrictedInfoAvail:	return ID_ET_RestrictedInfoAvail;
-		case ET_UnimplUnspec:			return ID_ET_UnimplUnspec;
-		case ET_InvCRef:				return ID_ET_InvCRef;
-		case ET_ChanNotExist:			return ID_ET_ChanNotExist;
-		case ET_WrongCallID:			return ID_ET_WrongCallID;
-		case ET_CIDinUse:				return ID_ET_CIDinUse;
-		case ET_NoCallSusp:				return ID_ET_NoCallSusp;
-		case ET_CIDcleared:				return ID_ET_CIDcleared;
-		case ET_DestIncompat:			return ID_ET_DestIncompat;
-		case ET_InvTransitNet:			return ID_ET_InvTransitNet;
-		case ET_InvalUnspec:			return ID_ET_InvalUnspec;
-		case ET_MandatoryMissing:		return ID_ET_MandatoryMissing;
-		case ET_MandatoryNotImpl:		return ID_ET_MandatoryNotImpl;
-		case ET_MandatoryNotCompatible:	return ID_ET_MandatoryNotCompatible;
-		case ET_InfoElemMissing:		return ID_ET_InfoElemMissing;
-		case ET_InfoInvalid:			return ID_ET_InfoInvalid;
-		case ET_InfoNotCompatible:		return ID_ET_InfoNotCompatible;
-		case ET_TimerRecovery:			return ID_ET_TimerRecovery;
-		case ET_ProtocolUnspec:			return ID_ET_ProtocolUnspec;
-	}
-}
- 
 static void
 phone_timerup (isdn3_conn conn)
 {
@@ -733,8 +617,12 @@ get_ET_chanID (isdn3_conn conn, uchar_t * data, int len)
 				conn->bchan = 0;
 			else
 				conn->bchan = isdn3_free_b (conn->card);
-		} else if (conn->bchan != 0)
-			conn->minorstate |= MS_BCHAN;
+		} else if (conn->bchan != 0) {
+			if(!(conn->minorstate & MS_BCHAN)) {
+				conn->minorstate |= MS_BCHAN;
+				isdn3_setup_conn(conn,EST_SETUP);
+			}
+		}
 		break;
 	case 0x60:
 	case 0x20:
@@ -749,16 +637,18 @@ get_ET_chanID (isdn3_conn conn, uchar_t * data, int len)
 		if (qd_data[1] != 0x83)
 			return 0;
 		conn->bchan = qd_data[2];
-		if (conn->bchan != 0)
-			conn->minorstate |= MS_BCHAN;
+		if (conn->bchan != 0) {
+			if(!(conn->minorstate & MS_BCHAN)) {
+				conn->minorstate |= MS_BCHAN;
+				isdn3_setup_conn(conn,EST_SETUP);
+			}
+		}
 		if (conn->card != NULL && conn->card->bchans < conn->bchan)
 			return 0;
 		break;
 	default:
 		return 0;
 	}
-	if (conn->bchan != 0)
-		conn->minorstate |= MS_BCHAN;
 	return 1;
 }
 
@@ -865,7 +755,7 @@ report_ET_notify (isdn3_conn conn, uchar_t * data, int len)
 	if(qd_len < 1)
 		return 0;
 	if ((*qd_data & 0x7F) == 0)
-		return (isdn3_setup_conn (conn, EST_INTERRUPT) != 0);
+		return (isdn3_setup_conn (conn, EST_DISCONNECT /* was INTERRUPT */ ) != 0);
 	else if ((*qd_data & 0x7F) == 1)
 		return (isdn3_setup_conn (conn, EST_CONNECT) != 0);
 	else
@@ -947,7 +837,7 @@ report_ET_stat (isdn3_conn conn, uchar_t * data, int len)
 	cval = report_addcause (mb, data, len);
 	switch (cval) {
 	case 0: /* RemoteUserSuspend */
-		isdn3_setup_conn (conn, EST_INTERRUPT);
+		isdn3_setup_conn (conn, EST_DISCONNECT /* was INTERRUPT */ );
 		break;
 	case 1: /* ET_RemoteUserResumed */
 		switch (conn->state) {
@@ -991,13 +881,10 @@ Xreport_ET_terminate (isdn3_conn conn, uchar_t * data, int len, ushort_t cause, 
 		pr_setstate (conn, 0);
 		return;
 	}
-	if (conn->minorstate & MS_TERM_SENT) {
-		m_putid (mb, IND_INFO);
-		m_putid (mb, ID_ET_REL);
-	} else {
-		conn->minorstate |= MS_TERM_SENT;
-		m_putid (mb, IND_DISC);
-	}
+	if (conn->state == 0 || conn->state == 99)
+		m_putid (mb, IND_DISCONNECT);
+	else
+		m_putid (mb, IND_DISCONNECTING);
 	if(cause != 0) {
 		m_putsx(mb,ARG_CAUSE);
 		m_putsx2(mb,cause);
@@ -1061,9 +948,9 @@ ET_T303 (isdn3_conn conn)
 	switch (conn->state) {
 	case 1:
 		send_ET_disc (conn, 0,NULL);
-		report_ET_terminate (conn,NULL,0,ID_NOREPLY);
 		isdn3_setup_conn (conn, EST_DISCONNECT);
 		pr_setstate (conn, 99);
+		report_ET_terminate (conn,NULL,0,ID_NOREPLY);
 		break;
 	}
 	et_checkterm (conn, NULL, 0);
@@ -1410,7 +1297,7 @@ release_postET (isdn3_conn conn, uchar_t minor, char force)
 static void ET_TFOO(isdn3_conn conn)
 {
 	conn->state = 0;
-	et_checkterm (conn, NULL, 0);
+	isdn3_killconn (conn, 1); /* XXX */
 }
 
 static void
@@ -1433,7 +1320,7 @@ ET_TCONN (isdn3_conn conn)
 				*qd_d++ = 0x80; /* CCITT; User */
 				if(!(conn->minorstate & MS_BCHAN))
 					*qd_d = ET_UserBusy;
-				else if(!(conn->minorstate & MS_SETUP_SENT))
+				else if(!(conn->minorstate & MS_SETUP_MASK))
 					*qd_d = ET_NoAnswer; /* XXX ;-) */
 				else
 					*qd_d = ET_OutOfOrder;
@@ -1559,12 +1446,12 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 		if (conn->state == 0 || conn->state == 1 || conn->state == 19)
 			goto do_continue;
 		isdn3_setup_conn (conn, EST_DISCONNECT);
-		report_ET_terminate (conn, data, len,0);
 	  ComEx:
 		if(conn->state == 6 || conn->state == 7 || conn->state == 99)
 			pr_setstate (conn, 99);
 		else
 			pr_setstate (conn, 0);
+		report_ET_terminate (conn, data, len,0);
 		break;
 	case MT_ET_REL:
 		if (conn->state == 0 || conn->state == 1 || conn->state == 6
@@ -1574,7 +1461,6 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			goto do_continue;
 		phone_sendback (conn, MT_ET_REL_COM, NULL);
 		isdn3_setup_conn (conn, EST_DISCONNECT);
-		report_ET_terminate (conn, data, len,0);
 		goto ComEx;
 	case MT_ET_DISC:
 		if (conn->state == 0 || conn->state == 1 || conn->state == 6
@@ -1583,8 +1469,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 					|| conn->state == 17 || conn->state == 19)
 			goto do_continue;
 		isdn3_setup_conn (conn, EST_DISCONNECT);
-		report_ET_terminate (conn, data, len,0);
 		pr_setstate (conn, 12);
+		report_ET_terminate (conn, data, len,0);
 		(void)send_ET_disc (conn, 1, NULL);
 		break;
 	default:
@@ -1696,19 +1582,19 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_REL:
 				/* send REL up -- done when dropping out below */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			case MT_ET_REL_COM:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -1790,13 +1676,13 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 99);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			default:
@@ -1817,8 +1703,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			default:
@@ -1845,8 +1731,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			default:
@@ -1869,13 +1755,13 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_REL:
 				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			default:
@@ -1894,8 +1780,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -1916,13 +1802,13 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			default:
@@ -1944,13 +1830,13 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 12);
+				report_ET_terminate (conn, data, len,0);
 				(void)send_ET_disc (conn, 1, NULL);
 				break;
 			case MT_ET_RES_REJ:
@@ -1979,16 +1865,15 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 			common_17_REL:
 				phone_sendback (conn, MT_ET_REL, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 19);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_SUSP_ACK:
 			case MT_ET_REG_ACK:
@@ -2009,14 +1894,14 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_DISC:
 				/* Release B chan */
-				report_ET_terminate (conn, data, len,0);
 				phone_sendback (conn, MT_ET_REL, NULL);
 				pr_setstate (conn, 19);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -2028,8 +1913,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -2041,8 +1926,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 			case MT_ET_REL_COM:
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 99);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -2053,8 +1938,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			switch (msgtype) {
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_REG_ACK:
 				/* send REG_ACK up */
@@ -2066,12 +1951,11 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				goto common_20_REL_COM;
 			common_20_REL_COM:
 				phone_sendback (conn, MT_ET_REL, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 19);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -2081,8 +1965,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			switch (msgtype) {
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 0);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			case MT_ET_CANC_ACK:
 				/* send CANC_ACK up */
@@ -2094,12 +1978,11 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				report_ET_terminate (conn, data, len,0);
 				goto common_21_REL_COM;
 			common_21_REL_COM:
 				phone_sendback (conn, MT_ET_REL, NULL);
-				report_ET_terminate (conn, data, len,0);
 				pr_setstate (conn, 19);
+				report_ET_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
@@ -2130,7 +2013,6 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 static int
 chstate (isdn3_conn conn, uchar_t ind, short add)
 {
-	if(0)printf ("PHONE state for card %d says %d:%o\n", conn->card->nr, ind, add);
 	switch (ind) {
 	case DL_ESTABLISH_IND:
 	case DL_ESTABLISH_CONF:
@@ -2154,7 +2036,6 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 			case 19:
 				break;
 			case 2:
-				report_ET_terminate (conn, NULL, 0,0);
 				{
 					mblk_t *data = allocb(16,BPRI_MED);
 					if(data != NULL) {
@@ -2174,6 +2055,7 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 				}
 				/* Error */
 				pr_setstate (conn, 11);
+				report_ET_terminate (conn, NULL, 0,0);
 				break;
 			case 7:
 				break;
@@ -2397,15 +2279,10 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 
 			conn->minorstate |= MS_OUTGOING | MS_WANTCONN;
 
-			isdn3_setup_conn (conn, EST_NO_CHANGE);
+			conn->lockit++;
+			isdn3_setup_conn (conn, EST_SETUP);
+			conn->lockit--;
 
-			if ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO)) {
-				if (data != NULL)
-					data->b_rptr = oldpos;
-				isdn3_repeat (conn, id, data);
-				conn->lockit--;
-				return 0;
-			}
 			switch (conn->state) {
 			case 0:
 				if (conn->minor == 0) {
@@ -2413,8 +2290,6 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					conn->lockit--;
 					return -ENOENT;
 				}
-				if (conn->mode == 0)
-					err = -ENOEXEC;
 				{
 					mblk_t *asn = allocb (256, BPRI_MED);
 					int qd_len = 0;
@@ -2639,7 +2514,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			}
 			conn->minorstate |= MS_WANTCONN;
 
-			isdn3_setup_conn (conn, EST_NO_CHANGE);
+			isdn3_setup_conn (conn, EST_SETUP);
 
 			if (((conn->delay > 0) && (conn->minorstate & MS_DELAYING))
 			     || !(conn->minorstate & MS_PROTO)

@@ -46,7 +46,7 @@ extern int log_34;
 										 * :ARG_CHANNEL channel ::string" */
 #define CMD_NOPROT CHAR2 ('n','p')/* Protocol info was insufficient -- try
 								   * again */
-#define CMD_OFF    CHAR2 ('d','i')/* Take a connection down. "CMD_OFF
+#define CMD_OFF    CHAR2 ('O','F')/* Take a connection down. "CMD_OFF
 								   * :ARG_MINOR minor" */
 #define CMD_INFO   CHAR2 ('-','-')/* Send a response text to the device.
 								   * "CMD_INFO :ARG_FMINOR minor ::text" */
@@ -66,15 +66,14 @@ extern int log_34;
 #define CMD_FORWARD CHAR2('f','w')/* Forward this call */
 
 /* Replies. */
-#define IND_PROTO  CHAR2 ('i','p')/* Set up a protocol stack. */
-#define IND_PROTO_AGAIN  CHAR2 ('i','a')/* Set up a protocol stack. */
 #define IND_CARDPROTO  CHAR2 ('i','c')/* Set up a protocol stack. */
 #define IND_ERR    CHAR2 ('e','r')/* Command error. */
 #define IND_NOERR    CHAR2 ('o','k')/* Command error. */
 #define IND_INCOMING CHAR2 ('i','n')	/* Incoming call. */
 #define IND_CONN   CHAR2 ('c','o')/* Connected. */
 #define IND_CONN_ACK CHAR2('C','A')
-#define IND_DISC   CHAR2 ('D','i')/* Disconnected. */
+#define IND_DISCONNECTING   CHAR2 ('D','j')/* Disconnect in progress. */
+#define IND_DISCONNECT   CHAR2 ('D','i')/* Disconnected. */
 #if 0
 #define IND_PACKET CHAR2 ('p','a')/* Unanalysed packet data from below. */
 #endif

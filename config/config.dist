@@ -4,6 +4,15 @@
 
 ##
 ##
+## The user who may do (almost) everything.
+#### =()<ROOT	@<ROOT>@>()=
+ROOT isdnmaster
+##
+##
+#### =()<SYS	@<SYS>@>()=
+SYS	linux
+##
+##
 ## System type.
 ##
 #### =()<SYS	@<SYS>@>()=

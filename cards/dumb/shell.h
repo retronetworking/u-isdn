@@ -47,4 +47,15 @@ typedef struct _dumb {
 } *__dumb;
 
 extern struct _dumb dumbdata[];
+
+#define M_TRANSPARENT 12			  /* no idle */
+#define M_TRANS_ALAW 13			  /* a-law idle */
+#define M_TRANS_V110 14			  /* V.110 idle */
+#define M_TRANS_HDLC 15			  /* HDLC flags */
+#define M_HDLC 20
+#define M_HDLC_7L 21			  /* skip bit 8 */
+#define M_HDLC_7H 22			  /* skip bit 0 */
+#define M_HDLC_N0 23			  /* insert one after seven zeroes */
+#define M_HDLC_16 24			  /* insert one after seven zeroes */
+
 #endif

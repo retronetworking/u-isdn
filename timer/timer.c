@@ -66,7 +66,7 @@ struct timer_ {
 	short flags;
 #define TIMER_INUSE 01
 #define TIMER_TIMER 02
-#define TIMER_INT 04
+/* #define TIMER_INT 04 */
 #define TIMER_WHEN_IN 010
 #define TIMER_WHEN_OUT 020
 #define TIMER_INCOMING 040
@@ -119,7 +119,7 @@ timer_timeout(struct timer_ *tim)
     && (tim->maxwrite != 0 && tim->maxwrite < TIME-tim->lastwrite)) {
 		mblk_t *mb = allocb(3,BPRI_MED);
 		if(mb != NULL) {
-			m_putid(mb, (tim->flags & TIMER_INT) ? PROTO_WILL_INTERRUPT : PROTO_WILL_DISCONNECT);
+			m_putid(mb, /* (tim->flags & TIMER_INT) ? PROTO_WILL_INTERRUPT : */ PROTO_WILL_DISCONNECT);
 			DATA_TYPE(mb) = MSG_PROTO;
 			putnext(tim->qptr,mb);
 			tim->flags &=~ TIMER_TIMER;
@@ -264,12 +264,14 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 				case TIMER_DATA_NONE:
 					tim->flags &=~ (TIMER_IFDATA_IN|TIMER_IFDATA_OUT);
 					break;
+#if 0
 				case TIMER_DO_DISC:
 					tim->flags &=~ TIMER_INT;
 					break;
 				case TIMER_DO_INT:
 					tim->flags |= TIMER_INT;
 					break;
+#endif
 				case TIMER_INTERVAL:
 					if ((error = m_geti (mp, &z)) != 0)
 						goto err;

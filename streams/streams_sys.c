@@ -25,6 +25,9 @@
 #include <linux/malloc.h>
 #include <linux/tqueue.h>
 #include <linux/interrupt.h>
+#ifdef SK_STREAM
+#include <net/sock.h> /* Linux */
+#endif
 #else
 unsigned long bh_mask;
 #endif
@@ -150,6 +153,9 @@ datamsg(uchar_t type)
  * The data header and the data area are allocated in one block.
  * The refcounter is set to one, all other fields are zeroed or set to
  * reasonable values.
+ *
+ * There's a +1 below. Reason: It's sometimes easier to zero-terminate
+ * strings. Writing beyond allocated space is never a good idea.
  */
 
 mblk_t * 
@@ -167,13 +173,13 @@ allocb(ushort size, ushort pri)
 #endif
 
 #ifdef SK_STREAM
-	skb = alloc_skb(size,GFP_ATOMIC);
+	skb = alloc_skb(size+1,GFP_ATOMIC);
 	if(skb == NULL) {
 		printf("%sCouldn't allocate %d bytes (Streams SKB)\n",KERN_WARNING,size);
 		return NULL;
 	}
 #else
-	p_data = (struct datab *) kmalloc(size + sizeof(struct datab), GFP_ATOMIC);
+	p_data = (struct datab *) kmalloc(size +1 + sizeof(struct datab), GFP_ATOMIC);
 	if(p_data == NULL) {
 		printf("%sCouldn't allocate %d bytes (Streams Data)\n",KERN_WARNING,size+sizeof(struct datab));
 		return NULL;
@@ -203,14 +209,13 @@ allocb(ushort size, ushort pri)
 #ifdef SK_STREAM
 	p_msg->b_skb = skb;
 	p_msg->b_rptr = p_msg->b_wptr = skb->data;
-	skb->users = 1;
 #else
 	p_msg->b_datap = p_data;
 	p_data->db_base = p_msg->b_rptr = p_msg->b_wptr = (streamchar *)(p_data+1);
 	p_data->db_lim = p_data->db_base + size;
-	p_data->db_type = M_DATA;
-	p_data->db_ref = 1;
 #endif
+	DATA_TYPE(p_msg) = M_DATA;
+	DATA_REFS(p_msg) = 1;
 
 	return p_msg;
 }
@@ -257,7 +262,13 @@ freeb(mblk_t *p_msg)
 #endif
 	(void)deb_msgdsize(deb_file,deb_line, p_msg);
 	if(p_msg->deb_queue != NULL) {
-		printf("%s:%d freed msg %p:%p from queue %p, put by %s:%d\n",
+#ifdef CONFIG_MALLOC_NAMES
+		deb_kcheck(p_msg, deb_file, deb_line);
+#ifndef SK_STREAM
+		deb_kcheck(p_msg->b_datap, deb_file, deb_line);
+#endif
+#endif
+		printf("%s:%d freed_msg %p:%p from queue %p, put by %s:%d\n",
 			deb_file,deb_line,p_msg,
 #ifdef SK_STREAM
 			skb,
@@ -269,28 +280,21 @@ freeb(mblk_t *p_msg)
 	}
 #endif
 
-	if(
 #ifdef SK_STREAM
-			--skb->users <= 0
+	skb->free=1;
+	kfree_skb(skb,FREE_WRITE);
 #else
-			--p_data->db_ref <= 0
-#endif
-		) {
-#ifdef SK_STREAM
-		skb->free=1;
-		kfree_skb(skb,0);
-#else
+	if(--DATA_REFS(p_msg) <= 0) {
 #ifdef CONFIG_DEBUG_STREAMS
 		p_data->deb_magic = DEB_DMAGIC+0x2468BDED;
 #endif
-
 		if((streamchar *)(p_data+1) == p_data->db_base) {
 			kfree_s(p_data,sizeof(struct datab)+(p_data->db_lim-p_data->db_base));
 		} else {
 			kfree_s(p_data,sizeof(struct datab));
 		}
-#endif /* SK_STREAM */
 	}
+#endif /* SK_STREAM */
 
 #ifdef CONFIG_DEBUG_STREAMS
 	p_msg->deb_magic = DEB_PMAGIC+0x1357ACEF;
@@ -462,6 +466,51 @@ dupb(mblk_t *p_msg)
 #endif
 	return p_newmsg;
 }
+
+
+#ifdef SK_STREAM
+/**
+ * dupskb
+ *
+ * Creates an mblk which points to the skbuff.
+ */
+
+mblk_t *
+#ifdef CONFIG_DEBUG_STREAMS
+deb_dupskb(const char *deb_file, unsigned int deb_line, struct sk_buff *p_sk)
+#else
+dupb(struct sk_buff *p_sk)
+#endif
+{
+	mblk_t *p_newmsg;
+
+	if(p_sk == NULL) {
+#ifdef CONFIG_DEBUG_STREAMS
+		printf("%sDupsk'ing NULL skb at %s:%d\n",KERN_ERR ,deb_file,deb_line);
+#endif
+		return NULL;
+	}
+
+	p_newmsg = (struct msgb *)kmalloc(sizeof(struct msgb), GFP_ATOMIC);
+
+	bzero(p_newmsg,sizeof(*p_newmsg));
+	DATA_BLOCK(p_newmsg) = p_sk;
+	DATA_TYPE(p_newmsg) = M_DATA;
+	p_newmsg->b_rptr = p_sk->data;
+	p_newmsg->b_wptr = p_sk->tail;
+#ifdef CONFIG_DEBUG_STREAMS
+	p_newmsg->deb_magic = DEB_PMAGIC;
+	p_newmsg->deb_queue = NULL;
+	p_newmsg->deb_file = deb_file;
+	p_newmsg->deb_line = deb_line;
+#endif
+	p_sk->count++;
+	dev_kfree_skb(p_sk,FREE_WRITE);
+	p_sk->sk = NULL;
+
+	return p_newmsg;
+}
+#endif
 
 
 /**
@@ -727,11 +776,11 @@ pullupmsg(mblk_t *p_msg, short length)
 	if (length <= 0) {
 		if (p_msg->b_cont == NULL)
 			return 1;
-		length = xmsgsize(p_msg);
+		length = msgsize(p_msg);
 	} else {
 		if (p_msg->b_wptr - p_msg->b_rptr >= length)
 			return 1;
-		if (xmsgsize(p_msg) < length)
+		if (msgsize(p_msg) < length)
 			return 0;
 	}
 
@@ -892,11 +941,68 @@ xmsgsize(mblk_t *p_msg)
 		if((n = p_msg->b_wptr - p_msg->b_rptr) > 0)
 			bytes += n;
 #ifdef CONFIG_DEBUG_STREAMS
-		segs++;
+		if(segs++ > 100)
+			panic("Msg_Loop of %p at %s:%d!\n",p_msg,deb_file,deb_line);
 #endif
 		if ((p_msg = p_msg->b_cont) == NULL)
 			break;
 	} while (type == DATA_TYPE(p_msg));
+
+	return bytes;
+}
+
+
+/**
+ * xmsgsize
+ *
+ * Count sizes of consecutive blocks of the same type as the first message block.
+ *
+ */
+
+int
+#ifdef CONFIG_DEBUG_STREAMS
+deb_msgsize(const char *deb_file, unsigned int deb_line, mblk_t *p_msg)
+#else
+msgsize(mblk_t *p_msg)
+#endif
+{
+	int bytes = 0;
+#ifdef CONFIG_DEBUG_STREAMS
+	int segs = 0;
+#endif
+
+	if(p_msg == NULL) {
+#ifdef CONFIG_DEBUG_STREAMS
+		printf("%sMsgSize of NULL msg at %s:%d\n",KERN_ERR ,deb_file,deb_line);
+#endif
+		return 0;
+	}
+
+	do {
+		short n;
+#ifdef CONFIG_DEBUG_STREAMS
+#if defined(CONFIG_MALLOC_NAMES) && defined(__KERNEL__)
+		if(kcheck_s(p_msg,sizeof(*p_msg)))
+			return 0;
+#endif
+		if(p_msg->deb_magic != DEB_PMAGIC) 
+			panic("Bad=Magic of %p/%d at %s:%d!\n",p_msg,segs,deb_file,deb_line);
+		if(DATA_BLOCK(p_msg) == NULL) 
+			panic("Bad=Magicn of %p/%d at %s:%d!\n",p_msg,segs,deb_file,deb_line);
+#ifndef SK_STREAM
+		if(p_msg->b_datap->deb_magic != DEB_DMAGIC) 
+			panic("Bad=Magicd of %p/%d at %s:%d!\n",p_msg,segs,deb_file,deb_line);
+#endif
+#endif
+		if((n = p_msg->b_wptr - p_msg->b_rptr) > 0)
+			bytes += n;
+#ifdef CONFIG_DEBUG_STREAMS
+		if(segs++ > 100)
+			panic("Msg=Loop of %p at %s:%d!\n",p_msg,deb_file,deb_line);
+#endif
+		if ((p_msg = p_msg->b_cont) == NULL)
+			break;
+	} while (1);
 
 	return bytes;
 }
@@ -968,7 +1074,8 @@ msgdsize(mblk_t *p_msg)
 		}
 		p_msg = p_msg->b_cont;
 #ifdef CONFIG_DEBUG_STREAMS
-		segs++;
+		if(segs++ > 100)
+			panic("Msg.Loop of %p at %s:%d!\n",p_msg,deb_file,deb_line);
 #endif
 	}
 	return bytes;
@@ -1109,8 +1216,11 @@ put_post(queue_t *p_queue, mblk_t *p_msg)
 #endif
 	} while ((p_tmp = p_tmp->b_cont) != NULL);
 
-	if (p_queue->q_count > p_queue->q_hiwat) 
+	if (p_queue->q_count > p_queue->q_hiwat) {
 		p_queue->q_flag |= QFULL;
+		if(p_queue->q_next == NULL)
+			p_queue->q_flag |= QWANTR;
+	}
 
 #ifdef CONFIG_DEBUG_STREAMS
 	p_msg->deb_queue = p_queue;
@@ -1205,7 +1315,7 @@ getq(queue_t *p_queue)
 			freemsg(p_msg);
 			p_msg = NULL;
 		}
-		if (p_msg->b_datap == NULL) {
+		if (DATA_BLOCK(p_msg) == NULL) {
 			printf("%sGetQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 			freemsg(p_msg);
 			p_msg = NULL;
@@ -1451,7 +1561,7 @@ putq(queue_t *p_queue, mblk_t *p_msg)
 		freemsg(p_msg);
 		return;
 	}
-	if (p_msg->b_datap == NULL) {
+	if (DATA_BLOCK(p_msg) == NULL) {
 		printf("%sPutQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
@@ -1544,7 +1654,7 @@ putbq(queue_t *p_queue, mblk_t *p_msg)
 		freemsg(p_msg);
 		return;
 	}
-	if (p_msg->b_datap == NULL) {
+	if (DATA_BLOCK(p_msg) == NULL) {
 		printf("%sPutBQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
@@ -1699,7 +1809,7 @@ appq(queue_t *p_queue, mblk_t *p_oldmsg, mblk_t *p_msg)
 		freemsg(p_msg);
 		return;
 	}
-	if (p_msg->b_datap == NULL) {
+	if (DATA_BLOCK(p_msg) == NULL) {
 		printf("%sAppQ NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;
@@ -1855,7 +1965,7 @@ qreply(queue_t *p_queue, mblk_t *p_msg)
 		freemsg(p_msg);
 		return;
 	}
-	if (p_msg->b_datap == NULL) {
+	if (DATA_BLOCK(p_msg) == NULL) {
 		printf("%sQReply NULL stream/datap at %s:%d, last at %s:%d\n",KERN_ERR ,deb_file,deb_line,p_msg->deb_file,p_msg->deb_line);
 		freemsg(p_msg);
 		return;

@@ -118,7 +118,8 @@ chstate (isdn3_talk talk, uchar_t ind, short add)
 			break;
 		/* ELSE FALL THRU */
 	case DL_RELEASE_IND:
-	release_common: {
+	  release_common:
+		{
 			isdn3_conn conn, nconn;
 
 			for (conn = talk->conn; conn != NULL; conn = nconn) {
@@ -321,21 +322,15 @@ newcard (isdn3_card card)
 	/* That's enough. */
 }
 
-static ulong_t
-modeflags (long protocol)
-{
-	return 1 << M_HDLC;
-}
-
-
 static struct _isdn3_prot *isdn_prot;
 
 static void
 init (void)
 {
 	isdn_prot = NULL;
-
-	if(0) isdn3_attach_prot (&prot_1TR6_0);
+#if 0
+	isdn3_attach_prot (&prot_1TR6_0);
+#endif
 #ifdef _german_
 	isdn3_attach_prot (&prot_1TR6_1);
 #endif
@@ -376,7 +371,7 @@ isdn3_findprot (mblk_t *info, uchar_t protocol)
 		streamchar *sta = info->b_rptr;
 		ushort_t idx;
 
-		while(m_getid(info,&idx) == 0) {
+		while(m_getsx(info,&idx) == 0) {
 			long sap;
 			switch(idx) {
 			case ARG_PROTOCOL:
@@ -410,6 +405,6 @@ isdn3_findprot (mblk_t *info, uchar_t protocol)
 struct _isdn3_hndl PHONE_hndl =
 {
 		NULL, SAPI_PHONE,0,
-		&init, &newcard, &modeflags, &chstate, &report, &recv, &send,
+		&init, &newcard, &chstate, &report, &recv, &send,
 		&sendcmd, &ckill, &killconn, &hook, NULL,
 };

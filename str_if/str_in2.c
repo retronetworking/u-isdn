@@ -194,7 +194,6 @@ str_if_proto (queue_t * q, mblk_t * mp, char down)
 		p->if_net.if_flags |= IFF_RUNNING;
 
 		break;
-	case PROTO_INTERRUPT:
 	case PROTO_DISCONNECT:
 		p->if_net.if_flags &= ~IFF_RUNNING;
 		break;

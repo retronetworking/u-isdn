@@ -503,12 +503,6 @@ tei_newcard (isdn3_card card)
 		tei_getid (card);
 }
 
-static ulong_t
-tei_modeflags (long protocol)
-{
-	return 0;
-}
-
 int
 tei_getid (isdn3_card card)
 {
@@ -534,6 +528,6 @@ tei_getid (isdn3_card card)
 struct _isdn3_hndl TEI_hndl =
 {
 		NULL, SAPI_TEI,1,
-		NULL, &tei_newcard, &tei_modeflags, &tei_chstate, NULL, &tei_recv,
+		NULL, &tei_newcard, &tei_chstate, NULL, &tei_recv,
 		&tei_send, &tei_sendcmd, &tei_kill, NULL, NULL, NULL,
 };
