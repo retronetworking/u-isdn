@@ -2,7 +2,7 @@
 #define _LINUX_SYSCOMPAT_H_
 
 #include "config.h"
-#include <linux/types.h>
+#include "kernel.h"
 
 #ifdef DO_DEBUGGING
 #define CONFIG_DEBUG_STREAMS

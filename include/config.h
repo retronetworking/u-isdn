@@ -82,9 +82,9 @@ extern int writev(int fd, struct iovec *vp, int vpcount);
 #define ROUTE_PATH "/sbin/route"
 
 /* =()<#define LOCKNAME "@<LOCKNAME>@">()= */
-#define LOCKNAME "/var/lock/uucp/LCK..%s"
+#define LOCKNAME "/var/lock/LCK..%s"
 
 /* =()<#define ROOTUSER "@<ROOT>@">()= */
-#define ROOTUSER "isdnmaster"
+#define ROOTUSER "smurf"
 
 #endif							/* _CONFIG_H */

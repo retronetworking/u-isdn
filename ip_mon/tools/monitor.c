@@ -6,9 +6,11 @@
 #include <errno.h>
 #include "f_strings.h"
 #include <syslog.h>
+#if __GNU_LIBRARY__ - 0 < 6
 #include <netinet/in_systm.h>
-#include <netinet/in.h>
 #include <netinet/ip.h>
+#endif
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>

@@ -3,8 +3,7 @@
 #ifndef _COMPRESS
 #define _COMPRESS
 
-#include <sys/types.h>
-#include <sys/param.h>
+#include "kernel.h"
 #include "streams.h"
 #include "f_ip.h"
 #include "vanj.h"
@@ -13,7 +12,7 @@
 /*
  * Definitions for tcp compression routines.
  * 
- * $Header: slcompress.h,v 1.10 89/12/31 08:53:02 van Exp $
+ * $Header: /usr/src/cvs/kernel/isdn/van_j/compress.h,v 1.1.1.1 1996/07/29 07:09:09 smurf Exp $
  * 
  * Copyright (c) 1989 Regents of the University of California. All rights
  * reserved.

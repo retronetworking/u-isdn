@@ -1,7 +1,9 @@
 #if !defined(__sys_callout_h)
 #define __sys_callout_h
 
+#ifndef __KERNEL__
 #include <sys/types.h>
+#endif
 
 struct	callout {
 	int	c_time;		/* incremental time */

@@ -13,11 +13,8 @@
  * key-parameter-argument list for a nested command.
  */
 
-#include <sys/types.h>
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
-#include <sys/param.h>
-#include <sys/sysmacros.h>
 #include "stropts.h"
 
 #include "streams.h"

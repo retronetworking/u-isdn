@@ -42,8 +42,7 @@ config.data:		subst config.dist
 	cp config.dist config.new
 	./subst $(SED) -f subst.tmp config.new
 	-@rm -f subst.tmp
-	@echo "Check config.new, then rename it to config.data, and re-make!"
-	@false
+	mv config.new config.data
 
 subst:		subst.c subst.sh
 	-make c || make sh || rm -f subst

@@ -15,7 +15,7 @@
 #define DOT ->
 #endif
 
-#include <sys/types.h>
+#include "kernel.h"
 
 #define NSTR 8
 
@@ -25,7 +25,6 @@
 #include <sys/socket.h>
 #endif
 
-#include <sys/time.h>
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
@@ -45,10 +44,8 @@
 #endif
 #include <sys/mbuf.h>
 #include <sys/socket.h>
-#include <sys/errno.h>
 #include "f_ioctl.h"
 #include <sys/file.h>
-#include <sys/uio.h>
 
 #include "str_if.h"
 #include "streamlib.h"

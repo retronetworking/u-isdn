@@ -140,6 +140,8 @@ read_file (FILE * ffile, char *errf)
 		char *li = (char *) (c + 1);
 
 		switch (CHAR2 (li[0], li[1])) {
+		case CHAR2 ('M', 'O'):
+			continue;
 		case CHAR2 ('P', ' '):
 		case CHAR2 ('P', '_'):
 		case CHAR2 ('P', '\t'):

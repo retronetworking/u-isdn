@@ -1,8 +1,7 @@
 #ifndef __STREAMS_H
 #define __STREAMS_H
 
-#include <sys/types.h>
-#include <sys/uio.h>
+#include "kernel.h"
 
 #if !(defined(__sys_stream_h) || defined(_SYS_STREAM_H) || defined(_LINUX_STREAM_H))
 

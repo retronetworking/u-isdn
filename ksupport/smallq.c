@@ -1,12 +1,9 @@
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/errno.h>
 #include "smallq.h"
 #include "streams.h"
 #include "streamlib.h"
-#ifndef KERNEL
 #include "kernel.h"
-#endif
 
 /**** extremely simple queue handling ****/
 #define LI 0

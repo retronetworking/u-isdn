@@ -2,8 +2,13 @@
 #define _ISDN_2
 
 #include "config.h"
+#ifdef __KERNEL__
+#include <linux/types.h>
+#include <linux/param.h>
+#else
 #include <sys/types.h>
 #include <sys/param.h>
+#endif
 #include "x75lib.h"
 #include "smallq.h"
 #include "isdn_limits.h"

@@ -1,17 +1,14 @@
 #include "primitives.h"
 #include "kernel.h"
-#include <sys/file.h>
-#include <sys/errno.h>
 #include "f_signal.h"
 #include "stropts.h"
 #include "f_termio.h"
 #include "f_user.h"
-#include <sys/uio.h>
-#include <malloc.h>
 #include "streams.h"
 #include "streamlib.h"
 #include "string.h"
 #define NDEBUG
+#include <malloc.h>
 #include <assert.h>
 #ifndef ASSERT
 #define ASSERT(x) assert(x)

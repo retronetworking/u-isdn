@@ -6,7 +6,8 @@
 FILE=$1
 
 VERSION=${VERSION:-$(${TOPDIR}/tools/getversion)}
-dir=/lib/modules/$VERSION
+MODDIR=${MODDIR:-/lib/modules}
+dir=${MODDIR}/$VERSION
 echo isdn/$FILE >>$dir/../modules.isdn.all
 rm -f $dir/isdn/$FILE
 (

@@ -9,21 +9,18 @@
 
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/sysmacros.h>
 #include "streams.h"
 #include "stropts.h"
 /* #ifdef DONT_ADDERROR */
 #include "f_user.h"
 /* #endif */
-#include <sys/errno.h>
-#include <sys/file.h>
 #include <fcntl.h>
 #include <stddef.h>
 #include "streamlib.h"
-#include <sys/termios.h>
+#include <linux/termios.h>
 #include "loader.h"
 
 #include <linux/delay.h>

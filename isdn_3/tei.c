@@ -5,9 +5,7 @@
 #include "isdn_34.h"
 #include "lap.h"
 #include "dump.h"
-#include <sys/errno.h>
-#include <sys/time.h>
-#include <sys/param.h>
+#include "kernel.h"
 #include <sys/utsname.h>
 #include "sapi.h"
 

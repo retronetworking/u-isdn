@@ -3,22 +3,19 @@
 
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/sysmacros.h>
 #include "stropts.h"
 #ifdef DO_ADDUSER
 #include "f_user.h"
 #endif
-#include <sys/errno.h>
 #include "streams.h"
 #include "streamlib.h"
 
 #ifdef AUX
 #include <sys/protosw.h>
 #endif
-#include <netinet/in.h>
 #ifndef linux
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
@@ -26,8 +23,10 @@
 #include <linux/sched.h>
 #endif
 #endif
+#ifndef __KERNEL__
+#include <netinet/in.h>
 #include <netinet/tcp.h>
-#include "kernel.h"
+#endif
 
 #define MAXB 100
 

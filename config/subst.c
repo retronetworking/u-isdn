@@ -1,6 +1,6 @@
 /* This is from INN. */
 
-/*  $Revision: 1.10 $
+/*  $Revision: 1.1.1.1 $
 **
 **  A C version of Henry Spencer's "subst" script.
 */
@@ -51,8 +51,6 @@ extern char	*strcpy();
 static char *
 xstrerror()
 {
-    extern int	sys_nerr;
-    extern char	*sys_errlist[];
     extern int	errno;
     static char	buff[30];
 

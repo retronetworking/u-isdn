@@ -15,33 +15,28 @@
 
 #include "f_module.h"
 
-#define UNREGISTER   /* does seem to work */
+#undef UNREGISTER   /* not! */
 
 #include "primitives.h"
 #include "f_ip.h"
 #include "f_malloc.h"
 #include "ppp.h"
 
-#include <sys/types.h>
+#include "kernel.h"
 
 #define NSTR 8
 
 #include "primitives.h"
 #include "streams.h"
 #include "stropts.h"
-#include <sys/socket.h>
+#include <linux/socket.h>
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 
-#include <sys/time.h>
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif
-#include <sys/socket.h>
-#include <sys/errno.h>
 #include "f_ioctl.h"
-#include <sys/file.h>
-#include <sys/uio.h>
 
 #include "str_if.h"
 #include "streamlib.h"

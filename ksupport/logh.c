@@ -3,10 +3,14 @@
 
 #include "f_module.h"
 #include "primitives.h"
+#ifdef __KERNEL__
+#include <linux/time.h>
+#else
 #include <sys/time.h>
+#include <sys/sysmacros.h>
+#endif
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/sysmacros.h>
 #include "streams.h"
 #include "stropts.h"
 #include "streamlib.h"

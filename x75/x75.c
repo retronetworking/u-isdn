@@ -10,14 +10,10 @@
 
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/types.h>
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/param.h>
-#include <sys/sysmacros.h>
 #include "streams.h"
-#include <sys/errno.h>
 #ifdef DONT_ADDERROR
 #include "f_user.h"
 #endif

@@ -45,7 +45,7 @@
 #include "isdn_proto.h"
 #include "wildmat.h"
 #include "vectcmp.h"
-#ifdef linux
+#if 0 /* def linux */
 #include <linux/fs.h>
 #endif
 #if LEVEL < 4

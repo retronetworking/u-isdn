@@ -7,8 +7,13 @@
 #include "kernel.h"
 
 #include "msgtype.h"
+#ifdef __KERNEL__
+#include <linux/types.h>
+#include <linux/param.h>
+#else
 #include <sys/types.h>
 #include <sys/param.h>
+#endif
 #ifdef linux
 #include <linux/major.h>
 #ifdef KERNEL

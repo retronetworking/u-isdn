@@ -7,7 +7,13 @@
 #ifndef KERNEL
 #include <malloc.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/file.h>
 #include <sys/param.h>
+#include <sys/sysmacros.h>
+#include <sys/errno.h>
+#include <sys/uio.h>
 
 extern int spl6 (void);
 extern int spl1 (void);
@@ -45,6 +51,12 @@ extern void panic(const char *x, ...);
 #endif
 #include <linux/kernel.h>
 #include <linux/version.h>
+#include <linux/types.h>
+#include <linux/time.h>
+#include <linux/param.h>
+#include <linux/errno.h>
+#include <linux/uio.h>
+
 char *loghdr(char level);
 #undef KERN_EMERG
 #undef KERN_ALERT
@@ -64,4 +76,9 @@ char *loghdr(char level);
 #define	KERN_DEBUG	loghdr(7)
 
 #endif
+
+#ifndef minor
+#define minor(a) ((a)&0xFF)
+#endif
+
 #endif

@@ -3,19 +3,14 @@
 
 #include "f_module.h"
 #include "primitives.h"
-#include <sys/time.h>
+#include "kernel.h"
 #include "f_signal.h"
 #include "f_malloc.h"
-#include <sys/sysmacros.h>
 #include "streams.h"
 #include "stropts.h"
 #include "f_user.h"
-#include <sys/errno.h>
 #include "streamlib.h"
 #include "isdn_proto.h"
-#ifndef KERNEL
-#include "kernel.h"
-#endif
 
 #define MAXB 10
 
