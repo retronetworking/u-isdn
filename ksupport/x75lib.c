@@ -444,7 +444,7 @@ x75_T1 (x75 state)
 			state->RC++;
 			start_T (1, err2);
 		} else {
-			printf("%sERR_I 1\n",KERN_INFO);
+			printf("%sERR_I 1 %d\n",KERN_INFO,state->RC);
 			msg_up (state, MDL_ERROR_IND, ERR_I);
 			establish (state);
 			state->L3_req = 0;
@@ -1663,7 +1663,7 @@ x75_cansend (x75 state, char isUI)
 	if(state->cansend != NULL)
 		(void)(*state->cansend) (state->ref); /* Trigger bringing L1 up */
 	if (isUI)
-		return (state->I.nblocks < 3);		/* arbitrary maximum */
+		return (state->UI.nblocks < 3);		/* arbitrary maximum */
 	else						  /* This allows us to enqueue one additional
 								   * frame, which is a Good Thing. */
 		return (state->I.nblocks <= state->k);

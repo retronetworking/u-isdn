@@ -988,9 +988,13 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 	/*
 	 * If there's room in front, don't bother with a new mblk.
 	 */
-	if(crd->modes & CHM_INTELLIGENT)
+	if(crd->modes & CHM_INTELLIGENT) {
+		if(isdn2_log & 0x10) {
+			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
+			log_printmsg (NULL, " Send", mb, KERN_DEBUG);
+		}
 		err = (*crd->send)(crd,0,mb);
-	else if (DATA_START(mb) + 2 <= mb->b_rptr && DATA_REFS(mb) == 1) {
+	} else if (DATA_START(mb) + 2 <= mb->b_rptr && DATA_REFS(mb) == 1) {
 		*--mb->b_rptr = (((cmd & 2) ? TEI_BROADCAST : state->card->TEI[ch]) << 1) | 1;
 		*--mb->b_rptr = (state->SAPI << 2) | ((cmd & 1) ? 0 : 2);
 		if(isdn2_log & 0x20) {
@@ -1021,6 +1025,10 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 				else
 					freemsg(m1);
 			}
+		}
+		if(isdn2_log & 0x10) {
+			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
+			log_printmsg (NULL, " Send", mb, KERN_DEBUG);
 		}
 		if ((err = (*crd->send) (crd, 0, mb)) != 0)
 			mb->b_rptr += 2;
@@ -1064,6 +1072,10 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 					freemsg(m1);
 			}
 		}
+		if(isdn2_log & 0x10) {
+			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
+			log_printmsg (NULL, " Send", mb2, KERN_DEBUG);
+		}
 		if ((err = (*crd->send) (crd, 0, mb2)) != 0)
 			freeb (mb2);
 	}
@@ -1075,6 +1087,7 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 
 /*
  * Check if there's room on the downstream queue. Called from X75.
+ * (Or directly, for intelligent cards.)
  */
 static int
 D_cansend (isdn2_state state)
@@ -1082,18 +1095,20 @@ D_cansend (isdn2_state state)
 	struct _isdn1_card *crd;
 
 	if (isdn2_debug & 0x40)
-		printf ("%sD_cansend %d %d\n", KERN_DEBUG,state->card->nr, state->card->status);
+		printf ("%sD_cansend %d %d", KERN_DEBUG,state->card->nr, state->card->status);
 	if ((crd = state->card->card) == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("%s -- card NULL\n",KERN_DEBUG);
+			printf ("\n%s -- card NULL\n",KERN_DEBUG);
 		return 0;
 	}
+	if (isdn2_debug & 0x40)
+		printf ("cs %p\n", crd->cansend);
 	if(!(state->card->card->modes & CHM_INTELLIGENT)) {
 		if (state->card->status != C_up && state->card->status != C_lock_up) {
 			if (isdn2_debug & 0x10)
 				printf ("%s -- card down 2\n",KERN_DEBUG);
 			(void) D_L1_up (state->card);
-			return 0;				  /* Yet. */
+			return 0;				  /* Not yet. */
 		}
 	}
 	if (!(*crd->cansend) (crd, 0)) {
@@ -1148,6 +1163,7 @@ isdn2_register (struct _isdn1_card *card, long id)
 	if (isdn2_debug & 0x10)
 		printf ("%sisdn2_register %p %lx\n",KERN_DEBUG, card, id);
 	nr = 1;
+
 	do {
 		nr++;
 		found_nr = 0;
@@ -1391,7 +1407,7 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 {
 	int err = 0;
 
-	if (isdn2_debug & 0x10)
+	if (isdn2_debug & 0x4)
 		printf ("%sdo_chprot %d %d 0%o\n",KERN_DEBUG, ctl ? ctl->nr : -1, channel, flags);
 	if (ctl == NULL || (channel == 0 && isdn_chan.qptr == NULL))
 		return -ENXIO;
@@ -1419,7 +1435,7 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 		mb = allocb (sizeof (struct _isdn23_hdr), BPRI_HI);
 
 		if (mb == NULL) {
-			if (isdn2_debug & 0x10)
+			if (isdn2_debug & 0x14)
 				printf ("%sisdn2_chprot for %d: No rawhdr mem\n",KERN_DEBUG, ctl->nr);
 			return -ENOMEM;
 		}
@@ -1455,7 +1471,7 @@ do_chprot (isdn2_card ctl, short channel, mblk_t * proto, int flags)
 		isdn2_chan ch = ctl->chan[channel];
 
 		if (ch == NULL || ch->qptr == NULL) {
-			if(isdn2_debug & 0x10)printf ("%sisdn2_chprot for %d: No qptr\n",KERN_DEBUG, ctl->nr);
+			if(isdn2_debug & 0x14)printf ("%sisdn2_chprot for %d: No qptr\n",KERN_DEBUG, ctl->nr);
 			return -ENXIO;
 		}
 		DATA_TYPE(proto) = MSG_PROTO;
@@ -1788,6 +1804,8 @@ isdn2_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 #endif
 			ch = malloc(sizeof(*ch));
 			if (ch == NULL) {
+				if (isdn2_debug & 0x10)
+					printf ("%sisdn2_open: no memory\n",KERN_DEBUG);
 				ERR_RETURN(-ENOMEM);
 			}
 			memset(ch,0,sizeof(*ch));
@@ -2173,22 +2191,24 @@ pushlist (queue_t * q, mblk_t * mp, char flags)
 				}
 			}
 
-			for (fm = fmod_sw; fm < &fmod_sw[fmodcnt]; fm++) {
-				if (fm->f_str == NULL)
-					continue;
-				if(!strcmp(ch1,fm->f_name))
-					goto found;
-			}
-			printf ("%sQ_Push: %s -- not found\n", KERN_ERR,ch1);
-			*ch2 = chx;
-			return -ENOENT;
-		  found:
-			if(isdn2_debug & 0x20)printf (" %s", fm->f_name);
-			if ((err = c_qattach (fm->f_str, xq, 0)) < 0) {
+			if(strcmp(ch1,"-")) {
+				for (fm = fmod_sw; fm < &fmod_sw[fmodcnt]; fm++) {
+					if (fm->f_str == NULL)
+						continue;
+					if(!strcmp(ch1,fm->f_name))
+						goto found;
+				}
+				printf ("%sQ_Push: %s -- not found\n", KERN_ERR,ch1);
 				*ch2 = chx;
-				splx (ms);
-				printf ("%sQ_Push: %s -- can't attach\n", KERN_WARNING,fm->f_name);
-				return err;
+				return -ENOENT;
+			found:
+				if(isdn2_debug & 0x20)printf (" %s", fm->f_name);
+				if ((err = c_qattach (fm->f_str, xq, 0)) < 0) {
+					*ch2 = chx;
+					splx (ms);
+					printf ("%sQ_Push: %s -- can't attach\n", KERN_WARNING,fm->f_name);
+					return err;
+				}
 			}
 		  nx:
 			*ch2 = chx; 
@@ -2326,8 +2346,11 @@ h_reply (queue_t * q, isdn23_hdr hdr, short err)
 	if (isdn2_debug & 0x100)
 		printf ("%sh_reply %p %p %d\n",KERN_DEBUG, q, hdr, err);
 
-	if ((mb = allocb (2 * sizeof (struct _isdn23_hdr), BPRI_HI)) == NULL)
+	if ((mb = allocb (2 * sizeof (struct _isdn23_hdr), BPRI_HI)) == NULL) {
+		if (isdn2_debug & 0x10)
+			printf ("%sh_reply: no memory\n",KERN_DEBUG);
 		 return -ENOMEM;
+	}
 
 	hd = ((isdn23_hdr) mb->b_wptr)++;
 	hd->key = HDR_INVAL;
@@ -2641,6 +2664,8 @@ isdn2_wsrv (queue_t *q)
 									if (!((crd->card->modes & CHM_INTELLIGENT)
 											? D_cansend(state)
 											: x75_cansend (&state->state, 1))) {
+										if (isdn2_debug & 0x10)
+											printf ("%shdr_uidata: cannot send\n",KERN_DEBUG);
 										h_reply (q, &hdr, (crd->status == C_wont_up) ? EIO : ENOMEM);
 										break;
 									}
@@ -2671,6 +2696,8 @@ isdn2_wsrv (queue_t *q)
 									if (!((crd->card->modes & CHM_INTELLIGENT)
 											? D_cansend(state)
 											: x75_cansend (&state->state, 0))) {
+										if (isdn2_debug & 0x10)
+											printf ("%shdr_data: cannot send\n",KERN_DEBUG);
 										h_reply (q, &hdr, (crd->status == C_wont_up) ? EIO : ENOMEM);
 										break;
 									}

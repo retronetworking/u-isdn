@@ -808,7 +808,7 @@ prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
     int err = -ERESTART;
 	hdlc_buf chan = &bp->chan[channel];
 
-    DEBUG(info) printf("%sBintecProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
+    if(0)DEBUG(info) printf("%sBintecProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
 
     if(!(flags & ~CHP_FROMSTACK)) { /* Nothing else set? */
         if ((err = m_getid (mp, &id)) != 0)
@@ -895,9 +895,13 @@ static int
 candata (struct _isdn1_card * card, short channel)
 {
 	struct _bintec * bp = (struct _bintec *)card;
+	int ret;
+DEBUG(info) if(channel == 0)printk("%sBintec: candata finds %d on chan %d polled %d\n",KERN_DEBUG,bp->chan[channel].q_out.nblocks,channel,bp->polled);
 	if(bp->waitmsg)
 		return 0;
-	return (bp->chan[channel].q_out.nblocks < 8);
+	ret = (bp->chan[channel].q_out.nblocks < 8);
+DEBUG(info)if(bp->polled) bp->polled--;
+	return ret;
 }
 
 /*
@@ -907,6 +911,7 @@ static int
 data (struct _isdn1_card * card, short channel, mblk_t * data)
 {
 	struct _bintec * bp = (struct _bintec *)card;
+DEBUG(info) if(channel == 0)printk("%sBintec: data finds %d on chan %d polled %d\n",KERN_DEBUG,bp->chan[channel].q_out.nblocks,channel,bp->polled);
 	if(bp->waitmsg)
 		return -ENXIO;
 	S_enqueue(&bp->chan[channel].q_out, data);
@@ -1112,13 +1117,16 @@ postproc(struct _bintec *bp, mblk_t *mb, int ch)
 	switch(capi->PRIM_type) {
 	case CAPI_ALIVE_IND:
 		err = 0;
+#if 0
 		if((bp->chan[0].q_out.nblocks > 10) || !isdn2_canrecv(&bp->card,0)) {
 			DEBUG(info)printf("%sBINTEC: keepalive on upqueue\n",KERN_INFO);
 			goto def;
 		}
+#endif
 		capi->PRIM_type = CAPI_ALIVE_RESP;
 		S_enqueue(&bp->chan[0].q_out,mb);
 		sendone(bp,0);
+		if(0)DEBUG(info)printf(".L.");
 		break;
 	case CAPI_DATAB3_IND:
 		{
@@ -1451,31 +1459,23 @@ void NAME(REALNAME,intr)(int x)
 
 
 
-#ifdef linux
 void NAME(REALNAME,poll)(struct _bintec *bp)
-#else
-void NAME(REALNAME,poll)(void *nix)
-#endif
 {
-#ifndef linux
-	struct _bintec *bp;
-	for(i=bintec_num-1;i>=0;--i)
+	long s;
+	s = splstr();
+	if(!bp->polled++) {
+		do {
+			splx(s);
+			DoIRQ(bp);
+			splstr();
+		} while(--bp->polled);
+#if 0
+		if(bp->info.irq != 0)
+			unblock_irq(bp->info.irq);
 #endif
-    {
-#ifndef linux
-		bp = &bintecdata[i];
-#endif
-		if(!bp->polled++) {
-			do {
-				DoIRQ(bp);
-			} while(--bp->polled);
-#if 0 /* def linux */
-			if(bp->info.irq != 0)
-				unblock_irq(bp->info.irq);
-#endif
-		} else
-			bp->polled--;
-	}
+	} else
+		bp->polled--;
+	splx(s);
 }
 
 
@@ -1530,6 +1530,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return -EIO;
 	}
 #endif
+
 	if((err = isdn2_register(&bp->card, bp->info.ID)) != 0) {
 		printf("not installed (ISDN_2), err %d\n",err);
 		kfree(bp);
@@ -1538,12 +1539,10 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 
 	bp->polled = 0;
 	bp->registered = 1;
-#ifdef linux
 	if(bp->info.irq == 0) {
 		printf("polling; ");
 	}
 	bintectimer(bp);
-#endif
 	bp->next = bintecmap[bp->info.irq];
 	bintecmap[bp->info.irq] = bp;
 	printf("installed at ");

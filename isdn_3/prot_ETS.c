@@ -478,6 +478,7 @@ report_adddate (mblk_t * mb, uchar_t * data, int len)
 	m_puts (mb, qd_data, qd_len);
 }
 
+#if 0
 static int
 get_state(isdn3_conn conn, uchar_t *data, int len, uchar_t *state)
 {
@@ -492,6 +493,7 @@ get_state(isdn3_conn conn, uchar_t *data, int len, uchar_t *state)
 	*state = *qd_data;
 	return 1;
 }
+#endif
 
 
 static int
@@ -545,6 +547,15 @@ get_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t *nrpos, uchar_t what)
 	case 0x30: /* network specific */
 		break;
 	case 0x40: /* subscriber */
+
+		/* There is at least one _really_ broken box out there */
+		if((qd_len < 4) && (what == PT_E0_destAddr)) {
+			long flags = isdn3_flags(conn->card->info,-1,-1);
+			if(flags & FL_BUG1) {
+				*nrpos++='.';
+				break;
+			}
+		}
 		*nrpos++='-';
 		break;
 	case 0x60: /* abbreviated */

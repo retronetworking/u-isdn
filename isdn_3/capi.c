@@ -1165,8 +1165,10 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 			}
 			if(c2->info != 0) {
 				printf("CAPI error: DISCONNECTB3_CONF returns %04x\n",c2->info);
+#if 0
 				send_disconnect(conn,0,N1_OutOfOrder);
 				break;
+#endif
 			}
 			if(conn->waitflags & (1<<WF_DISCONNECTB3_CONF)) {
 				conn->waitflags &=~ (1<<WF_DISCONNECTB3_CONF);
@@ -1218,7 +1220,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				if(m3 == NULL) 
 					err3 = -ENOMEM;
 				if(err3 == 0) {
-					c3 = ((typeof(c3))data->b_wptr)++;
+					c3 = ((typeof(c3))m3->b_wptr)++;
 					bzero(c3,sizeof(*c3));
 					c3->ncci = c2->ncci;
 					printf(">DISCONNECTB3_RESP ");
@@ -1252,6 +1254,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				}
 			} else if((conn->state != 0) && (conn->state != 99) && ((c2->info != 0) || (conn->state >= 21))) {
 				conn->waitflags &=~ (1<<WF_DISCONNECT_IND);
+				setstate(conn,99);
 				isdn3_setup_conn (conn, EST_DISCONNECT);
 				report_terminate(conn,c2->info,0);
 			} else if(conn->state != 0 && conn->state != 99) {
@@ -1265,7 +1268,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				if(m3 == NULL) 
 					err3 = -ENOMEM;
 				if(err3 == 0) {
-					c3 = ((typeof(c3))data->b_wptr)++;
+					c3 = ((typeof(c3))m3->b_wptr)++;
 					bzero(c3,sizeof(*c3));
 					c3->plci = c2->plci;
 					printf(">DISCONNECT_RESP ");
@@ -1421,7 +1424,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				if(m3 == NULL) 
 					err3 = -ENOMEM;
 				if(err3 == 0) {
-					c3 = ((typeof(c3))data->b_wptr)++;
+					c3 = ((typeof(c3))m3->b_wptr)++;
 					bzero(c3,sizeof(*c3));
 					c3->plci = c2->plci;
 					printf(">CONNECTACTIVE_RESP ");
@@ -1550,7 +1553,7 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				if(m3 == NULL) 
 					err3 = -ENOMEM;
 				if(err3 == 0) {
-					c3 = ((typeof(c3))data->b_wptr)++;
+					c3 = ((typeof(c3))m3->b_wptr)++;
 					bzero(c3,sizeof(*c3));
 					c3->ncci = c2->ncci;
 					printf(">CONNECTB3ACTIVE_RESP ");

@@ -213,7 +213,7 @@ xstreams_open (struct inode *inode, struct file *file, struct stream_header **pp
 	/*
 	 * Allocate a Streams header. We just grab one from kernel memory.
 	 */
-	if ((p_stream = (struct stream_header *) kmalloc (sizeof (struct stream_header), GFP_KERNEL)) == NULL) {
+	if ((p_stream = (struct stream_header *) kmalloc (sizeof (struct stream_header), GFP_ATOMIC)) == NULL) {
 		printk("XOpen RetNoMem2\n");
 		freeq (p_queue);
 		return -ENOMEM;

@@ -102,6 +102,7 @@ extern int log_34;
  */
 #define ARG_PREFOUT CHAR2('x','i') /* drop an incoming call if we're also calling out */
 #define ARG_FORCEOUT CHAR2('y','i') /* always call back instead of accepting */
+#define ARG_FORCEIN CHAR2('z','i') /* always expect a callback */
 #define ARG_BACKCALL CHAR2('b','i') /* call back if incoming call rejected because busy */
 #define ARG_NOREJECT CHAR2('n','j') /* don't send REJ code */
 #define ARG_FASTDROP CHAR2('f','X')

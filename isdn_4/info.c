@@ -340,7 +340,19 @@ init_vars (void)
 
 void do_updown(CState state)
 {
-	if(conn->charge > 0 || (++conn->retries > ((conn->cg && conn->cg->retries) ? conn->cg->retries : (conn->retiming ? 5 : ((conn->flags & F_FASTREDIAL) ? 20 : 10))))) {
+	int lim;
+
+	if(conn->cg && conn->cg->retries)
+		lim = conn->cg->retries;
+	else if(conn->flags & F_FORCEIN)
+		lim = 2;
+	else if(conn->retiming) /* we had a problem earlier */
+		lim = 5;
+	else if(conn->flags & F_FASTREDIAL)
+		lim = 20;
+	else
+		lim = 10;
+	if((conn->charge > 0) || (++conn->retries > lim)) {
 		if(conn->cg != NULL)
 			syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
 		else
@@ -383,6 +395,8 @@ do_card(void)
 		return ret;
 	if ((ret = m_getx (&xx, &cardcap)) != 0)
 		return ret;
+	if(in_boot < 0)
+		in_boot = 0;
 	for(ld = isdn4_loader; ld != NULL; ld = ld->next) {
 		if (!strcmp(ld->name, crd))
 			return -EEXIST;
@@ -415,6 +429,7 @@ do_card(void)
 
 		card->name = str_enter("NULL");
 		ld->card = card;
+		in_boot++;
 	} else {
 		struct iovec io[3];
 		int len;
@@ -733,10 +748,6 @@ do_incoming(void)
 		resp = "SHUTTING DOWN";
 		goto inc_err;
 	}
-	if (in_boot) {
-		resp = "STARTING UP";
-		goto inc_err;
-	}
 	{
 		char *sit = NULL,*pro = NULL,*car = NULL,*cla = NULL; /* GCC */
 		long flg;
@@ -767,7 +778,7 @@ do_incoming(void)
 	if(((conn = startconn(cg,fminor,connref,&resp, NULL)) != NULL) && (resp != NULL)) {
 		/* An existing connection feels responsible for this. */
 		mblk_t *mz;
-		if(conn->state == c_forceoff) {
+		if(conn->state <= c_forceoff) {
 			goto cont;
 		} else if ((conn->connref == connref || conn->connref == 0))  {
 			if(*resp != '=')
@@ -1234,7 +1245,9 @@ do_close(void)
 			}
 		}
 		{
-			for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+			struct conninfo *nconn;
+			for(conn = isdn4_conn; conn != NULL; conn = nconn) {
+				nconn = conn->next;
 				if(conn->minor == minor && conn->ignore >= 3) {
 					dropconn(conn);
 					continue;
@@ -1379,6 +1392,38 @@ do_open(void)
 	return 0;
 }
 
+/* Disconnecting.. */
+int
+do_disconnect(void)
+{
+#if 1
+	if (conn != NULL) {
+		switch(conn->state) {
+		case c_going_up:
+			do_updown(c_going_down);
+			break;
+		case c_up:
+			do_down(c_going_down);
+			break;
+		default:;
+		}
+	}
+	xx.b_rptr = xx.b_wptr = ans;
+	db.db_base = ans;
+	db.db_lim = ans + sizeof (ans);
+	if(log_34 & 2)printf("Dis5 ");
+	*xx.b_wptr++ = PREF_NOERR;
+	m_putid (&xx, CMD_OFF);
+	m_putsx (&xx, ARG_MINOR);
+	m_puti (&xx, minor);
+	xlen = xx.b_wptr - xx.b_rptr;
+	DUMPW (xx.b_rptr, xlen);
+	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
+#endif
+	resp = NULL;
+	return 0;
+}
+
 /* A connection has been fully established. */
 int
 do_hasconnected(void)
@@ -1386,6 +1431,12 @@ do_hasconnected(void)
 	if (conn != NULL) {
 		syncflags(conn,1);
 		setconnstate(conn,c_up);
+		if(conn->flags & F_FORCEIN) {
+			setconnstate(conn,c_forceoff);
+			do_disconnect();
+			resp = "NO CARRIER";
+			return 1;
+		}
 	}
 	resp = "CONNECT";
 
@@ -1425,38 +1476,6 @@ do_hasconnected(void)
 	xlen = xx.b_wptr - xx.b_rptr;
 	DUMPW (xx.b_rptr, xlen);
 	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
-	return 0;
-}
-
-/* Disconnecting.. */
-int
-do_disconnect(void)
-{
-#if 1
-	if (conn != NULL) {
-		switch(conn->state) {
-		case c_going_up:
-			do_updown(c_going_down);
-			break;
-		case c_up:
-			do_down(c_going_down);
-			break;
-		default:;
-		}
-	}
-	xx.b_rptr = xx.b_wptr = ans;
-	db.db_base = ans;
-	db.db_lim = ans + sizeof (ans);
-	if(log_34 & 2)printf("Dis5 ");
-	*xx.b_wptr++ = PREF_NOERR;
-	m_putid (&xx, CMD_OFF);
-	m_putsx (&xx, ARG_MINOR);
-	m_puti (&xx, minor);
-	xlen = xx.b_wptr - xx.b_rptr;
-	DUMPW (xx.b_rptr, xlen);
-	(void) strwrite (xs_mon, (uchar_t *) xx.b_rptr, xlen, 1);
-#endif
-	resp = NULL;
 	return 0;
 }
 	
@@ -1756,7 +1775,7 @@ do_atcmd(void)
 								continue;
 						ReportOneConn(fconn,minor);
 					}
-					sprintf(buf,"# Waiting%s %s...",in_boot?"/blocked":"", conn->cardname);
+					sprintf(buf,"# Waiting %s...", conn->cardname);
 					resp = str_enter(buf);
 
 					return 1;
@@ -1963,12 +1982,6 @@ do_atcmd(void)
 					freeb(md);
 					dropgrab(cg);
 					resp = "SHUTTING DOWN";
-					return 1;
-				}
-				if(in_boot) {
-					freemsg(md);
-					dropgrab(cg);
-					resp = "STARTING UP";
 					return 1;
 				}
 				if(fminor != 0) {

@@ -414,6 +414,7 @@ pmatch1 (cf prot, conngrab *cgm)
 			case ARG_FASTDROP:   cgc->flags |= F_FASTDROP;   break;
 			case ARG_IGNORELIMIT:cgc->flags |= F_IGNORELIMIT;goto argdup;
 			case ARG_FORCEOUT:   cgc->flags |= F_FORCEOUT;   goto argdup;
+			case ARG_FORCEIN:    cgc->flags |= F_FORCEIN;    goto argdup;
 			case ARG_BACKCALL:   cgc->flags |= F_BACKCALL;   goto argdup;
 			case ARG_NOREJECT:   cgc->flags |= F_NOREJECT;   goto argdup;
 			case ARG_PREFOUT:    cgc->flags |= F_PREFOUT;    goto argdup;
@@ -791,10 +792,16 @@ findit (conngrab *foo, int ignbusy)
 				}
 				break;
 			case ARG_CARD:
-				m_getstr (p, st, 4);
-				if((cg->card = wildmatch(str_enter(st),cg->card)) == NULL) {
-					dropgrab(cg);
-					return "0CARD MISMATCH";
+				{
+					char *foo;
+					m_getstr (p, st, 4);
+					if((foo = wildmatch(str_enter(st),cg->card)) == NULL) {
+						char buf[80];
+						sprintf(buf,"0CARD MISMATCH %s %s",st,cg->card);
+						dropgrab(cg);
+						return str_enter(buf);
+					}
+					cg->card = foo;
 				}
 				break;
 			case ARG_SUBCARD:

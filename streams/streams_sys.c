@@ -260,14 +260,16 @@ freeb(mblk_t *p_msg)
 	if(p_msg->b_datap->deb_magic != DEB_DMAGIC) 
 		panic("Bad_Magicd of %p at %s:%d!\n",p_msg,deb_file,deb_line);
 #endif
+
 	(void)deb_msgdsize(deb_file,deb_line, p_msg);
-	if(p_msg->deb_queue != NULL) {
 #ifdef CONFIG_MALLOC_NAMES
-		deb_kcheck(p_msg, deb_file, deb_line);
+	deb_kcheck(p_msg, deb_file, deb_line);
 #ifndef SK_STREAM
-		deb_kcheck(p_msg->b_datap, deb_file, deb_line);
+	deb_kcheck(p_msg->b_datap, deb_file, deb_line);
 #endif
 #endif
+
+	if(p_msg->deb_queue != NULL) {
 		printf("%s:%d freed_msg %p:%p from queue %p, put by %s:%d\n",
 			deb_file,deb_line,p_msg,
 #ifdef SK_STREAM
@@ -941,7 +943,7 @@ xmsgsize(mblk_t *p_msg)
 		if((n = p_msg->b_wptr - p_msg->b_rptr) > 0)
 			bytes += n;
 #ifdef CONFIG_DEBUG_STREAMS
-		if(segs++ > 100)
+		if(segs++ > 1000)
 			panic("Msg_Loop of %p at %s:%d!\n",p_msg,deb_file,deb_line);
 #endif
 		if ((p_msg = p_msg->b_cont) == NULL)
@@ -997,7 +999,7 @@ msgsize(mblk_t *p_msg)
 		if((n = p_msg->b_wptr - p_msg->b_rptr) > 0)
 			bytes += n;
 #ifdef CONFIG_DEBUG_STREAMS
-		if(segs++ > 100)
+		if(segs++ > 1000)
 			panic("Msg=Loop of %p at %s:%d!\n",p_msg,deb_file,deb_line);
 #endif
 		if ((p_msg = p_msg->b_cont) == NULL)
@@ -1074,7 +1076,7 @@ msgdsize(mblk_t *p_msg)
 		}
 		p_msg = p_msg->b_cont;
 #ifdef CONFIG_DEBUG_STREAMS
-		if(segs++ > 100)
+		if(segs++ > 1000)
 			panic("Msg.Loop of %p at %s:%d!\n",p_msg,deb_file,deb_line);
 #endif
 	}
@@ -2347,7 +2349,7 @@ do_runqueues(void *dummy)
 {
 	queue_t *p_queue;
 	unsigned long s;
-	int cnt = 100;
+	int cnt = 1000;
 	static int looping = 0;
 #ifdef CONFIG_DEBUG_STREAMS
 	static int reenter = 0;
@@ -2390,19 +2392,20 @@ do_runqueues(void *dummy)
 #if 0 /* def CONFIG_DEBUG_STREAMS */
 		printf("%c:%s ",(p_queue->q_flag & QREADR ? 'R':'W'), p_queue->q_qinfo->qi_minfo->mi_idname);
 #endif
+
 		if (p_queue->q_qinfo->qi_srvp) 
 			(*p_queue->q_qinfo->qi_srvp)(p_queue);
 		(void)splstr();
 		if(!--cnt) {
 			if(!looping)
-				printf("%sStreams loop?\n",KERN_WARNING);
+				printf("%sStreams loop %c %s?\n",KERN_EMERG,(p_queue->q_flag & QREADR ? 'R':'W'), p_queue->q_qinfo->qi_minfo->mi_idname);
 			looping++; looping++;
 			break;
 		}
 	}
 	if(looping) looping--;
 #if 0 /* def CONFIG_DEBUG_STREAMS */
-	if(cnt < 100)
+	if(cnt < 1000)
 		printf("\n");
 #endif
 #ifdef CONFIG_DEBUG_STREAMS

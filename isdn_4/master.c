@@ -292,3 +292,4 @@ main (int argc, char *argv[])
 	unlockdev(0);
 	return 0; /* -> exit(0) */
 }
+

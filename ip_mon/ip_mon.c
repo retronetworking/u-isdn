@@ -64,7 +64,7 @@ struct _ip_mon {
 #define ENCAP_NONE 0
 #define ENCAP_ETHER 1
 #define ENCAP_PPP 2
-} ip_mon;
+} ip_mon = {NULL};
 
 static mblk_t *ip_info[NIP_INFO];
 

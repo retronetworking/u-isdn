@@ -8,7 +8,7 @@ SUBDIRS  = config include  compat streams support  isdn_3 isdn_4  tools  \
 all::	.diddepend
 
 config::
-	make -C config
+	$(MAKE) -C config
 
 dep: depend
 

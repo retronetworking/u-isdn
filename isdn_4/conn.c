@@ -131,9 +131,10 @@ ReportOneConn(conninfo conn, int minor)
 	spf += sprintf(spf,"%s%d:%d %s %s %s %d %s%s/%s %ld %ld %s",
 		conn->ignore?"!":"", conn->minor,
 		conn->seqnum, conn->cg ? conn->cg->site : "-",
-		conn->cg ? conn->cg->protocol : "-", conn->cg ? conn->cg->cclass : "-",
+		conn->cg ? conn->cg->protocol : "-",
+		conn->classname ? conn->classname : (conn->cg ? conn->cg->cclass : "-"),
 		conn->pid, state2str(conn->state), is1,
-		conn->cg ? conn->cg->card : (conn->cardname ? conn->cardname : "-"),
+		conn->cardname ? conn->cardname : (conn->cg ? conn->cg->card : "-"),
 		conn->charge, conn->ccharge, FlagInfo(conn->flags));
 	if(conn->cg != NULL && (conn->cg->flags ^ conn->flags) != 0) {
 		int foo = strlen(FlagInfo(conn->cg->flags ^ conn->flags));
@@ -159,14 +160,15 @@ static inline int retimeout(conninfo conn)
 {
 	int tim = 0;
 	/* Exponential backoff. Sorry but this is necessary. */
+	conn->retiming++;
 	if(conn->charge != 0)
-		tim = 5*60*(1<<++conn->retiming);
+		tim = 5*60*(1<<conn->retiming);
 	else if (conn->cause == ID_priv_Busy)
-		tim = 5*(1<<(++conn->retiming/6));
+		tim = 5*(1<<(conn->retiming/6));
 	else if(conn->flags & F_FASTREDIAL)
-		tim = 2+(1<<(++conn->retiming/4));
+		tim = 2+(1<<(conn->retiming/4));
 	else
-		tim = 5+(1<<(++conn->retiming/2));
+		tim = 5+(1<<(conn->retiming/2));
 	if((tim <= 0) || (tim > 60*60*2))
 		tim = 60*60*2;
 	return tim;
@@ -196,8 +198,10 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 			conn->timer_reconn = 1;
 			if(conn->flags & F_FASTREDIAL)
 				timeout(time_reconn,conn,HZ);
+			else if(conn->flags & F_FORCEIN)
+				timeout(time_reconn,conn,30*HZ);
 			else
-				timeout(time_reconn,conn,5*HZ);
+				timeout(time_reconn,conn,6*HZ);
 		}
 	}
 
@@ -298,7 +302,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 			kill_rp(conn,'u');
 			run_rp(conn,'f');
 		}
-		if(conn->state != c_forceoff && state == c_forceoff && conn->pid != 0) {
+		if(conn->state > c_forceoff && state <= c_forceoff && conn->pid != 0) {
 			struct conninfo *xconn;
 			xconn = xmalloc(sizeof(*xconn));
 			if(xconn != NULL) {
@@ -361,7 +365,7 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 	if(log_34 & 2)printf ("DropConn %s:%d: %d/%d/%ld\n", deb_file,deb_line, conn->minor, conn->fminor, conn->connref);
 	if(!conn->ignore) {
 		conn->ignore=1;
-		setconnstate(conn,c_forceoff);
+		setconnstate(conn,c_unknown);
 #if 0
 		if(conn->state > c_off)
 			setconnstate(conn, c_off);
@@ -371,10 +375,10 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 		timeout(rdropconn,conn,HZ*60*5); /* Drop the record after five minutes */
 		return;
 	} else if(conn->ignore == 1) { /* already going to drop it */
-		setconnstate(conn,c_forceoff);
+		setconnstate(conn,c_unknown);
 		return;
 	} else
-		setconnstate(conn,c_forceoff);
+		setconnstate(conn,c_unknown);
 
 	{	/* unchain the conn from the list */
 		/* Could use a doubly-linked list here, but what the ... */
@@ -402,6 +406,7 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 		sprintf(xs,"-%d",conn->seqnum);
 		connreport(xs,conn->cg ? conn->cg->card : "*",0);
 	}
+	printf("Drop %p %s:%d\n",conn,deb_file,deb_line);
 	dropgrab(conn->cg);
 	if(conn->lastMsg != NULL)
 		free(conn->lastMsg);
