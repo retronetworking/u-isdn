@@ -308,7 +308,7 @@ isdn3_killconn (isdn3_conn conn, char force)
 			hdr->seqnum = hdrseq; hdrseq += 2;
 			hdr->hdr_close.minor = conn->minor;
 			hdr->hdr_close.error = 0;
-			if (isdn3_sendhdr (mb) != 0)
+			if (isdn3_sendhdr (mb) < 0)
 				freeb (mb);
 		}
 	}
@@ -458,7 +458,7 @@ isdn3_repeat (isdn3_conn conn, ushort_t id, mblk_t * data)
 			m_putid (mb, conn->id);
 			if (conn->id_msg != NULL)
 				linkb (mb, conn->id_msg);
-			if (isdn3_at_send (conn, mb, 0) != 0)
+			if (isdn3_at_send (conn, mb, 0) < 0)
 				freemsg (mb);
 		}
 	}
@@ -569,7 +569,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			hdr->hdr_attach.listen = 0;
 		if(conn->minorstate & MS_FORCING)
 			hdr->hdr_attach.listen |= 4;
-		if ((err = isdn3_sendhdr (mb)) != 0) {
+		if ((err = isdn3_sendhdr (mb)) < 0) {
 			freeb (mb);
 			goto exitme;
 		}
@@ -664,7 +664,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		}
 		m_putid(mb,PROTO_OFFSET);
 		m_puti(mb,0);
-		if ((err = isdn3_send_conn (conn->minor, AS_PROTO, mb)) != 0)
+		if ((err = isdn3_send_conn (conn->minor, AS_PROTO, mb)) < 0)
 			goto exitme;
 	}
 	else if ((log_34 & 2) && !(conn->minorstate & MS_DIR_SENT)) {
@@ -688,7 +688,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 				err = -ENOMEM;
 			else {
 				m_putid (mb, PROTO_WILL_DISCONNECT);
-				if ((err = isdn3_send_conn (conn->minor, AS_PROTO, mb)) != 0)
+				if ((err = isdn3_send_conn (conn->minor, AS_PROTO, mb)) < 0)
 					freemsg (mb);
 			}
 			break;
@@ -866,7 +866,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			hdr->hdr_detach.connref = conn->conn_id;
 			hdr->hdr_detach.error = 0;
 			hdr->hdr_detach.perm = 0;
-			if ((err = isdn3_sendhdr (mp)) != 0) {
+			if ((err = isdn3_sendhdr (mp)) < 0) {
 				freeb (mp);
 			}
 		}
@@ -1050,7 +1050,7 @@ printf("ErX b\n");
 		return -EINVAL;
 	}
 	linkb (mb, data);
-	if ((err = isdn3_sendhdr (mb)) != 0)
+	if ((err = isdn3_sendhdr (mb)) < 0)
 		freeb (mb);
 	return err;
 }
@@ -1094,7 +1094,7 @@ printf("ErX c\n");
 		return -EINVAL;
 	}
 	linkb (mb, data);
-	if ((err = isdn3_sendhdr (mb)) != 0)
+	if ((err = isdn3_sendhdr (mb)) < 0)
 		freeb (mb);
 	return err;
 }
@@ -1158,7 +1158,7 @@ isdn3_at_send (isdn3_conn conn, mblk_t * data, char bypass)
 	hdr->hdr_atcmd.minor = minor;
 	hdr->hdr_atcmd.len = dsize (data);
 	linkb (mb, data);
-	if ((err = isdn3_sendhdr (mb)) != 0)
+	if ((err = isdn3_sendhdr (mb)) < 0)
 		freeb (mb);
 	return err;
 }
@@ -1208,7 +1208,7 @@ isdn3_chstate (isdn3_talk talk, uchar_t ind, short add, char what)
 printf("ErX d\n");
 		return -EINVAL;
 	}
-	if ((err = isdn3_sendhdr (mb)) != 0)
+	if ((err = isdn3_sendhdr (mb)) < 0)
 		freeb (mb);
 	return err;
 }
@@ -1294,8 +1294,10 @@ scan_at (SUBDEV fminor, mblk_t * mx)
 		}
 	}
   contpref:
-	if ((err = m_getid (mx, &theID)) != 0)
+	if ((err = m_getid (mx, &theID)) < 0) {
+		printf("ErrOut CP\n");
 		goto err_out;
+	}
 	oldpos = mx->b_rptr;
 	while ((err = m_getsx (mx, &id)) == 0) {
 		switch (id) {
@@ -1304,10 +1306,14 @@ scan_at (SUBDEV fminor, mblk_t * mx)
 			{		  /* Expand something. Punt to L4. */
 				mblk_t *mm;
 
-				if (!canput (isdn3_q->q_next))
+				if (!canput (isdn3_q->q_next)) {
+					printf("ErrOut B MAlo\n");
 					goto err_out;
-				if ((mm = allocb (32, BPRI_MED)) == NULL)
+				}
+				if ((mm = allocb (32, BPRI_MED)) == NULL) {
+					printf("ErrOut MAlo\n");
 					goto err_out;
+				}
 				m_putid (mm, IND_ATCMD);
 				m_putsx (mm, ARG_FMINOR);
 				m_puti (mm, fminor);
@@ -1324,19 +1330,24 @@ scan_at (SUBDEV fminor, mblk_t * mx)
 			{
 				long nm;
 
-				if (fminor != 0) {
-					err = -EPERM;
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Z FMin\n");
 					goto err_out;
 				}
-				if ((err = m_geti (mx, &nm)) != 0)
-					goto err_out;
 				if (nm <= 0 || nm >= NMINOR) {
+					printf("ErrOut  X FMin\n");
 					err = -ENXIO;
+					goto err_out;
+				}
+				if (fminor != 0 && fminor != nm) {
+					err = -EPERM;
+					printf("ErrOut P FMin\n");
 					goto err_out;
 				}
 				if (conn != NULL && conn->minor != 0 && conn->fminor != 0 && conn->fminor != nm) {
 printf("ErX e\n");
 					err = -EINVAL;
+					printf("ErrOut Y FMin\n");
 					goto err_out;
 				}
 				fminor = nm;
@@ -1346,8 +1357,10 @@ printf("ErX e\n");
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Connref\n");
 					goto err_out;
+				}
 				conn_id = nm;
 			}
 			break;
@@ -1355,8 +1368,10 @@ printf("ErX e\n");
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Seq\n");
 					goto err_out;
+				}
 				seqnum = nm;
 			}
 			break;
@@ -1364,8 +1379,10 @@ printf("ErX e\n");
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Offset\n");
 					goto err_out;
+				}
 				foffset = nm;
 			}
 			break;
@@ -1373,15 +1390,18 @@ printf("ErX e\n");
 			{
 				ulong_t nm;
 
-				if ((err = m_getlx (mx, &nm)) != 0)
+				if ((err = m_getlx (mx, &nm)) < 0) {
+					printf("ErrOut Z Card\n");
 					goto err_out;
+				}
 				card = isdn3_findcardid(nm);
 				if (card == NULL) {
 					err = -ENXIO;
+					printf("ErrOut Card\n");
 					goto err_out;
 				}
 				if (conn != NULL && conn->card != NULL && conn->card != card) {
-printf("ErX f\n");
+					printf("ErrOut X f\n");
 					err = -EINVAL;
 					goto err_out;
 				}
@@ -1409,35 +1429,44 @@ printf(" Grab SP %ld; ",subprotocol);
 			break;
 		case ARG_STACK:
 			{
-				if ((err = m_getstr (mx, stack, sizeof(stack)-1)) != 0)
+				if ((err = m_getstr (mx, stack, sizeof(stack)-1)) < 0) {
+					printf("ErrOut Stack\n");
 					goto err_out;
+				}
 			}
 			break;
 		case ARG_CHANNEL:
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Z Chan\n");
 					goto err_out;
+				}
 				if (nm < 0) {
-printf("ErX g\n");
+					printf("ErrOut Y Chan\n");
 					err = -EINVAL;
 					goto err_out;
 				}
 				if (card != NULL && nm > card->bchans) {
 					err = -ENXIO;
+					printf("ErrOut X Chan\n");
 					goto err_out;
 				}
 				chan = nm;
 			}
 			break;
 		case ARG_DELAY:
-			if ((err = m_geti (mx, &delay)) != 0)
+			if ((err = m_geti (mx, &delay)) < 0) {
+				printf("ErrOut Delay\n");
 				goto err_out;
+			}
 			break;
 		case ARG_CALLREF:
-			if ((err = m_geti (mx, &call_ref)) != 0)
+			if ((err = m_geti (mx, &call_ref)) < 0) {
+				printf("ErrOut CRef\n");
 				goto err_out;
+			}
 			break;
 		case ARG_INT:
 			do_int = 1;
@@ -1458,14 +1487,17 @@ printf("ErX g\n");
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Z i\n");
 					goto err_out;
+				}
 				if (nm <= 0 || nm >= NMINOR) {
+					printf("ErrOut Y i\n");
 					err = -ENXIO;
 					goto err_out;
 				}
 				if (conn != NULL && conn->minor != 0 && conn->minor != nm) {
-printf("ErX i\n");
+					printf("ErrOut X i\n");
 					err = -EINVAL;
 					goto err_out;
 				}
@@ -1476,8 +1508,10 @@ printf("ErX i\n");
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Errno\n");
 					goto err_out;
+				}
 				err = nm;
 			}
 			break;
@@ -1486,8 +1520,10 @@ printf("ErX i\n");
 			{
 				long nm;
 
-				if ((err = m_getid (mx, &nm)) != 0)
+				if ((err = m_getid (mx, &nm)) < 0) {
+					printf("ErrOut LA\n");
 					goto err_out;
+				}
 				what = nm;
 			}
 			break;
@@ -1496,10 +1532,12 @@ printf("ErX i\n");
 			{
 				long nm;
 
-				if ((err = m_geti (mx, &nm)) != 0)
+				if ((err = m_geti (mx, &nm)) < 0) {
+					printf("ErrOut Y j\n");
 					goto err_out;
+				}
 				if ((hndl = isdn3_findhndl (nm)) == NULL) {
-printf("ErX j\n");
+					printf("ErrOut X j\n");
 					err = -EINVAL;
 					goto err_out;
 				}
@@ -1513,8 +1551,10 @@ printf(" Faked SP %ld; ",subprotocol);
 			force = 1;
 			break;
 		case ARG_SUBPROT:
-			if ((err = m_geti (mx, &subprotocol)) != 0)
+			if ((err = m_geti (mx, &subprotocol)) < 0) {
+				printf("ErrOOut SP\n");
 				goto err_out;
+			}
 printf(" Got SP %ld; ",subprotocol);
 			break;
 		default:;
@@ -1640,8 +1680,7 @@ printf(" Got SP %ld; ",subprotocol);
 			if (fminor != minor) {
 				if (conn->fminor != 0 && conn->fminor != fminor) {
 					err = -EPERM;
-					printf ("ErrOut 1 at %d; min %d nmin %d\n", 
-					conn->fminor, fminor, minor);
+					printf ("ErrOut 1 at %d; min %d nmin %d\n", conn->fminor, fminor, minor);
 					goto err_out;
 				} else if (conn->fminor != fminor) {
 					conn->fminor = fminor;
@@ -1752,7 +1791,7 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 					hdr->hdr_card.dchans = card->dchans;
 					hdr->hdr_card.bchans = card->bchans;
 					hdr->hdr_card.modes = card->modes;
-					if ((err = isdn3_sendhdr (mb)) != 0)
+					if ((err = isdn3_sendhdr (mb)) < 0)
 						freeb (mb);
 				}
 			}
@@ -1762,11 +1801,11 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 		{
 			m_getskip (mx);
 			if(conn == NULL) {
-printf("ErX k\n");
+				printf("ErrOut k\n");
 				err = -EINVAL;
 				goto err_out;
 			}
-			if ((err = isdn3_at_send (conn, mx, 1)) != 0) {
+			if ((err = isdn3_at_send (conn, mx, 1)) < 0) {
 				fminor = 0;
 				printf ("ErrOut 7 %d\n", err);
 				goto err_out;
@@ -1779,6 +1818,7 @@ printf("ErX k\n");
 			mblk_t *mb;
 			if(card == NULL || seqnum == -1 || foffset == -1) {
 				err = -EINVAL;
+				printf("ErrOut LF\n");
 				goto err_out;
 			}
 			mb = allocb (sizeof (struct _isdn23_hdr), BPRI_MED);
@@ -1823,7 +1863,7 @@ printf("ErX k\n");
 					m_putsx (mb, CMD_LIST);
 					*mb->b_wptr++ = ' ';
 					m_putid (mb, id);
-					if (isdn3_at_send (conn, mb, 1) != 0)
+					if (isdn3_at_send (conn, mb, 1) < 0)
 						freemsg (mb);
 				}
 				break;
@@ -1843,7 +1883,7 @@ printf("ErX k\n");
 						m_putid (mb, IND_INFO);
 						conn_info (conn, mb);
 					}
-					if (isdn3_at_send (conn, mb, 1) != NULL)
+					if (isdn3_at_send (conn, mb, 1) < 0)
 						freemsg (mb);
 				}
 				break;
@@ -1868,7 +1908,7 @@ printf("ErX k\n");
 							m_putx (mb, card->modes);
 						}
 					}
-					if (isdn3_at_send (conn, mb, 1) != 0)
+					if (isdn3_at_send (conn, mb, 1) < 0)
 						freemsg (mb);
 				}
 				break;
@@ -1976,7 +2016,7 @@ printf("ErX k\n");
 			hdr->seqnum = hdrseq; hdrseq += 2;
 			hdr->hdr_close.minor = minor ? minor : fminor;
 			hdr->hdr_close.error = (err < 0) ? -err : err;
-			if ((err = isdn3_sendhdr (mb)) != 0) {
+			if ((err = isdn3_sendhdr (mb)) < 0) {
 				freeb (mb);
 				printf ("ErrOut a\n");
 				goto err_out;
@@ -2095,7 +2135,7 @@ printf("ErX k\n");
 				hdr->hdr_detach.connref = conn ? conn->conn_id : 0;
 				hdr->hdr_detach.error = 0xFF;
 				hdr->hdr_detach.perm = 1;
-				if ((err = isdn3_sendhdr (mp)) != 0) {
+				if ((err = isdn3_sendhdr (mp)) < 0) {
 					freeb (mp);
 				}
 				if(conn != NULL) {
@@ -2143,8 +2183,7 @@ printf("ErX k\n");
 			break;
 		if (conn == NULL && talk == NULL) {
 			err = -EINVAL;
-			if(!no_error)
-				printf ("ErrOut o\n");
+			printf ("ErrOut o\n");
 			goto err_out;
 		}
 		if (conn == NULL) {		  /* If no appropriate connection, create one. */
@@ -2214,7 +2253,7 @@ printf("ErX k\n");
 					m_putsx(mz,ARG_CAUSE);
 					m_putsx2(mz,ID_NOCARD);
 	    			conn_info (conn, mz);
-				    if ((isdn3_at_send (conn, mz, 0)) != 0) 
+				    if ((isdn3_at_send (conn, mz, 0)) < 0) 
 				        freemsg (mz);
 				} else
 					err = -ENOMEM;
@@ -2262,7 +2301,7 @@ printf("ErX k\n");
 			}
 			m_putdelim (mb);
 			linkb (mb, mx);
-			if (isdn3_at_send (conn, mb, 0) != 0)
+			if (isdn3_at_send (conn, mb, 0) < 0)
 				freemsg (mb);
 		} else
 			freemsg (mx);
@@ -2430,7 +2469,7 @@ isdn3_findtalk (isdn3_card card, isdn3_hndl hndl, mblk_t *info, int create)
 		talk->card = card;
 		talk->next = card->talk;
 		card->talk = talk;
-		if ((err = isdn3_chstate (talk, 0, 0, CH_OPENPROT)) != 0) {
+		if ((err = isdn3_chstate (talk, 0, 0, CH_OPENPROT)) < 0) {
 			card->talk = card->talk->next;
 			talk->card = NULL;
 			splx (ms);
@@ -2669,7 +2708,7 @@ isdn3_wsrv (queue_t * q)
 	while ((mp = getq (q)) != NULL) {
 		switch (DATA_TYPE(mp)) {
 		case CASE_DATA:
-			if (scan_at (0, mp) != 0)
+			if (scan_at (0, mp) < 0)
 				freemsg (mp);
 			break;
 		case M_FLUSH:
@@ -3026,7 +3065,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 						card->modes = hdr.hdr_card.modes;
 						card->next = isdn_card;
 						isdn_card = card;
-						if ((mx = allocb (32, BPRI_MED)) != 0) {
+						if ((mx = allocb (32, BPRI_MED)) != NULL) {
 							m_putid (mx, IND_CARD);
 							m_putlx (mx, hdr.hdr_card.id);
 							m_puti (mx, hdr.hdr_card.dchans);
@@ -3050,7 +3089,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 						}
 						while ((talk = card->talk) != NULL)
 							isdn3_killtalk (talk);
-						if ((mx = allocb (32, BPRI_MED)) != 0) {
+						if ((mx = allocb (32, BPRI_MED)) != NULL) {
 							m_putid (mx, IND_NOCARD);
 							m_putlx (mx, card->id);
 							putnext (q, mx);
@@ -3186,7 +3225,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 				case HDR_INVAL:
 					{
 						mblk_t *mx;
-						if ((mp != NULL) && (mx = allocb (64, BPRI_MED)) != 0) {
+						if ((mp != NULL) && (mx = allocb (64, BPRI_MED)) != NULL) {
 							mblk_t *mq;
 							if(hdr.hdr_inval.error != 0) {
 								m_putid (mx, IND_ERR);

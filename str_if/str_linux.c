@@ -137,7 +137,6 @@ static int
 strl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
 	  void *daddr, void *saddr, unsigned len)
 {
-	printf("%sHardHeader %x\n",KERN_DEBUG,htons(type));
 	skb->protocol = htons(type);
 	return 0;
 }

@@ -190,46 +190,46 @@ typedef struct _isdn3_conn {
 
 /** Minorstate flags */
 /* State */
-#define MS_PROTO 01				  /* mirrors MINOR_PROTO flag */
-#define MS_INCOMING 02			  /* This is an incoming connection */
-#define MS_OUTGOING 04			  /* This is an outgoing connection */
+#define MS_PROTO                 01				  /* mirrors MINOR_PROTO flag */
+#define MS_INCOMING              02			  /* This is an incoming connection */
+#define MS_OUTGOING              04			  /* This is an outgoing connection */
 
-#define MS_CONN_NONE 00
-#define MS_CONN_SETUP 010		  /* B channel associated, but no data transfer yet */
-#define MS_CONN_LISTEN 020		  /* B channel connected, but connection not fully established */
-#define MS_CONN 030				  /* B channel connected */
-#define MS_CONN_MASK 030
+#define MS_CONN_NONE            000
+#define MS_CONN_SETUP           010		  /* B channel associated, but no data transfer yet */
+#define MS_CONN_LISTEN          020		  /* B channel connected, but connection not fully established */
+#define MS_CONN                 030				  /* B channel connected */
+#define MS_CONN_MASK            030
 
-#define MS_CONN_TIMER 040		  /* Supervisory timer running. The connection
+#define MS_CONN_TIMER           040		  /* Supervisory timer running. The connection
 								   * is forcibly terminated if it is not
 								   * completed within two minutes. */
-#define MS_BCHAN 0100			  /* The B channel is known and set up. (if
+#define MS_BCHAN               0100			  /* The B channel is known and set up. (if
 								   * zero, it's connected through the D channel */
-#define MS_WANTCONN 0200		  /* Set on CMD_DIAL/ANSWER, clear on CMD_OFF. */
-#define MS_DETACHED 0400          /* temporarily not connected */
+#define MS_WANTCONN            0200		  /* Set on CMD_DIAL/ANSWER, clear on CMD_OFF. */
+#define MS_DETACHED            0400          /* temporarily not connected */
 /* Actions */
-#define MS_DIR_SENT 01000		  /* The directional info is sent to the
+#define MS_DIR_SENT           01000		  /* The directional info is sent to the
 								   * device. */
-#define MS_SETUP_MASK   06000     /* what attach has been sent */
-#define MS_SETUP_NONE   00000
-#define MS_SETUP_ATTACH 02000
-#define MS_SETUP_LISTEN 04000
-#define MS_SETUP_CONN   06000
+#define MS_SETUP_MASK         06000     /* what attach has been sent */
+#define MS_SETUP_NONE         00000
+#define MS_SETUP_ATTACH       02000
+#define MS_SETUP_LISTEN       04000
+#define MS_SETUP_CONN         06000
 
-#define MS_END_TIMER 010000		  /* The delay timer to end the connection
-								   * cleanly is running */
-#define MS_SENTINFO 020000		  /* Sent pertinent data up */
-#define MS_DELAYING 040000	  /* Wait a bit */
-#define MS_INITPROTO 0100000 	  /* card protocols set */
-#define MS_INITPROTO_SENT 0200000 /* asked for setup */
-#define MS_NOMINOR 0400000
+#define MS_END_TIMER         010000		  /* The delay timer to end the connection
+					   			   * cleanly is running */
+#define MS_SENTINFO          020000		  /* Sent pertinent data up */
+#define MS_DELAYING          040000	  /* Wait a bit */
+#define MS_INITPROTO        0100000 	  /* card protocols set */
+#define MS_INITPROTO_SENT   0200000 /* asked for setup */
+#define MS_NOMINOR          0400000
 /*
  * if set and ms->delay == zero, we got killconn. This is a hack...
  */
 #define MS_CONNDELAY_TIMER 02000000		/* Delay sending PROTO_CONN because the
 										 * back channel may get delayed */
-#define MS_FORWARDING 04000000	  /* Forwarding this call; in progress. */
-#define MS_FORCING 010000000	  /* call is enforced. */
+#define MS_FORWARDING      04000000	  /* Forwarding this call; in progress. */
+#define MS_FORCING        010000000	  /* call is enforced. */
 
 /*
  * Register a handler
