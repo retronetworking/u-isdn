@@ -1,0 +1,20 @@
+Dieser Patch vergroessert den fuer printk verwendeten Puffer.
+
+Es empfiehlt sich ausserdem, in syslogd.c die ewigen sync-Aufrufe zu
+entfernen oder zumindest intelligenter zu gestalten, zB via Timeout.
+
+Optional, zum ISDN-Debuggen aber notwendig.
+
+Only in ./kernel: panic.o
+diff -rub /pub/src/linux/kernel/linux-1.1/kernel/printk.c ./kernel/printk.c
+--- /pub/src/linux/kernel/linux-1.1/kernel/printk.c	Fri Jan  6 07:29:39 1995
++++ ./kernel/printk.c	Thu Jan 12 15:48:46 1995
+@@ -20,7 +20,7 @@
+ #include <linux/sched.h>
+ #include <linux/kernel.h>
+ 
+-#define LOG_BUF_LEN	4096
++#define LOG_BUF_LEN	40960
+ 
+ static char buf[1024];
+ 

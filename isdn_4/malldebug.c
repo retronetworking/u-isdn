@@ -229,7 +229,7 @@ void chkone(void *foo)
 void chkall(void)
 {
 	struct conninfo *conn;
-	for(conn = theconn; conn != NULL; conn = conn->next)  {
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next)  {
 		chkone(conn); chkone(conn->cg);
 	}
 #if 0 /* takes much too long */

@@ -21,6 +21,7 @@ conngrab Xnewgrab(conngrab master, int lin)
 	if(master == NULL) {
 		bzero(slave,sizeof(*slave));
 		slave->cclass = str_enter("*");
+		slave->mask = ~0;
 	} else {
 		if(master->refs == 0 || master->protocol == (char *)0xdeadbeef)
 			panic("FreeGrab");
@@ -63,7 +64,7 @@ void Xdropgrab(conngrab cg,int lin)
 /* Set the reference number. For debugging. */
 void Xsetconnref(const char *deb_file, unsigned int deb_line, conninfo conn, int connref)
 {
-	if(0)printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
+	printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
 	conn->connref = connref;
 }
 
@@ -79,7 +80,7 @@ void connreport(char *foo)
 	db.db_lim = ans + sizeof (ans);
 	xx.b_datap = &db;
 
-	for(conn = theconn; conn != NULL; conn = conn->next) {
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 		struct iovec io[2];
 
 		chkone(conn);
@@ -111,9 +112,10 @@ void ReportConn(conninfo conn)
 	spf += sprintf(spf,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s",
 		conn->ignore?"!":"", conn->minor,
 		conn->seqnum, conn->cg ? conn->cg->site : "-",
-		conn->cg ? conn->cg->protocol : "-", conn->cg ? conn->cg->cclass : "-", conn->pid,
-		state2str(conn->state), conn->cg ? conn->cg->card : "-", conn->charge,
-		conn->ccharge, FlagInfo(conn->flags));
+		conn->cg ? conn->cg->protocol : "-", conn->cg ? conn->cg->cclass : "-",
+		conn->pid, state2str(conn->state),
+		conn->cg ? conn->cg->card : (conn->cardname ? conn->cardname : "-"),
+		conn->charge, conn->ccharge, FlagInfo(conn->flags));
 	if(conn->cg != NULL && (conn->cg->flags ^ conn->flags) != 0) {
 		int foo = strlen(FlagInfo(conn->cg->flags ^ conn->flags));
 		int bar = strlen(FlagInfo(conn->cg->flags));
@@ -159,8 +161,10 @@ void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CS
 				timeout(time_reconn,conn,5*HZ);
 		}
 	}
+#if 0
 	if(conn->state <= c_down)
 		setconnref(conn,0);
+#endif
 	if(state == c_up)
 		conn->cause = 0;
 	else if(state == c_going_up)
@@ -209,8 +213,7 @@ void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CS
 				conn->cg->refs++;
 				/* dropgrab(conn->cg; ** is new anyway */
 				xconn->cg = conn->cg;
-				xconn->next = theconn;
-				theconn = xconn;
+				xconn->next = isdn4_conn; isdn4_conn = xconn;
 				dropconn(xconn);
 			}
 			kill(conn->pid,SIGTERM);
@@ -277,7 +280,7 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 
 	{	/* unchain the conn from the list */
 		/* Could use a doubly-linked list here, but what the ... */
-		struct conninfo **pconn = &theconn;
+		struct conninfo **pconn = &isdn4_conn;
 		while(*pconn != NULL) {
 			if(*pconn == conn) {
 				*pconn = conn->next;
@@ -377,11 +380,15 @@ void try_reconn(struct conninfo *conn)
 		chkone(cg);
 		cg->refs++;
 
-		cg->nr = NULL; cg->nrsuf = NULL;
+		if(conn->want_reconn < MAX_RECONN) { /* if ==, we have a direct callback */
+			cg->nr = NULL; cg->nrsuf = NULL;
+		}
+		else 
+			cg->flags &=~F_NRCOMPLETE;
 		cg->lnr = NULL; cg->lnrsuf = NULL;
-		cg->card = str_enter("*");;
-		cg->cclass = str_enter("*");;
-		cg->flags &=~(F_MOVEFLAGS|F_INCOMING|F_OUTCOMPLETE|F_NRCOMPLETE|F_LNRCOMPLETE);
+		cg->card = conn->cardname ? conn->cardname : "*";
+		cg->cclass = conn->classname ? conn->classname : "*";
+		cg->flags &=~(F_MOVEFLAGS|F_INCOMING|F_OUTCOMPLETE|F_LNRCOMPLETE);
 		cg->flags |= F_OUTGOING;
 		if((cg->flags & (F_PERMANENT|F_LEASED)) == F_PERMANENT)
 			cg->flags |= F_DIALUP;
@@ -406,7 +413,6 @@ void try_reconn(struct conninfo *conn)
 		}
 		dropgrab(cg);
 		if(ret != NULL) {
-			setconnstate(conn,c_going_up);
 			if(!strcmp(ret,"0BUSY")) {
 				conn->cause = ID_priv_Busy;
 				if ((conn->flags & F_PERMANENT) && (conn->minor != 0)) {

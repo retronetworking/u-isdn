@@ -6,7 +6,7 @@
  */
 
 #include "master.h"
-
+#include <sys/uio.h>
 
 
 void

@@ -138,6 +138,7 @@ static int
 strl_header(struct sk_buff *skb, struct device *dev, unsigned short type,
 	  void *daddr, void *saddr, unsigned len)
 {
+	skb->protocol = htons(type);
 	return 0;
 }
 
@@ -200,6 +201,7 @@ printk("Q NULL\n");
 	
 #if LINUX_VERSION_CODE >= 66304 /* 1.3.0 */
 	if(!lp->encap && (skb->protocol != lp->ethertype)) {
+printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
 		lp->stats.tx_dropped++;
 		dev_kfree_skb (skb, FREE_WRITE);
 		return 0;

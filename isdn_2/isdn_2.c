@@ -57,10 +57,10 @@ void logh__printmsg(unsigned int line,void *log,const char *text, mblk_t *mb)
 
 /* Debugging */
 #ifdef CONFIG_DEBUG_ISDN
-int mod2 = CONF_MOD2;
-int isdn2_debug = CONF_DEBUG;
+int isdn2_log = 0x00;
+int isdn2_debug = 0x5016;
 #else
-int mod2 = 0; /* necessary for _any_ debugging... */
+int isdn2_log = 0; /* necessary for _any_ debugging... */
 #define isdn2_debug 0
 #endif
 
@@ -404,27 +404,23 @@ D_register (isdn2_card card, uchar_t SAPI, uchar_t ch, uchar_t broadcast)
 	return 0;
 }
 
+
+
 /*
  * State change for this connection. Called by X75.
  */
 static int
-D_state (isdn2_state state, uchar_t ind, short add)
+sendstate (isdn2_card card, uchar_t ch, uchar_t SAPI, uchar_t ind, short add)
 {
 	isdn23_hdr hdr;
 	mblk_t *mb;
-	uchar_t ch;
 
-#ifdef DO_MULTI_TEI
-	ch = state->bchan;
-#else
-	ch = 0;
-#endif
 	if (isdn2_debug & 0x40)
-		printf ("%sD_state %d %x:%x\n",KERN_DEBUG, state->card->nr, ind, add);
+		printf ("%ssendstate %d %x:%x\n",KERN_DEBUG, card->nr, ind, add);
 	if (ind == MDL_ERROR_IND) {
 		if(add & (ERR_C | ERR_D | ERR_G /* | ERR_H */ )) {
 			printf("%s\nISDN Fatal Error, TEI cleared\n",KERN_DEBUG);
-			state->card->TEI[ch] = TEI_BROADCAST;
+			card->TEI[ch] = TEI_BROADCAST;
 		}
 	}
 
@@ -432,8 +428,8 @@ D_state (isdn2_state state, uchar_t ind, short add)
 
 	if (mb == NULL) {
 		if (isdn2_debug & 0x10)
-			printf ("%sD_state: nomem to send ind %x:%x for %d:%x/%x\n",KERN_DEBUG, ind, add,
-					state->card->nr, state->SAPI, state->card->TEI[ch]);
+			printf ("%ssendstate: nomem to send ind %x:%x for %d:%x/%x\n",KERN_DEBUG, ind, add,
+					card->nr, SAPI, card->TEI[ch]);
 		return -ENOMEM;
 	}
 	hdr = ((isdn23_hdr) mb->b_wptr)++;
@@ -442,10 +438,10 @@ D_state (isdn2_state state, uchar_t ind, short add)
 	case DL_ESTABLISH_CONF:
 		hdr->key = HDR_OPENPROT;
 		hdr->seqnum = hdrseq; hdrseq += 2;
-		hdr->hdr_openprot.card = state->card->nr;
-		hdr->hdr_openprot.SAPI = state->SAPI;
+		hdr->hdr_openprot.card = card->nr;
+		hdr->hdr_openprot.SAPI = SAPI;
 #ifdef DO_MULTI_TEI
-		hdr->hdr_openprot.bchan = state->bchan;
+		hdr->hdr_openprot.bchan = ch;
 #endif
 		hdr->hdr_openprot.ind = ind;
 		break;
@@ -453,21 +449,20 @@ D_state (isdn2_state state, uchar_t ind, short add)
 	case DL_RELEASE_CONF:
 		hdr->key = HDR_CLOSEPROT;
 		hdr->seqnum = hdrseq; hdrseq += 2;
-		hdr->hdr_closeprot.card = state->card->nr;
-		hdr->hdr_closeprot.SAPI = state->SAPI;
+		hdr->hdr_closeprot.card = card->nr;
+		hdr->hdr_closeprot.SAPI = SAPI;
 		hdr->hdr_closeprot.ind = ind;
 #ifdef DO_MULTI_TEI
-		hdr->hdr_closeprot.bchan = state->bchan;
+		hdr->hdr_closeprot.bchan = ch;
 #endif
-		/* D_kill_one (state, ind); */
 		break;
 	default:
 		hdr->key = HDR_NOTIFY;
 		hdr->seqnum = hdrseq; hdrseq += 2;
-		hdr->hdr_notify.card = state->card->nr;
-		hdr->hdr_notify.SAPI = state->SAPI;
+		hdr->hdr_notify.card = card->nr;
+		hdr->hdr_notify.SAPI = SAPI;
 #ifdef DO_MULTI_TEI
-		hdr->hdr_notify.bchan = state->bchan;
+		hdr->hdr_notify.bchan = ch;
 #endif
 		hdr->hdr_notify.ind = ind;
 		hdr->hdr_notify.add = add;
@@ -480,8 +475,39 @@ D_state (isdn2_state state, uchar_t ind, short add)
 		freemsg (mb);
 		return -ENXIO;
 	}
-	D_checkactive (state->card);
 	return 0;
+}
+
+
+/*
+ * State change for this connection. Called by X75.
+ */
+static int
+D_state (isdn2_state state, uchar_t ind, short add)
+{
+	uchar_t ch;
+	int err;
+
+#ifdef DO_MULTI_TEI
+	ch = state->bchan;
+#else
+	ch = 0;
+#endif
+	err = sendstate(state->card,ch,state->SAPI,ind,add);
+
+	D_checkactive (state->card);
+	return err;
+}
+
+void
+isdn2_chstate (struct _isdn1_card *card, uchar_t ind, short add)
+{
+	isdn2_card ctl;
+
+	ctl = (isdn2_card) card->ctl;
+	if (ctl == NULL)
+		return;
+	sendstate(ctl,0,0,ind,add);
 }
 
 
@@ -941,7 +967,7 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 	else if (DATA_START(mb) + 2 <= mb->b_rptr && DATA_REFS(mb) == 1) {
 		*--mb->b_rptr = (((cmd & 2) ? TEI_BROADCAST : state->card->TEI[ch]) << 1) | 1;
 		*--mb->b_rptr = (state->SAPI << 2) | ((cmd & 1) ? 0 : 2);
-		if(mod2 & 0x20) {
+		if(isdn2_log & 0x20) {
 			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
 			log_printmsg (NULL, " Send", mb, KERN_DEBUG);
 		}
@@ -958,7 +984,7 @@ D_send (isdn2_state state, char cmd, mblk_t * mb)
 		*mb2->b_wptr++ = (state->SAPI << 2) | ((cmd & 1) ? 0 : 2);
 		*mb2->b_wptr++ = (((cmd & 2) ? TEI_BROADCAST : state->card->TEI[ch]) << 1) | 1;
 		linkb (mb2, mb);
-		if(mod2 & 0x20) {
+		if(isdn2_log & 0x20) {
 			printf ("%s*** %d", KERN_DEBUG,state->card->nr);
 			log_printmsg (NULL, " Send", mb2, KERN_DEBUG);
 		}
@@ -1382,7 +1408,7 @@ isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data)
 			if(msgdsize(data) < 0)
 				return 0;
 #endif
-			if(mod2 & 0x10) {
+			if(isdn2_log & 0x10) {
 				printf ("%s*** %d", KERN_DEBUG,ctl->nr);
 				log_printmsg (NULL, " Recv", data, KERN_DEBUG);
 			}
@@ -1560,7 +1586,13 @@ isdn2_sendcard (isdn2_card card)
 	hdr->seqnum = hdrseq; hdrseq += 2;
 	hdr->hdr_card.card = card->nr;
 	hdr->hdr_card.id = card->id;
-	hdr->hdr_card.bchans = card->card->nr_chans;
+	if(card->card->nr_dchans < 2) {
+		hdr->hdr_card.dchans = 1;
+		hdr->hdr_card.bchans = card->card->nr_chans;
+	} else {
+		hdr->hdr_card.dchans = card->card->nr_dchans;
+		hdr->hdr_card.bchans = card->card->nr_chans / card->card->nr_dchans;
+	}
 	hdr->hdr_card.modes = card->card->modes;
 	if (isdn_chan.qptr != NULL) {
 		if(isdn2_debug & 0x2000) logh_printmsg (NULL, "Up", mb);
@@ -2031,7 +2063,7 @@ poplist (queue_t * q, char initial)
 
 	if ((mb = allocb (32, BPRI_MED)) != NULL) {
 		if (initial) {
-			if (mod2 & 4) {
+			if (isdn2_log & 4) {
 				*mb->b_wptr++ = 's';
 				*mb->b_wptr++ = 't';
 				*mb->b_wptr++ = 'r';
@@ -2045,7 +2077,7 @@ poplist (queue_t * q, char initial)
 			*mb->b_wptr++ = 'o';
 			*mb->b_wptr++ = 't';
 			*mb->b_wptr++ = 'o';
-			if (mod2 & 1) {
+			if (isdn2_log & 1) {
 				*mb->b_wptr++ = ' ';
 				*mb->b_wptr++ = 's';
 				*mb->b_wptr++ = 't';
@@ -2054,7 +2086,7 @@ poplist (queue_t * q, char initial)
 				*mb->b_wptr++ = 'o';
 				*mb->b_wptr++ = 'g';
 			}
-			if (mod2 & 2) {
+			if (isdn2_log & 2) {
 				*mb->b_wptr++ = ' ';
 				*mb->b_wptr++ = 'q';
 				*mb->b_wptr++ = 'i';

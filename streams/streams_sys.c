@@ -2399,7 +2399,7 @@ int unregister_strdev (unsigned int major, struct streamtab *strtab, int nminor)
 	if (err >= 0) {
 		LESS_USE;
 	} else
-		printf("Unregister: Driver %s not deleted: %d\n",KERN_WARNING ,name,err);
+		printf("%sUnregister: Driver %s not deleted: %d\n",KERN_WARNING ,name,err);
 #endif
 	return err;
 }

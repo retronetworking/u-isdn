@@ -97,7 +97,8 @@ typedef struct _isdn23_hdr {
 		struct {				  /* Card present. Request: L1 Up, bchans
 								   * compared */
 			uchar_t card;		  /* Card ID. Counting up from zero. */
-			uchar_t bchans;
+			uchar_t dchans;		  /* for the card */
+			uchar_t bchans;		  /* per D channel */
 			uchar_t flags;		  /* Some stuff */
 #define HDR_CARD_PP 01
 			long id;			  /* Unique ID of this card, for hardware
@@ -171,7 +172,11 @@ typedef struct _isdn23_hdr {
 		 */
 
 	} sel;
-} __attribute__((packed)) *isdn23_hdr;
+}
+#if defined(__GNUC__) && (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 6))
+	__attribute__((packed))
+#endif
+		*isdn23_hdr;
 
 /* Aliases for writing actual programs. *//* Keys for debugging L2. */
 #define hdr_atcmd     sel._hdr_atcmd	/* A */

@@ -815,15 +815,20 @@ Die Reihenfolge ist wichtig.
            In der Konfiguration verhält sich eine CAPI-Karte ansonsten wie
            der 1TR6-Treiber, und zwar AUCH DANN WENN DAS TEIl AM EURO-ISDN
            HÄNGT. <capi>
+  :pb      Verwendet die CAPI wie eine Nebenstellenanlage, d.h. ankommend
+           Akkumulation ankommender Ziffern, abgehend dynamisches Mapping
+           EAZ->Nebenstellennummer. (Teilweise implementiert: ankommend
+           funktioniert nur Blockwahl.)
   :sp 0    Bintec-Karte. [bintec]
            Auf diese Karte muß zunächst boot.68k und dann entweder bri.68k,
-           bri_4.68k oder pmx.68k geladen werden.
+           bri_4.68k oder pmx.68k geladen werden (LF-Zeile).
      :lp X X X  CAPI-Bitmasken für EAZ, Service, Infos. Hexadezimal.
-                Default: 3FFF FFFF 003F.
+                Default: 03FF E7BF 003F.
      :st XXXXX  Protokollstack XXXXX laden. Siehe Handbuch zur Karte.
                 Default ist u_dss1_pmp.
      :ea N NNN  EAZ N auf (lokale) Endnummer NNN mappen.
                 Default ist die letzte Ziffer der Nummer.
+                Nicht bei :pb verwenden.
 
 
 DP-Zeile ("Dial Prefix")
@@ -957,16 +962,18 @@ framelo     ... oder die unteren Bits. Sinnvoll dann, wenn jemand den Daten-
             strom auf eine 56-kBaud-Leitung umsetzt.
 
 
-CL-Zeile ("Card Limit")
+CL-Zeile ("Connection Limit")
 --------
 
-Form: CL <Karte> <Key> <Zahl>
+Form: CL <Art> <Partner> <Key> <Karte> <Zahl>
 
 Beispiel>
-CM Tel? * 2 
-Begrenzt die Zahl der verwendbaren B-Kanäle einer Karte.
-Ueber das Limit hinausgehende Anrufe werden mit BUSY abgelehnt, es sei denn
-in der entsprechenden P-Zeile steht der entsprechende Parameter.
+CL * * * Tel? 2 
+
+Begrenzt die Zahl der für einen gegebenen Verbindungstyp verwendbaren
+B-Kanäle. Ueber das Limit hinausgehende Anrufe werden mit BUSY abgelehnt,
+es sei denn in der entsprechenden P-Zeile steht der entsprechende
+Parameter.
 
 
 LF-Zeile ("Load File")

@@ -970,13 +970,11 @@ isdn3_new_conn (isdn3_talk talk)
 	memset(conn,0,sizeof (*conn));
 
 	ms = splstr();
-	conn->conn_id = conn_id;
+	conn->conn_id = conn_id; conn_id += 2;
 	conn->card = talk->card;
 	conn->next = talk->conn;
 	conn->talk = talk;
-	conn->call_ref = 0;
 	talk->conn = conn;
-	conn_id += 2;
 	splx (ms);
 	return conn;
 }
@@ -1485,11 +1483,6 @@ printf("ErX g\n");
 		case ARG_CALLREF:
 			if ((err = m_geti (mx, &call_ref)) != 0)
 				goto err_out;
-			if (call_ref == 0 || call_ref < -128 || call_ref > 127) {
-printf("ErX h\n");
-				err = -EINVAL;
-				goto err_out;
-			}
 			break;
 		case ARG_INT:
 			do_int = 1;
@@ -2010,7 +2003,7 @@ printf("ErX k\n");
 		break;
 	case CMD_PROT:
 		m_getskip (mx);
-		if (mx->b_rptr < mx->b_wptr && *mx->b_rptr == PROTO_MODE) {
+		if ((mx->b_rptr < mx->b_wptr) && (*mx->b_rptr == PROTO_MODE)) {
 			if (0)
 				printf ("Proto SetMode\n");
 			/* Protocol setup completed. Or so it seems. */
@@ -2458,7 +2451,7 @@ isdn3_findtalk (isdn3_card card, isdn3_hndl hndl, mblk_t *info, int create)
 		int i;
 		int err;
 
-char systr[100] = "";
+char systr[200] = "";
 if(card->info != NULL)
  sprintf(systr+strlen(systr),"'%-*s'",card->info->b_wptr-card->info->b_rptr,card->info->b_rptr);
 else strcat(systr,"NULL");
@@ -3075,6 +3068,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 						card->nr = hdr.hdr_card.card;
 						card->id = hdr.hdr_card.id;
 						card->TEI = TEI_BROADCAST;
+						card->dchans = hdr.hdr_card.dchans;
 						card->bchans = hdr.hdr_card.bchans;
 						card->modes = hdr.hdr_card.modes;
 						card->next = isdn_card;
@@ -3082,6 +3076,7 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 						if ((mx = allocb (32, BPRI_MED)) != 0) {
 							m_putid (mx, IND_CARD);
 							m_putlx (mx, hdr.hdr_card.id);
+							m_puti (mx, hdr.hdr_card.dchans);
 							m_puti (mx, hdr.hdr_card.bchans);
 							m_putx (mx, hdr.hdr_card.modes);
 							putnext (q, mx);

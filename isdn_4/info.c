@@ -204,7 +204,7 @@ find_conn(void)
 	struct conninfo *xconn = NULL;
 	if(0)printf ("Check Conn %ld/%ld/%ld: ", minor, fminor, connref);
 	if(fminor == 0) fminor = minor;
-	for (conn = theconn; conn != NULL; conn = conn->next) {
+	for (conn = isdn4_conn; conn != NULL; conn = conn->next) {
 		if(conn->ignore)
 			continue;
 		if(0)printf ("%d/%d/%ld ", conn->minor, conn->fminor, conn->connref);
@@ -319,17 +319,24 @@ int
 do_card(void)
 {
 	cf dl;
-	long nbchan;
+	long nbchan, ndchan;
 	long cardcap;
 	int ret;
 	struct isdncard *card;
+	struct loader *ld;
 
 	if ((ret = m_getstr (&xx, crd, 4)) != 0)
+		return ret;
+	if ((ret = m_geti (&xx, &ndchan)) != 0)
 		return ret;
 	if ((ret = m_geti (&xx, &nbchan)) != 0)
 		return ret;
 	if ((ret = m_getx (&xx, &cardcap)) != 0)
 		return ret;
+	for(ld = isdn4_loader; ld != NULL; ld = ld->next) {
+		if (!strcmp(ld->name, crd))
+			return -EEXIST;
+	}
 	for(card = isdn4_card; card != NULL; card = card->next) {
 		if (!strcmp(card->name, crd))
 			return -EEXIST;
@@ -340,12 +347,13 @@ do_card(void)
 	bzero(card,sizeof(*card));
 	card->name = str_enter(crd);
 	card->nrbchan = nbchan;
+	card->nrdchan = ndchan;
+	card->mask = (1<<ndchan)-1; /* mask of all subcards */
 	card->cap = cardcap;
-	card->next = isdn4_card;
-	isdn4_card = card;
+	card->next = isdn4_card; isdn4_card = card;
 
 	if(cardcap & CHM_INTELLIGENT) {
-		struct loader *ld = malloc(sizeof(struct loader));
+		ld = malloc(sizeof(struct loader));
 		if(ld == NULL)
 			return -errno;
 		bzero(ld,sizeof(*ld));
@@ -357,7 +365,6 @@ do_card(void)
 
 		card->name = str_enter("NULL");
 		ld->card = card;
-		card_load(ld);
 	} else {
 		struct iovec io[3];
 		int len;
@@ -394,6 +401,21 @@ do_card(void)
 		}
 		(void) strwritev (xs_mon, io,len, 1);
 	}
+
+	conn = malloc(sizeof(*conn));
+	if(conn != NULL) {
+		bzero(conn,sizeof(*conn));
+		conn->seqnum = ++connseq;
+		conn->causeInfo = ld ? "loading" : "passive interface";
+		conn->cause = ID_priv_Print;
+		conn->cardname = ld ? ld->name : card->name;
+		conn->next = isdn4_conn; isdn4_conn = conn;
+		if(ld != NULL)
+			ld->connseq = conn->seqnum;
+		dropconn(conn);
+	}
+	if(ld != NULL)
+		card_load(ld);
 	do_run_now++;
 	timeout(run_now,NULL,3*HZ);
 
@@ -411,10 +433,31 @@ do_nocard(void)
 		return ret;
 	for (pcard = &isdn4_card; *pcard != NULL; pcard = &(*pcard)->next) {
 		if (!strcmp((*pcard)->name, crd)) {
+			struct loader *ld;
 			struct isdncard *card = *pcard;
 			*pcard = card->next;
-			free(card);
-			return 0;
+
+			for(ld = isdn4_loader; ld != NULL; ld = ld->next) {
+				if (ld->card == card) {
+					card_load_fail(ld,-EIO);
+					break;
+				}
+			}
+			conn = malloc(sizeof(*conn));
+			if(conn != NULL) {
+				bzero(conn,sizeof(*conn));
+				conn->seqnum = ++connseq;
+				if(cause == 0) {
+					conn->causeInfo = "interface died";
+					conn->cause = ID_priv_Print;
+				} else
+					conn->cause = cause;
+				conn->cardname = card->name;
+				conn->next = isdn4_conn; isdn4_conn = conn;
+				dropconn(conn);
+			}
+			resp = NULL;
+			break;
 		}
 	}
 	return -ENOENT;
@@ -440,7 +483,7 @@ do_cardproto(void)
 		}
 		cg->card = str_enter(crd);
 		cg->protocol = str_enter(prot);
-		if ((resp = findsite (&cg)) != NULL) {
+		if ((resp = findsite (&cg,1)) != NULL) {
 			dropgrab(cg);
 			if(conn != NULL) {
 				conn->want_reconn = 0;
@@ -451,7 +494,7 @@ do_cardproto(void)
 				}
 			}
 
-			syslog (LOG_ERR, "ISDN NoProtocol1 %ld %s", minor, data);
+			syslog (LOG_ERR, "ISDN NoProtocol1 %s %ld %s", resp, minor, data);
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
@@ -547,7 +590,7 @@ do_proto(void)
 		if (crd[0] != '\0')
 			cg->card = str_enter(crd);
 
-		if ((resp = findsite (&cg)) != NULL) {
+		if ((resp = findsite (&cg,1)) != NULL) {
 			dropgrab(cg);
 			syslog (LOG_ERR, "ISDN NoProtocol3 %ld %s", minor, data);
 
@@ -619,7 +662,7 @@ do_incoming(void)
 	cinf->b_wptr += len;
 	cg->par_in = cinf;
 	cg->card = str_enter(crd);
-	if ((resp = findit (&cg)) != NULL) 
+	if ((resp = findit (&cg,0)) != NULL) 
 		goto inc_err;
 	if (quitnow) {
 		resp = "SHUTTING DOWN";
@@ -631,6 +674,7 @@ do_incoming(void)
 	}
 	{
 		char *sit = NULL,*pro = NULL,*car = NULL,*cla = NULL; /* GCC */
+		ulong_t sub = 0;
 		if(0)printf("Hunt for %s/%s/%s/%s/%o\n",cg->site,cg->protocol,cg->card,cg->cclass,cg->flags);
 		/* Figure out which program to run. */
 		for (cfr = cf_R; cfr != NULL; cfr = cfr->next) {
@@ -639,6 +683,7 @@ do_incoming(void)
 			if ((sit = wildmatch (cg->site, cfr->site)) == NULL) continue;
 			if ((pro = wildmatch (cg->protocol, cfr->protocol)) == NULL) continue;
 			if ((car = wildmatch (cg->card, cfr->card)) == NULL) continue;
+			if ((sub = maskmatch (cg->mask, cfr->mask)) == 0) continue;
 			if ((cla =classmatch (cg->cclass, cfr->cclass)) == NULL) continue;
 			break;
 		}
@@ -647,6 +692,7 @@ do_incoming(void)
 			goto inc_err;
 		}
 		cg->site = sit; cg->protocol = pro; cg->cclass = cla; cg->card = car;
+		cg->mask = sub;
 	}
 	if((bchan < 0) && (cg->flags & F_CHANBUSY)) {
 		resp = "0BUSY other";
@@ -711,8 +757,7 @@ do_incoming(void)
 				cg->refs++;
 				/* dropgrab(conn->cg; ** is new anyway */
 				conn->cg = cg;
-				conn->next = theconn;
-				theconn = conn;
+				conn->next = isdn4_conn; isdn4_conn = conn;
 				dropconn(conn);
 			}
 			resp = NULL;
@@ -740,13 +785,14 @@ do_incoming(void)
 			DUMPW (mz->b_rptr, xlen);
 			(void) strwrite (xs_mon, mz->b_rptr, xlen, 1);
 			freeb(mz);
+
 			resp = NULL;
-			dropgrab(conn->cg); cg->refs++; conn->cg = cg;
+			cg->refs++; dropgrab(conn->cg); conn->cg = cg;
 			ReportConn(conn);
 #if 1
 			/* cg->flags &=~ F_INCOMING; */
 			/* cg->flags |= F_OUTGOING; */
-			if((conn = startconn(cg,fminor,connref,NULL)) != conn)
+			if(startconn(cg,fminor,connref,NULL) != conn)
 				resp = "ClashRestart Failed";
 #endif
 			conn = malloc(sizeof(*conn));
@@ -758,8 +804,7 @@ do_incoming(void)
 				cg->refs++;
 				/* dropgrab(conn->cg; ** is new anyway */
 				conn->cg = cg;
-				conn->next = theconn;
-				theconn = conn;
+				conn->next = isdn4_conn; isdn4_conn = conn;
 				dropconn(conn);
 			}
 		}
@@ -786,8 +831,7 @@ do_incoming(void)
 	conn->cause = 999999;
 	setconnstate(conn, c_down);
 	ReportConn(conn);
-	conn->next = theconn;
-	theconn = conn;
+	conn->next = isdn4_conn; isdn4_conn = conn;
 	resp = runprog (cfr, &conn, &cg);
 	if(resp != NULL)
 		dropconn(conn);
@@ -860,8 +904,7 @@ do_incoming(void)
 			cg->refs++;
 			/* dropgrab(conn->cg); ** is new anyway */
 			conn->cg = cg;
-			conn->next = theconn;
-			theconn = conn;
+			conn->next = isdn4_conn; isdn4_conn = conn;
 			run_rp(conn,'r');
 			dropconn(conn);
 		}
@@ -880,7 +923,7 @@ do_conn(void)
 	if(conn == NULL || (conn->flags & F_OUTGOING)) {
 		syslog (LOG_INFO, "ISDN Out %ld %s", minor, data);
 
-		if(1 /* conn == NULL ** || !(conn->dialin & 2) */ ) {
+		if(minor > 0 || fminor > 0 /* conn == NULL ** || !(conn->dialin & 2) */ ) {
 			resp = "CARRIER";
 
 			xx.b_rptr = xx.b_wptr = ans;
@@ -888,7 +931,7 @@ do_conn(void)
 			db.db_lim = ans + sizeof (ans);
 			m_putid (&xx, CMD_PROT);
 			m_putsx (&xx, ARG_FMINOR);
-			m_puti (&xx, minor);
+			m_puti (&xx, minor ? minor : fminor);
 			m_putdelim (&xx);
 			m_putid (&xx, PROTO_AT);
 			m_putsz (&xx, (uchar_t *) resp);
@@ -1155,7 +1198,7 @@ do_close(void)
 			}
 		}
 		{
-			for(conn = theconn; conn != NULL; conn = conn->next) {
+			for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 				if(conn->minor == minor && conn->ignore == 3) {
 					dropconn(conn);
 					continue;
@@ -1458,7 +1501,7 @@ do_atcmd(void)
 	}
 	/* AT recognized */
 	/* If we're AT/Listening, stop it. */
-	for(conn = theconn; conn != NULL; conn = conn->next) {
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 		if(conn->minor == minor && conn->ignore == 3) {
 			dropconn(conn);
 			break;
@@ -1489,7 +1532,7 @@ do_atcmd(void)
 				if(m_geti(&xx,&minor) != 0) {
 					kill_progs(NULL);
 				} else {
-					for(conn = theconn; conn != NULL; conn = conn->next) {
+					for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 						if(conn->ignore)
 							continue;
 						if(conn->minor == minor)
@@ -1521,13 +1564,13 @@ do_atcmd(void)
 				}
 				do_quitnow(NULL);
 				break;
-			case 'b': /* AT&B# */
+			case 'b': /* AT/B# */
 			case 'B': /* Reenable a connection. */
 				{
 					if(m_geti(&xx,&minor) != 0) {
 						return 3;
 					}
-					for(conn = theconn; conn != NULL; conn = conn->next) {
+					for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 						if(conn->ignore)
 							continue;
 						if(conn->minor == minor)
@@ -1575,7 +1618,7 @@ do_atcmd(void)
 						resp = "ERROR";
 						return 1;
 					}
-					for(conn = theconn; conn != NULL; conn = conn->next) {
+					for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 						if(conn->ignore)
 							continue;
 						if(conn->minor == minor)
@@ -1637,7 +1680,7 @@ do_atcmd(void)
 					}
 					sp = resp = msgbuf;
 					sp += sprintf(sp,"#:ref id site protocol class pid state/card cost total flags,rem.nr;loc.nr cause\r\n");
-					for(fconn = theconn; fconn != NULL; fconn = fconn->next)  {
+					for(fconn = isdn4_conn; fconn != NULL; fconn = fconn->next)  {
 						if(fconn->ignore < 3) {
 							sp += sprintf(sp,"%s%d:%d %s %s %s %d %s/%s %ld %ld %s %s\r\n",
 								fconn->ignore?"!":"", fconn->minor, fconn->seqnum,
@@ -1645,7 +1688,7 @@ do_atcmd(void)
 								(fconn->cg && fconn->cg->protocol) ? fconn->cg->protocol : "-",
 								(fconn->cg && fconn->cg->cclass) ? fconn->cg->cclass : "-",
 								fconn->pid, state2str(fconn->state),
-								(fconn->cg && fconn->cg->card) ? fconn->cg->card : "-",
+								(fconn->cg && fconn->cg->card) ? fconn->cg->card : (fconn->cardname ? fconn->cardname : "-"),
 								fconn->charge, fconn->ccharge, FlagInfo(fconn->flags),
 								CauseInfo(fconn->cause, fconn->causeInfo));
 						}
@@ -1656,8 +1699,7 @@ do_atcmd(void)
 						conn->seqnum = ++connseq;
 						conn->ignore = 3;
 						conn->minor = minor;
-						conn->next = theconn;
-						theconn = conn;
+						conn->next = isdn4_conn; isdn4_conn = conn;
 					}
 					/* sprintf(sp,"OK"); */
 					*--sp = '\0'; *--sp = '\0';  /* Take off the CRLF at the end; the driver will put it back */
@@ -1894,7 +1936,7 @@ do_atcmd(void)
 						conn->seqnum = ++connseq;
 						conn->fminor = fminor;
 						conn->minor = minor;
-						conn->next = theconn; theconn = conn;
+						conn->next = isdn4_conn; isdn4_conn = conn;
 					}
 				}
 
@@ -1917,7 +1959,7 @@ do_atcmd(void)
 					cg->nr = str_enter(m1);
 					cg->flags |= F_NRCOMPLETE;
 				}
-				resp = findit (&cg);
+				resp = findit (&cg,0);
 				if (resp != NULL) {
 					freeb (md);
 					dropgrab(cg);
@@ -1996,7 +2038,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 		return 0;
 	}
 	if(conn == NULL && connref != 0) {
-		for(conn = theconn; conn != NULL; conn = conn->next) {
+		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
 			if(conn->connref == connref)
 				break;
 		}
@@ -2010,6 +2052,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 				if (wildmatch (conn->cg->site, cfr->site) == NULL) continue;
 				if (wildmatch (conn->cg->protocol, cfr->protocol) == NULL) continue;
 				if (wildmatch (conn->cg->card, cfr->card) == NULL) continue;
+				if (maskmatch (conn->cg->mask, cfr->mask) == 0) continue;
 				if (classmatch (conn->cg->cclass, cfr->cclass) == NULL) continue;
 				break;
 			}
@@ -2029,8 +2072,7 @@ printf("GotAnError: Minor %ld, connref %ld, hdr %s\n",minor,connref,HdrName(hdrv
 					conn->cg->refs++;
 					/* dropgrab(conn->cg; ** is new anyway */
 					xconn->cg = conn->cg;
-					xconn->next = theconn;
-					theconn = xconn;
+					xconn->next = isdn4_conn; isdn4_conn = xconn;
 					dropconn(xconn);
 				}
 			}

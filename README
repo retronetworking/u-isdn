@@ -4,6 +4,19 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1995-10-24
+
+Release 15.
+
+Support fuer intelligente Karten ist _fast_ da, wo er hinsoll...
+
+GCC 2.7.0 wird empfohlen. Support fuer intelligente Karten geht nicht ohne
+(wegen attribute((packed)); ich habe keine Lust, die CAPI-Datenstrukturen
+von Hand zusammenzuschrauben).
+
+Ansonsten siehe unten. Feedback bitte!
+
+
 *** 1995-10-21
 
 Release 14.

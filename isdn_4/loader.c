@@ -19,7 +19,7 @@ struct loader {
 #endif
 
 static void
-card_load_close(struct loader *ld)
+card_load_close(struct loader *ld, char success)
 {
 	if(ld->name != NULL)
 		ld->card->name = ld->name;
@@ -37,6 +37,29 @@ card_load_close(struct loader *ld)
 			ldp = &(*ldp)->next;
 		}
 	}
+	if(success) {
+		char newconn = 0;
+		struct conninfo *conn;
+		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+			if(conn->seqnum == ld->connseq)
+				break;
+		}
+		if(conn == NULL) {
+			conn = malloc(sizeof(*conn));
+			newconn = 1;
+		}
+		if(conn != NULL) {
+			if(newconn) {
+				bzero(conn,sizeof(*conn));
+				conn->cause = ID_priv_Print;
+				conn->cardname = ld->card->name;
+				conn->seqnum = ++connseq;
+				conn->next = isdn4_conn; isdn4_conn = conn;
+			}
+			conn->causeInfo = "active interface";
+			dropconn(conn);
+		}
+	}
 	free(ld);
 }
 
@@ -45,6 +68,14 @@ card_load_fail(struct loader *ld, int err)
 {
 	mblk_t *mj = allocb (32, BPRI_LO);
 	int len;
+    struct isdncard **pcard, *card = ld->card;
+
+    for (pcard = &isdn4_card; *pcard != NULL; pcard = &(*pcard)->next) {
+        if (card == *pcard) {
+            *pcard = card->next;
+			break;
+		}
+	}
 
 	syslog(LOG_ERR,"Card %s was not loaded: Error at file %d, pos %d\n",ld->card,ld->nrfile,ld->foffset);
 
@@ -60,7 +91,30 @@ card_load_fail(struct loader *ld, int err)
 		freeb (mj);
 	}
 
-	card_load_close(ld);
+	{
+		char newconn = 0;
+		struct conninfo *conn;
+		for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+			if(conn->seqnum == ld->connseq)
+				break;
+		}
+		if(conn == NULL) {
+			conn = malloc(sizeof(*conn));
+			newconn = 1;
+		}
+		if(conn != NULL) {
+			if(newconn) {
+				bzero(conn,sizeof(*conn));
+				conn->cause = ID_priv_Print;
+				conn->seqnum = ++connseq;
+				conn->next = isdn4_conn; isdn4_conn = conn;
+			}
+			conn->causeInfo = "Load failed";
+			dropconn(conn);
+		}
+	}
+	card_load_close(ld,0);
+	free(card);
 }
 
 void
@@ -213,7 +267,7 @@ card_load(struct loader *ld)
 			len++;
 		}
 		(void) strwritev (xs_mon, io,len, 1);
-		card_load_close(ld);
+		card_load_close(ld,1);
 
         do_run_now++;
         timeout(run_now,NULL,HZ/3);

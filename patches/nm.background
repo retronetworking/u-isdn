@@ -1,0 +1,15 @@
+NM beim Kernelbauen kann ruhig im Hintergrund laufen, wenn man genug
+Hauptspeicher hat...
+
+diff -rub --unidir /pub/src/linux/kernel/linux/Makefile ./Makefile
+--- /pub/src/linux/kernel/linux/Makefile	Tue Apr  4 15:19:12 1995
++++ ./Makefile	Tue Apr  4 11:34:33 1995
+@@ -125,7 +125,7 @@
+ 		$(FILESYSTEMS) \
+ 		$(DRIVERS) \
+ 		$(LIBS) -o vmlinux
+-	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | sort > System.map
++	$(NM) vmlinux | grep -v '\(compiled\)\|\(\.o$$\)\|\( a \)' | sort > System.map &
+ 
+ symlinks:
+ 	rm -f include/asm

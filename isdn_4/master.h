@@ -198,6 +198,7 @@ EXTERN struct string {
 char *str_enter(char *master);
 char *wildmatch(char *a, char *b);
 char *classmatch(char *a, char *b);
+ulong_t maskmatch(ulong_t a, ulong_t b);
 char *strippat(char *a);
 
 
@@ -221,6 +222,7 @@ typedef struct proginfo {
 	char *protocol;
 	char *cclass;
 	char *card;
+	ulong_t mask;
 	char *type;
 	pid_t pid;
 } *_proginfo;
@@ -250,6 +252,7 @@ typedef struct conngrab {
 	char *protocol;
 	char *cclass;
 	char *card;
+	ulong_t mask;
 	char *oldnr;
 	char *oldlnr;
 	char *nr;
@@ -283,7 +286,7 @@ typedef struct conninfo {
 	int retiming;
 	int ctimer;
 	int cause;
-	char *causeInfo;
+	char *causeInfo, *cardname, *classname;
 	int seqnum;
 	short retries;
 	unsigned timer_reconn:1;
@@ -334,7 +337,7 @@ char *FlagInfo(int flag);
 
 /* The List */
 
-EXTERN struct conninfo *theconn INIT(NULL);
+EXTERN struct conninfo *isdn4_conn INIT(NULL);
 
 
 #define newgrab(x) Xnewgrab((x),__LINE__)
@@ -417,6 +420,7 @@ typedef struct _cf {
 	char *arg;
 	char *args;
 	int num, num2;
+	ulong_t mask;
 	char got_err;
 } *cf;
 
@@ -460,8 +464,8 @@ void Xbreak(void);
 
 char * pmatch1 (cf prot, conngrab *cgm);
 char * pmatch (conngrab *cgm);
-char * findsite (conngrab *foo);
-char * findit (conngrab *foo);
+char * findsite (conngrab *foo, int nobusy);
+char * findit (conngrab *foo, int nobusy);
 
 #if 0
 mblk_t * getprot (char *protocol, char *site, char *cclass, char *suffix);
@@ -512,6 +516,7 @@ struct loader {
 	long foffset; /* position in load file */
 	struct loader *next;
 	int cardnum;
+	int connseq;
 	unsigned timer:1;
 };
 void card_load(struct loader *ld);
@@ -522,7 +527,9 @@ struct isdncard {
 	struct isdncard *next;
 	char *name;
 	long cap;
+	ushort_t nrdchan; /* seqnum... */
 	ushort_t nrbchan;
+	ulong_t mask;
 };
 EXTERN struct isdncard *isdn4_card INIT(NULL);
 

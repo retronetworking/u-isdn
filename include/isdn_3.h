@@ -30,7 +30,8 @@ typedef struct _isdn3_card {		  /* One per card */
 	ulong_t modes;				  /* Mask of permitted modes on this card. */
 	uchar_t nr;					  /* Card number, for L2. */
 	uchar_t TEI;				  /* For reference */
-	uchar_t bchans;				  /* Number of B channels. */
+	uchar_t dchans;				  /* Number of D channels per card. */
+	uchar_t bchans;				  /* Number of B channels per D channel. */
 	unsigned is_up:1;
 } *isdn3_card;
 
@@ -134,7 +135,7 @@ typedef struct _isdn3_hndl {
  ** Calls managed by this connection are chained off the struct.
  **/
 
-#define NITALK 3
+#define NITALK 11
 #define NSTALK 1
 
 typedef struct _isdn3_talk {		  /* one per card's D channel connection */
@@ -152,7 +153,7 @@ typedef struct _isdn3_talk {		  /* one per card's D channel connection */
  ** One struct isdn3_conn represents one ISDN call.
  **/
 #define STACK_LEN 10
-#define NICONN 15
+#define NICONN 16
 #define NSCONN 3
 
 typedef struct _isdn3_conn {

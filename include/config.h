@@ -38,12 +38,7 @@ typedef unsigned char streamchar;
 /* =()<#define @<ADDERROR>@_ADDERROR>()= */
 #define DONT_ADDERROR
 
-#ifdef KERNEL
-/* =()<#define CONF_MOD2 @<CONF_MOD2>@>()= */
-#define CONF_MOD2 0x30
-/* =()<#define CONF_DEBUG @<CONF_DEBUG>@>()= */
-#define CONF_DEBUG 0x5016
-#else
+#ifndef KERNEL
 #ifdef DO_DEBUGGING
 
 #ifndef CONFIG_DEBUG_STREAMS

@@ -6,6 +6,9 @@
  */
 
 #include "master.h"
+#ifdef _capi_
+#include "../cards/capi/capi.h"
+#endif
 
 /* Textual representation of a connection state */
 char *state2str(CState state) {
@@ -88,6 +91,65 @@ const char *CauseInfo(int cause, char *pri)
 	case 0: return "OK";
 	case ID_priv_Busy:					return "Local Busy";
 	case ID_priv_Print:					if(isdigit(*pri)) return pri+1; else return pri;
+
+#ifdef _capi_
+	case ID_E_REGISTER:					return "application registration";
+	case ID_E_APPLICATION:				return "wrong application ID";
+	case ID_E_MSGLENGTH:				return "message error";
+	case ID_E_COMMAND:					return "wrong API command";
+	case ID_E_QUEUEFULL:				return "message queue full";
+	case ID_E_NOMSG:					return "message queue empty";
+	case ID_E_MSGOVERFLOW:				return "messages lost";
+	case ID_E_DEINSTALL:				return "error during deinstallation";
+	case ID_E_CONTROLLER:				return "wrong controller";
+	case ID_E_PLCI:						return "wrong PLCI";
+	case ID_E_NCCI:						return "wrong NCCI";
+	case ID_E_TYPE:						return "wrong type";
+	case ID_E_BCHANNEL:					return "wrong B channel";
+	case ID_E_INFOMASK:					return "wrong info mask";
+	case ID_E_EAZMASK:					return "wrong EAZ mask";
+	case ID_E_SIMASK:					return "wrong Service ID mask";
+	case ID_E_B2PROTO:					return "B2 protocol incorrect";
+	case ID_E_DLPD:						return "DLPD incorrect";
+	case ID_E_B3PROTO:					return "B3 protocol incorrect";
+	case ID_E_NCPD:						return "NCPD incorrect";
+	case ID_E_NCPI:						return "NCPI incorrect";
+	case ID_E_DATAB3FLAGS:				return "B3 flags incorrect";
+	case ID_E_CONTROLLERFAILED:			return "controller error";
+	case ID_E_REGCONFLICT:				return "registration conflict";
+	case ID_E_CMDNOTSUPPORTED:			return "command not supported";
+	case ID_E_PLCIACT:					return "PLCI not active";
+	case ID_E_NCCIACT:					return "NCCI not active";
+	case ID_E_B2NOTSUPPORT:				return "B2 protocol not supported";
+	case ID_E_B2STATE:					return "change of B2 protocol not possible";
+	case ID_E_B3NOTSUPPORT:				return "B3 protocol not supported";
+	case ID_E_B3STATE:					return "change of B3 protocol not possible";
+	case ID_E_B2DLPDPARA:				return "parameters not supported in DLPD";
+	case ID_E_B3NCPDPARA:				return "parameters not supported in NCPD";
+	case ID_E_B3NCPIPARA:				return "parameters not supported in NCPI";
+	case ID_E_DATALEN:					return "data length not supported";
+	case ID_E_DTMF:						return "DTMF problem";
+	case ID_E_NOL1:						return "L1 setup failed";
+	case ID_E_NOL2:						return "L2 setup failed";
+	case ID_E_SETUPBCHANLAYER1:			return "B1 setup failed";
+	case ID_E_SETUPBCHANLAYER2:			return "B2 setup failed";
+	case ID_E_ABORTDCHANLAYER1:			return "L1 D channel aborted";
+	case ID_E_ABORTDCHANLAYER2:			return "L2 D channel aborted";
+	case ID_E_ABORTDCHANLAYER3:			return "L3 D channel aborted";
+	case ID_E_ABORTBCHANLAYER1:			return "L1 B channel aborted";
+	case ID_E_ABORTBCHANLAYER2:			return "L2 B channel aborted";
+	case ID_E_ABORTBCHANLAYER3:			return "L3 B channel aborted";
+	case ID_E_REBCHANLAYER2:			return "L2 B channel reestablished";
+	case ID_E_REBCHANLAYER3:			return "L3 B channel reestablished";
+	case ID_E_NOFAX:					return "?Fax not supported";
+	case ID_E_BADLINE:					return "?Bad Line";
+	case ID_E_NOANSWER:					return "?Nobody answers";
+	case ID_E_REMDISC:					return "?Remote Disconnect";
+	case ID_E_NOCMD:					return "?No Command";
+	case ID_E_INCOMPAT:					return "?Incompatible";
+	case ID_E_BADDATA:					return "?Bad Data";
+	case ID_E_PROTO:					return "?Protocol";
+#endif
 	case ID_ET_AccessInfoDiscard:		return "Access info discarded";
 	case ID_N1_BearerNotImpl:			return "Bearer Service not implemented";
 	case ID_N1_CIDinUse:				return "CID in use";

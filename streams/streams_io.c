@@ -764,9 +764,8 @@ stream_rput (queue_t * p_queue, mblk_t * p_msg)
 
 			if(p_stream == NULL)
 				return;
-			if((tty = p_stream->tty) == NULL)
-				return;
-			tty_hangup(tty);
+			if((tty = p_stream->tty) != NULL)
+				tty_hangup(tty);
 			return;
 		}
 		freemsg (p_msg);
@@ -783,13 +782,8 @@ stream_rput (queue_t * p_queue, mblk_t * p_msg)
 			wake_up (&p_stream->writing);
 			wake_up (&p_stream->ioctling);
 
-			if((tty = p_stream->tty) == NULL) {
-#ifdef CONFIG_DEBUG_STREAMS
-				printf("HUP: No stream!\n");
-#endif
-				return;
-			}
-			tty_hangup(tty);
+			if((tty = p_stream->tty) != NULL)
+				tty_hangup(tty);
 			return;
 		}
 	case M_PCSIG:
