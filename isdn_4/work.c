@@ -84,7 +84,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 		if (!wildmatch (cg->protocol, prot->protocol)) continue;
 		if (!wildmatch (cg->card, prot->card)) continue;
 		if (!maskmatch (cg->mask, prot->mask)) continue;
-		if (!classmatch (cg->cclass, prot->cclass)) continue;
+		if (!classmatch(theclass,classmatch (cg->cclass, prot->cclass))) continue;
 		break;
 	}
 	if (prot == NULL)
@@ -158,7 +158,7 @@ pushprot (conngrab cg, int minor, int connref, char update)
 				if (!wildmatch (cg->protocol, cm->protocol)) continue;
 				if (!wildmatch (cg->card, cm->card)) continue;
 				if (!maskmatch (cg->mask, cm->mask)) continue;
-				if (!classmatch (cg->cclass, cm->cclass)) continue;
+				if (!classmatch(theclass, classmatch(cg->cclass, cm->cclass))) continue;
 				if (!wildmatch (sp1, cm->arg)) continue;
 
 				mz = allocsb (strlen (cm->args), (streamchar *)cm->args);
@@ -1145,7 +1145,7 @@ run_rp(struct conninfo *conn, char what)
 		if((pro = wildmatch(conn->cg->protocol,cfr->protocol)) == NULL) continue;
 		if((car = wildmatch(conn->cg->card,cfr->card)) == NULL) continue;
 		if((sub = maskmatch(conn->cg->mask,cfr->mask)) == 0) continue;
-		if((cla = classmatch(conn->cg->cclass,cfr->cclass)) == NULL) continue;
+		if((cla = classmatch(theclass,classmatch(conn->cg->cclass,cfr->cclass))) == NULL) continue;
 		if((ids = strchr(cfr->type,'/')) != NULL)
 			id = atoi(ids);
 
@@ -1225,7 +1225,7 @@ run_now(void *nix)
 					continue;
 				if(strcmp(conn->cg->protocol,what->protocol))
 					continue;
-				if(!classmatch(conn->cg->cclass,what->cclass))
+				if(!classmatch(theclass,classmatch(conn->cg->cclass,what->cclass)))
 					continue;
 				break;
 			}
@@ -1285,6 +1285,26 @@ run_now(void *nix)
 				if(log_34 & 2)
 					printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0) {
+					if(conn->cg->cclass != NULL) {
+						char *newclass = classmatch(conn->cg->cclass, theclass);
+						if((newclass == NULL) && (conn->state >= c_going_up)) {
+							mblk_t *mb = allocb(80,BPRI_MED);
+
+							setconnstate(conn, c_down);
+							if(log_34 & 2)printf("DisM8 ");
+							if(mb != NULL) {
+								int xlen;
+								*mb->b_wptr++ = PREF_NOERR;
+								m_putid (mb, CMD_OFF);
+								m_putsx (mb, ARG_MINOR);
+								m_puti (mb, conn->minor);
+								xlen = mb->b_wptr - mb->b_rptr;
+								DUMPW (mb->b_rptr, xlen);
+								(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
+								freeb(mb);
+							}
+						}
+					}
 					if(conn->state >= c_going_up)
 						pushprot(conn->cg,conn->minor,conn->connref,PUSH_UPDATE);
 					else

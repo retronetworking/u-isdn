@@ -81,6 +81,7 @@ pmatch1 (cf prot, conngrab *cgm)
 	car = wildmatch(cg->card,    prot->card);    if(car == NULL) return "5ERR Match CARD";
 	cla =classmatch(cg->cclass,  prot->cclass);  if(cla == NULL) return "4ERR Match CLASS";
 	sub = maskmatch(cg->mask,    prot->mask);    if(sub == 0)    return "6ERR Match SUBCARD";
+	if(!classmatch(cla,theclass)) return("2Not Now");
 
 	/* OK, that fits. Make a copy to assign the values to. */
 	cg = newgrab(cg);
@@ -116,6 +117,7 @@ pmatch1 (cf prot, conngrab *cgm)
 			car = wildmatch(cg->card,    prot->card);    if(car==NULL) continue;
 			cla =classmatch(cg->cclass,  prot->cclass);  if(cla==NULL) continue;
 			sub = maskmatch(cg->mask,    prot->mask);    if(sub==0)    continue;
+			if(!classmatch(cla,theclass)) continue;
 		}
 		/* Now make another copy for the parameters. If they don't fit
 		   we'll have to undo everything. This is stupid but there is no
@@ -495,6 +497,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			continue;
 		if ((matsub = maskmatch (cg->mask, dl->mask)) == 0)
 			continue;
+		if(!classmatch(matclass,theclass)) continue;
 		if(!(cg->flags & F_LEASED)) { /* ... and a working dial prefix. */
 			char *crd;
 			ulong_t sub;
@@ -555,6 +558,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 			if((matcar = wildmatch(matcrd,d->card)) == NULL) continue;
 			if((matcla = classmatch(matclass,d->cclass)) == NULL) continue;
 			if((matsub = maskmatch(cg->mask,d->mask)) == 0) continue;
+			if(!classmatch(matcla,theclass)) continue;
 			if(cg->d_level != d->num) {
 				if((cg->d_level < d->num) && (cg->d_nextlevel < d->num))
 					cg->d_nextlevel = d->num;
@@ -683,7 +687,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 					struct conninfo *conn;
 					int naconn = 0;
 
-					if(classmatch(cg->cclass,cl->cclass) == NULL)
+					if(classmatch(theclass,classmatch(cg->cclass,cl->cclass)) == NULL)
 						continue;
 					if(wildmatch(cg->card, cl->card) == NULL)
 						continue;
@@ -706,7 +710,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 							continue;
 						if((sit = wildmatch(conn->cg->site, cl->site)) == NULL)
 							continue;
-						if(classmatch(conn->cg->cclass, cl->cclass) == NULL)
+						if(classmatch(theclass,classmatch(conn->cg->cclass, cl->cclass)) == NULL)
 							continue;
 						if(maskmatch(conn->cg->mask,cl->mask) == 0)
 							continue;
@@ -765,11 +769,6 @@ findit (conngrab *foo, int ignbusy)
 
 	if(cg == NULL)
 		return "NoMemFoo";
-	cg->cclass = classmatch(cg->cclass,theclass);
-	if(cg->cclass == NULL) {
-		dropgrab(cg);
-		return "0Not Now";
-	}
 	p = cg->par_in;
 
 	if(p != NULL) {

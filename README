@@ -4,6 +4,12 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1996-01-03
+
+Update 33. Timer wieder umgestellt. Testcode für automatische Anpassung des
+Timeouts, noch nicht ausreichend getestet.
+
+
 *** 1996-01-02
 
 Update 32. WICHTIG UNBEDINGT INSTALLIEREN. Verbindungen werden nicht

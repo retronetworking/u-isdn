@@ -24,15 +24,15 @@
 #ifdef KERNEL
 #ifdef linux
 #include <linux/sched.h>
-#define TIME (jiffies/HZ)
+#define TIME jiffies
 #else
 extern struct timeval time;
-#define TIME time.tv_sec
+#define TIME (time.tv_sec*HZ + time.tv_usec/(1000000/HZ))
 #endif
 
 #else
 extern struct timeval Time;
-#define TIME time.tv_sec
+#define TIME (time.tv_sec*HZ + time.tv_usec/(1000000/HZ))
 #define time Time
 #endif
 
@@ -72,6 +72,7 @@ struct timer_ {
 #define TIMER_INCOMING 040
 #define TIMER_IFDATA_IN 0100
 #define TIMER_IFDATA_OUT 0200
+	int lasttime;
 	int interval;
 	int pretime;
 	int maxread, maxwrite;
@@ -129,7 +130,7 @@ timer_timeout(struct timer_ *tim)
 #ifdef NEW_TIMEOUT
 	tim->timer = 
 #endif
-		timeout((void *)timer_timeout,tim,tim->interval);
+		timeout((void *)timer_timeout,tim,tim->interval-HZ);
 }
 
 /* Streams code to close the driver. */
@@ -174,6 +175,12 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 	default:
 		break;
 	case PROTO_TICK:
+		if(tim->lasttime && (tim->lasttime < TIME)) {
+			if(tim->interval > TIME - tim->lasttime) /* shorter! */
+				tim->interval = TIME - tim->lasttime;
+			/* if it gets longer we won't do a thing. */
+		}
+		tim->lasttime = TIME;
 		if(tim->flags & TIMER_TIMER) {
 #ifdef NEW_TIMEOUT
 			untimeout(tim->timer);
@@ -181,7 +188,10 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 			untimeout(timer_timeout,tim);
 #endif
 
-			timer_timeout(tim);
+#ifdef NEW_TIMEOUT
+		tim->timer = 
+#endif
+			timeout((void *)timer_timeout,tim,tim->interval-HZ);
 		}
 		break;
 	case PROTO_INCOMING:
@@ -202,12 +212,13 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 #ifdef NEW_TIMEOUT
 			tim->timer =
 #endif
-				timeout((void *)timer_timeout,tim,tim->pretime);
+				timeout((void *)timer_timeout,tim,tim->pretime-HZ);
 			tim->flags |= TIMER_TIMER;
 			break;
 		default:
 			break;
 		}
+		tim->lasttime = 0;
 		break;
 	case PROTO_DISCONNECT:
 	case PROTO_INTERRUPT:
@@ -275,6 +286,7 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 					if(z < 1 || z > 24*60*60)
 						goto err;
 					tim->interval = z*HZ;
+					tim->lasttime = 0; /* for sync */
 					break;
 				case TIMER_PRETIME:
 					if ((error = m_geti (mp, &z)) != 0)
@@ -288,14 +300,14 @@ timer_proto (queue_t * q, mblk_t * mp, char down)
 						goto err;
 					if (z < 2 || z >= 7*24*60*60)
 						goto err;
-					tim->maxread = z;
+					tim->maxread = z*HZ;
 					break;
 				case TIMER_WRITEMAX:
 					if ((error = m_geti (mp, &z)) != 0)
 						goto err;
 					if (z < 2 || z >= 7*24*60*60)
 						goto err;
-					tim->maxwrite = z;
+					tim->maxwrite = z*HZ;
 					break;
 				}
 			}
