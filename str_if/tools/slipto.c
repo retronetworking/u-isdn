@@ -94,6 +94,7 @@ host_name (const char *name)
 static char ifname[IFNAMSIZ];
 static int s;
 int devfd = 0;
+int dontroutemyhost=0;
 char *dev = NULL;
 
 char makeroute[2000], unmakeroute[2000];
@@ -156,8 +157,9 @@ enable (void)
 #endif
 
 #ifdef ROUTE_IF
-		sprintf(makeroute+strlen(makeroute), "%s add -host %s dev %s; ", ROUTE_PATH,ichaddr,ifname);
-		sprintf(makeroute+strlen(makeroute), "%s add -host %s gw %s dev %s; ", ROUTE_PATH,duaddr,ichaddr,ifname);
+		if(!dontroutemyhost) 
+			sprintf(makeroute+strlen(makeroute), "%s add -host %s dev lo; ", ROUTE_PATH,ichaddr);
+		sprintf(makeroute+strlen(makeroute), "%s add -host %s dev %s; ", ROUTE_PATH,duaddr,ifname);
 		if(arpaddr != NULL)
 			sprintf(makeroute+strlen(makeroute), "%s -s %s %s pub; ", ARP_PATH,duaddr,arpaddr);
 
@@ -455,8 +457,11 @@ main (int argc, char *argv[])
 	signal (SIGCHLD, SIG_IGN);
 	signal (SIGTTOU, SIG_IGN);
 
-	while ((s = getopt (argc, argv, "Ddr:R:lEMm:vfLop:s:S:A:")) != EOF)
+	while ((s = getopt (argc, argv, "Ddr:R:lEMm:vfLop:s:S:A:x")) != EOF)
 		switch (s) {
+		case 'x':
+			dontroutemyhost=1;
+			break;
 		case 'D':
 			dodebug = 1;
 			break;
@@ -522,7 +527,7 @@ main (int argc, char *argv[])
 	duaddr = *argv++;
 
 	if(!dodebug) 
-		freopen(stderr,"w","/dev/null");
+		freopen("/dev/null","w",stderr);
 
 	if ((s = socket (AF_INET, SOCK_DGRAM, IPPROTO_IP)) < 0)
 		xquit ("socket");

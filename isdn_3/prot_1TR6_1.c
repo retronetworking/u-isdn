@@ -2430,7 +2430,7 @@ killconn (isdn3_conn conn, char force)
 	}
 	if(conn->state != 0) {
 		if(conn->state == 99)
-			conn->state = 0;
+			setstate(conn, 0);
 		else if(force)
 			(void) phone_sendback (conn, MT_N1_REL, NULL);
 		else

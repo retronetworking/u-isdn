@@ -265,7 +265,7 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 		case M_OFF:
 			DEBUG(info) printk("%sISDN CIX1 0x3F\n",KERN_DEBUG );
 			ByteOutISAC(dumb,CIX0,0x3F);
-			if(dumb->polled==0 && !modeloop) isdn2_new_state(&dumb->card,0);
+			if(!modeloop) isdn2_new_state(&dumb->card,0);
 			dumb->chan[0].mode = mode;
 			break;
 		case M_STANDBY:
@@ -278,6 +278,12 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 			case 0x06:
 				DEBUG(info) printk("%sISDN CIX3 0x3F\n",KERN_DEBUG );
 				ByteOutISAC(dumb,CIX0,0x07);
+				break;
+			case 0x0C:
+			case 0x0D:
+				DEBUG(info) printk("%sISDN noCIX2 CIR %02x\n",KERN_DEBUG,ByteInISAC(dumb,CIR0));
+				if(!modeloop) isdn2_new_state(&dumb->card,1);
+				do_uptimer = 0;
 				break;
 			default:
 				DEBUG(info) printk("%sISDN noCIX0 CIR %02x\n",KERN_DEBUG,ByteInISAC(dumb,CIR0));
@@ -315,7 +321,7 @@ mode (struct _isdn1_card * card, short channel, char mode, char listen)
 			case 0x0C:
 			case 0x0D:
 				DEBUG(info) printk("%sISDN noCIX1 CIR %02x\n",KERN_DEBUG,ByteInISAC(dumb,CIR0));
-				if(dumb->polled==0 && !modeloop) isdn2_new_state(&dumb->card,1);
+				if(!modeloop) isdn2_new_state(&dumb->card,1);
 				do_uptimer = 0;
 				break;
 			default:
