@@ -3092,7 +3092,7 @@ isdn2_wsrv (queue_t *q)
 										if(0)printf("%sC\n",KERN_DEBUG);
 								} else {
 									if(0)printf ("%s,\n",KERN_DEBUG);
-									putbqff (q, mp);
+									putbqff(q, mp);
 									return;
 								}
 							} else {

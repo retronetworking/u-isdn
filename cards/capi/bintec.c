@@ -904,6 +904,10 @@ DEBUG(info) if(channel == 0)printk("%sBintec: candata finds %d on chan %d polled
 		return 0;
 	ret = (bp->chan[channel].q_out.nblocks < 8);
 DEBUG(info)if(bp->polled) bp->polled--;
+if(!ret) { static int jif = 0; 
+	    if(jif < jiffies-HZ) printk("%scandata blocked for %d\n",KERN_DEBUG,channel);
+		jif = jiffies;
+    }
 	return ret;
 }
 
