@@ -31,7 +31,7 @@ extern void log_printmsg (void *log, const char *, mblk_t *, const char*);
  */
 static struct module_info v110_minfo =
 {
-		0, "v110", 0, INFPSZ, 8000, 2000
+		0, "v110", 0, INFPSZ, 200,100
 };
 
 static qf_open v110_open;

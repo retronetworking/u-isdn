@@ -13,6 +13,17 @@ Obige Parameter gelten für diese Betaversion. Die Vollversion wird
 unter der GPL bzw. ihrem deutschen Äquivalent verfügbar sein.
 
 
+Wenn ich Fehler suchen soll:
+---------------------------
+- Support kaufen. (Kann man natürlich auch ohne Probleme machen :-)
+- DOKU LESEN. Wenn nicht verstanden, nochmal lesen. Wenn immer noch nicht
+  verstanden, Verständnisfrage stellen anstatt rumzubasteln und mich mit
+  dem Resultat der Bastelei zu beglücken.  :-/
+- Wenn beim Verbindungsaufbau was nicht funktioniert:
+  Master mit -wdmM starten, cu und AT/L starten, zugucken was passiert,
+  Konfigdatei + Master-stderr + AT/L-Output mir schicken.
+
+
 Achtung:
 =======
 
@@ -34,7 +45,7 @@ was nach.)
 
 Mit der Version 11 hat sich die Installationsprozedur fuer ISDN-Karten
 geaendert. Vorher: Config.c editieren, Modul bauen. Jetzt: d_teles.o
-laden, dann fuer jede Karte "insmod -o Tel0 teles.o name=$(cardname Tel0)
+laden, dann fuer jede Karte "insmod teles.o -o Tel0 name=$(cardname Tel0)
 mem=0xD6000 irq=5" ausfuehren. Daten anpassen! Unterschiedliche Namen
 verwenden! Das rc-Skript in tools/ wurde entsprechend angepasst.
 16-Bit-Karten: Zusaetzlich "ipl=X" (X=1..3) fuer die erste bis dritte Karte.
@@ -126,10 +137,14 @@ Support gibt es bei mir zu kaufen. Nähere Informationen und Preise -> Mail.
 
 Einen Treiberupdate gibts fuer DM 30 plus Medium. Fuer kommerzielle Kunden
 gibts dasselbe fuer DM 250, Erstsupport bis zur erfolgreichen Installation
-inbegriffen.
+inbegriffen. Dieses Angebot gilt nicht für Leute, die mich jeden Tag
+dreimal nerven; für die kostet der Support DM 400 pro Monat. (Jawohl, ich
+habe solche Kunden...) Support für Nebenstellenanlagen, die sich nicht an
+Wortlaut oder Sinn der Normen halten, wird gesondert berechnet.
 
-Fuer Privatleute etc. gibts den Support auch kostenlos, in Massen, via Mail
-oder via Usenet: de.comp.os.linux.
+Fuer Privatleute etc. gibts den Support auch kostenlos, via
+linux-isdn-request@uranus.central.de. Die Newsgroups de.comm.isdn und
+de.comp.os.linux lese ich momentan wegen Zeitmangel nicht, sorry.
 
 
 Systemvoraussetzungen
@@ -166,9 +181,9 @@ Sonstiges
 ---------
 
 In /etc/syslog.conf steht meistens sowas wie
-	*.=debug ....
+    *.=debug ....
 Das ist Unsinn. Ersetzen durch
-	*.debug  ....
+    *.debug  ....
 sonst debuggt er nur die Haelfte.
 
 Der syslogd macht fsync() oder sync() nach dem Schreiben jeder Zeile.
@@ -245,7 +260,7 @@ cd /usr/src
 tar xfvz /wo/auch/immer/isdn-xx.tar.gz
 cd isdn-xx
 cd patches
-for i in biglog more_free setnoswap ; do
+for i in biglog more_free setnoswap firewall ; do
     patch -p0 -d /usr/src/linux < $i
 done
 # Andere Patche in diesem Verzeichnis ansehen, evtl. ebenfalls installieren.
@@ -269,7 +284,7 @@ make.isdn
 # oder einfach "make install".
 ### Editiere /lib/modules/modules.isdn (die automatisch erzeugte Version
 ### steht in /lib/modules/modules.isdn.all:
-    -o Tel0 isdn/teles.o name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
+    isdn/teles.o -o Tel0 name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
   anstatt
     isdn/teles.o
   eintragen. Näheres siehe "Treiberparameter" weiter unten.
@@ -362,7 +377,7 @@ Die Treiber für einzelne Karten werden wie folgt geladen:
   
 
 Beispiel:  insmod d_teles.o
-           insmod -o Tel0 teles.o name=$(cardname Tel0) mem=0xD8000 irq=5
+           insmod teles.o -o Tel0 name=$(cardname Tel0) mem=0xD8000 irq=5
  Zum Entfernen des Treibers:
            rmmod Tel0 ; rmmod d_teles.o
 
@@ -396,7 +411,7 @@ AT/Kn
     Beendet die Verbindung <n>, beendet das betreffende Programm.
 AT/L Karte
     Listet den momentanen Status aller Verbindungen für die angegebene
-	Karte (kann weggelassen werden: alle Karten).
+    Karte (kann weggelassen werden: alle Karten).
 <[minor:]id> <Art> <Partner> <Key> <pid> <Modus/Karte> <UnitNow> <UnitAll> <Status>
     <minor>     Nummer der Verbindung, für AT/K o.ä.
     <n>         interne Folgenummer der Statusmeldung; Meldungen, die einen
@@ -420,8 +435,8 @@ AT/L Karte
 
     Bis zum nächsten AT-Befehl bleibt der Kanal im Monitormodus und meldet
     alle Zustandsänderungen automatisch. Außerdem kommt jede Minute eine
-	"Keepalive"-Zeile mit der aktuellen Uhrzeit sowie der Anzahl der
-	Minuten, die der Masterprozeß diesmal durchgelaufen ist. ;-)
+    "Keepalive"-Zeile mit der aktuellen Uhrzeit sowie der Anzahl der
+    Minuten, die der Masterprozeß diesmal durchgelaufen ist. ;-)
 AT/I
     Listet den internen Zustand. In der ersten Zeile stehen die erkannten
     ISDN-Karten, die zweite Zeile enthält den internen Zustand des ISDN-
@@ -429,10 +444,10 @@ AT/I
 AT/W Karte
     Beobachtet den Traffic auf den D-Kanälen der Karte (kann ein Pattern
     sein: AT/W* auf allen Karten). Dazu muß :de in der DL-Zeile stehen.
-	Bei aktiven Karten sind das die Protokolldaten, zB CAPI-Nachrichten.
-	Die Daten werden _nicht_ interpretiert.
+    Bei aktiven Karten sind das die Protokolldaten, zB CAPI-Nachrichten.
+    Die Daten werden _nicht_ interpretiert.
 
-	Zusätzlich werden dieselben Daten wie bei AT/L angezeigt.
+    Zusätzlich werden dieselben Daten wie bei AT/L angezeigt.
 AT/M foo
     Sendet den Systembefehl "foo" nach unten. Gefährlich.
     Kann zum Online-Rekonfigurieren von Modulen verwendet werden. Beispiel:
@@ -968,7 +983,7 @@ Die Reihenfolge ist wichtig.
 
            Entweder :sp 8 oder :sp 65 muß angegeben werden, NICHT beides!
   :sp 8    DSS1, Euro-ISDN. [euro]
-    :b1    an manchen Nebenstellen zur korekten Nummernerkennung notwendig.
+    :b1    an manchen Nebenstellen zur korrekten Nummernerkennung notwendig.
            Einschalten, wenn die Nebenstellennummer nicht mit . oder /
            eingeleitet wird.
   :sp 65   1TR6, deutscher Standard. [german]
@@ -1308,12 +1323,40 @@ sprechende Bit im T70-Header gesetzt ist.
                   ":mt 0": Maximum "unendlich".
 
 
+CEPT "fakecept"
+----
+Erzeugt das von T-Online erwartete, vom T70-Standard abweichende Protokoll.
+Abgehende Dateneinheiten werden wie bei T.70 aufgespalten, bei ankommenden
+Dateneinheiten wird nur der Protokollheader entfernt.
+/* TODO: Momentan wird die Aufspaltung _nicht_ markiert -- soll/darf das
+   passieren, wenn ja wie? */
+
+:mt  1-4096 128 Maximale Datenblockgröße. Darf fuer T-Online auf keinen Fall
+                128 ueberschreiten.
+
+
 V.110 "v110"
 -----
 Implementiert V.110 im 38400-Baud-Modus. Mehr oder weniger ungetestete
 Experimentierversion. Warnung: Exzessive Kernelbelastung durch
 Bitschieberei etc. Für ernsthafte Anwendungen braucht es einen
 entsprechenden Wandler in Firmware / Hardware auf der Karte.
+
+
+Datenpuffer "buffer"
+-----------
+
+Die meisten Module haben einen ziemlich kleinen Datenpuffer (ca. 200 Bytes).
+Wenn das zuwenig ist, zB beim Empfangen von Audiodaten oder beim
+Weiterleiten von IP-Paketen, kann ein Puffer zwischengeschaltet werden.
+
+:br  XXX  Puffergröße beim Lesen / Empfangen
+:bw  XXX  Puffergröße beim Schreiben / Senden
+:bb  XXX  Puffergröße beim Lesen und Schreiben
+          Wertebereich für die Puffergröße: 10 bis 16*1024 Bytes.
+          Default: 4 kBytes.
+          Der Puffer füllt sich bis zur angegebenen Größe und leert sich
+          bis auf 1/4 dieses Werts.
 
 
 Datenrate "rate" (ungetestet!)
@@ -1465,9 +1508,8 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 "slip"; wenn jemand (zB ein Amiga mit KA9Q) auf SLIP besteht, muß das
 "slip"-Modul via ML-Zeile explizit eingesetzt werden.
 
+-D       Debugging-Output nach stderr.
 -d       eine "Default"-Route zur Gegenseite wird eingerichtet.
--m mtu   setzt die MTU auf den angegebenen Wert. (Die MRU ist auf 4000 Bytes
-         begrenzt.)
 -R ip    die IP-Nummer "ip" wird zur Gegenseite geroutet. (route -host)
 -r ip    Das IP-Netz "ip" wird zur Gegenseite geroutet. (route -net)
 -r ip:nm Das IP-Netz "ip" wird mit der Netmask "nm" zur Gegenseite geroutet.
@@ -1478,7 +1520,8 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 Die folgenden Optionen werden _nicht_ im ISDN-Betrieb verwendet, sondern im
 Standalonebetrieb mit anderen Streams-Treibern. Im ISDN-Betrieb werden
 diese Optionen nicht verwendet; stattdessen werden die entsprechenden
-Module auf der ML-Konfigurationszeile eingetragen.
+Module auf der ML-Konfigurationszeile eingetragen bzw. als MP-Optionen
+eingestellt.
 
 -L       protokolliert den Dialog zum Modem.
 -l       Debugging: setzt qinfo-Modul ein.
@@ -1492,6 +1535,8 @@ Module auf der ML-Konfigurationszeile eingetragen.
 -p dev   öffnet Device "dev". (Man verwende "/dev/tty" für stdin/out.)
 -v       verwende Van-Jacobsen-Headerkompression.
 -f       verwende Cisco-HDLC-Header.
+-m mtu   setzt die MTU auf den angegebenen Wert. (Die MRU ist auf 4000 Bytes
+         begrenzt.)
 
 Die folgenden Parameter müssen immer angegeben werden:
 

@@ -26,7 +26,7 @@
  */
 static struct module_info rate_minfo =
 {
-		0, "rate", 0, INFPSZ, 4096,2048,
+		0, "rate", 0, INFPSZ, 200,100
 };
 
 static qf_open rate_open;

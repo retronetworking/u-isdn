@@ -67,7 +67,8 @@ Xdropgrab(conngrab cg,int lin)
 void
 Xsetconnref(const char *deb_file, unsigned int deb_line, conninfo conn, int connref)
 {
-	printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
+	if(log_34 & 2)
+		printf("-%s:%d: SetConnRef.%p %d/%d/%ld -> %d\n",deb_file,deb_line,conn,conn->minor,conn->fminor,conn->connref,connref);
 	conn->connref = connref;
 }
 
@@ -177,11 +178,13 @@ void
 Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState state)
 {
 	chkone(conn);
-	printf("%s:%d: State %d: %s",deb_file,deb_line,conn->minor,state2str(conn->state));
-	if(conn->state != state)
-		printf(" -> %s\n",state2str(state));
-	else
-		printf("\n");
+	if(log_34 & 2) {
+		printf("%s:%d: State %d: %s",deb_file,deb_line,conn->minor,state2str(conn->state));
+		if(conn->state != state)
+			printf(" -> %s\n",state2str(state));
+		else
+			printf("\n");
+	}
 	if(conn->timer_reconn && (state == c_off || state == c_offdown || (state >= c_going_up
 		&& conn->state < c_going_up))) {
 		conn->timer_reconn = 0;
@@ -260,10 +263,10 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		conn->cause = 0;
 	else if(state == c_going_up)
 		conn->cause = 999999;
-	if((conn->state < c_going_down && state > c_going_down) || state <= c_off) {
+	if((conn->state < c_going_down && state > c_going_down) || state < c_off) {
 		if(conn->charge > 0) {
 			if(conn->cg != NULL)
-				syslog(LOG_WARNING,"COST %s:%s %ld",conn->cg->site,conn->cg->protocol,conn->charge);
+				syslog((state > c_going_down) ? LOG_INFO : LOG_WARNING,"COST %s:%s %ld",conn->cg->site,conn->cg->protocol,conn->charge);
 			else
 				syslog(LOG_WARNING,"COST ??? %ld",conn->charge);
 		}

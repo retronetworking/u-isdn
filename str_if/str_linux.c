@@ -212,7 +212,15 @@ printk("%sprotocol %x, ethertype %x\n",KERN_DEBUG,skb->protocol,lp->ethertype);
 		dev->tbusy = 1;
 		return -EAGAIN;
 	}
-	
+
+#if 0 /* def SK_STREAM -- not yet, problems forwarding packets! */
+	mb = dupskb(skb);
+	if(mb == NULL) {
+		printk("%sNo Buffers in str_if:write\n",KERN_WARNING);
+		dev->tbusy = 1;
+		return -ENOBUFS;
+	}
+#else
 	mb = allocb(skb->len+lp->offset, BPRI_LO);
 	if(mb == NULL)  {
 printk("No Buff\n");
@@ -260,6 +268,7 @@ printk("No Buff\n");
 	memcpy(mb->b_wptr,skb->data,skb->len);
 	mb->b_wptr += skb->len;
 	dev_kfree_skb (skb, FREE_WRITE);
+#endif
 	putnext(WR(lp->q),mb);
 	lp->stats.tx_packets++;
 
@@ -306,7 +315,7 @@ static qf_srv str_if_rsrv, str_if_wsrv;
 
 static struct module_info minfo =
 {
-		0xbad, "str_if", 0, INFPSZ, 2500,800
+		0xbad, "str_if", 0, INFPSZ, 200,100
 };
 
 static struct qinit r_init =
@@ -355,6 +364,9 @@ str_if_proto (queue_t * q, mblk_t * mp, char isdown)
 					lp->offset = z;
 					z = 0;
 				}
+#ifdef SK_STREAM
+				dev->hard_header_len = lp->offset;
+#endif
 				freemsg(mp);
 				if((mp = allocb(10,BPRI_MED)) != NULL) {
 					m_putid(mp,PROTO_OFFSET);
@@ -433,7 +445,9 @@ str_if_proto (queue_t * q, mblk_t * mp, char isdown)
 }
 
 
+#ifndef UNREGISTER
 void **netfree = NULL;
+#endif
 
 static int
 str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
@@ -444,7 +458,9 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	int err = 0;
 	int nr = 0;
 	int allocated = 1;
+#ifndef UNREGISTER
 	void **freedev;
+#endif
 
 	if (!suser ()){
 		printf ("str_if: not superuser\n");
@@ -456,6 +472,7 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		splx(s);
 		return 0;
 	}
+#ifndef UNREGISTER
 	freedev = netfree;
 	if(freedev != NULL) {
 		netfree = *freedev;
@@ -464,7 +481,9 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		lp = (struct strl_local *)netdev->priv;
 		memset(lp,0,sizeof(*lp));
 		allocated = 0;
-	} else {
+	} else
+#endif
+	{
 		struct device *nd;
 		netdev = kmalloc(sizeof(*netdev),GFP_ATOMIC);
 		if(netdev == NULL) {
@@ -546,23 +565,31 @@ str_if_close (queue_t *q, int dummy)
 	struct device *dev = (struct device *) q->q_ptr;
 	struct strl_local *lp = (struct strl_local *)dev->priv;
 	int s;
+#ifndef UNREGISTER
 	void **freedev;
+#endif
 
-	s = splimp ();
+	s = splstr ();
 
-#if LINUX_VERSION_CODE < 66304 /* 1.3.0 -- unregister_netdev does this. */
+#ifdef UNREGISTER
+	unregister_netdev(dev);
+	dev->priv = NULL; /* you never know... */
+#else
 	dev_close(dev);
 #endif
 
 	lp->q = NULL;
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
+#ifdef UNREGISTER
+	free(lp);
+	free(dev);
+	LESS_USE;
+#else
 	freedev = (void *)dev;
 	freedev--;
 	*freedev = netfree;
 	netfree = freedev;
-#ifdef UNREGISTER
-	LESS_USE;
 #endif
 	splx (s);
 }
@@ -688,7 +715,6 @@ str_if_rsrv (queue_t *q)
 	struct device *dev = (struct device *)q->q_ptr;
 	struct strl_local *lp = (struct strl_local *)dev->priv;
 	ushort_t encap = lp->ethertype;
-
 	while ((mp = getq (q)) != NULL) {
 		switch (DATA_TYPE(mp)) {
 		case MSG_PROTO:
@@ -720,22 +746,32 @@ str_if_rsrv (queue_t *q)
 				struct sk_buff *skb;
 				int len = msgdsize(mp);
 				int offset = 0;
-
-				skb = alloc_skb(len, GFP_ATOMIC);
-				if (skb == NULL) {
-					printk("%s%s: Memory squeeze, dropping packet.\n", KERN_INFO,dev->name);
-					lp->stats.rx_dropped++;
-					putbqf(q,mp);
-					return;
-				}
-				while(mp != NULL) {
-					int xlen = mp->b_wptr-mp->b_rptr;
-					memcpy(skb->data+offset, mp->b_rptr, xlen);
-					offset += xlen;
-					{
-						mblk_t *m1 = mp->b_cont;
-						freeb(mp);
-						mp = m1;
+#ifdef SK_STREAM
+				if((mp->b_cont == NULL) && (DATA_REFS(mp) == 1)) {
+					skb = DATA_BLOCK(mp);
+					DATA_REFS(mp)++;
+					skb->data = mp->b_rptr;
+					skb->tail = mp->b_wptr;
+					freeb(mp);
+				} else
+#endif
+				{
+					skb = alloc_skb(len, GFP_ATOMIC);
+					if (skb == NULL) {
+						printk("%s%s: Memory squeeze, dropping packet.\n", KERN_INFO,dev->name);
+						lp->stats.rx_dropped++;
+						putbqf(q,mp);
+						return;
+					}
+					while(mp != NULL) {
+						int xlen = mp->b_wptr-mp->b_rptr;
+						memcpy(skb->data+offset, mp->b_rptr, xlen);
+						offset += xlen;
+						{
+							mblk_t *m1 = mp->b_cont;
+							freeb(mp);
+							mp = m1;
+						}
 					}
 				}
 				skb->len = len;
@@ -772,7 +808,7 @@ str_ioctl (struct ifnet *ifp, int cmd, caddr_t data)
 	register struct ifaddr *ifa = (struct ifaddr *) data;
 	register struct ifreq *ifr = (struct ifreq *) data;
 	int error = 0;
-	int s = splimp ();
+	int s = splstr ();
 
 	if (ifa == NULL) {
 		splx (s);
@@ -836,17 +872,6 @@ static int do_init_module(void)
 
 static int do_exit_module(void)
 {
-	void ** freedev = netfree;
-	while((freedev = netfree) != NULL) {
-		struct device *dev;
-		struct strl_local *lp;
-
-		netfree = *freedev; freedev++;
-		dev = (void *)freedev;
-		lp = (struct strl_local *)dev->priv;
-		unregister_netdev(dev);
-		free(lp);
-	}
 	return unregister_strmod(&str_ifinfo);
 }
 #endif

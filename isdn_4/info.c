@@ -263,7 +263,7 @@ find_conn(void)
 		if(conn->flags & F_INCOMING)
 			dialin = 1;
 		if(charge > 0) {
-			if((conn->state <= c_going_down) && (conn->charge > 0)) {
+			if((conn->retries > 0) && (conn->charge > 0)) {
 				if(conn->cg != NULL)
 					syslog(LOG_ALERT,"Cost Runaway, connection not closed for %s:%s",conn->cg->site,conn->cg->protocol);
 				else
@@ -741,19 +741,16 @@ do_incoming(void)
 				goto cont;
 		}
 
-		if(0)printf("\n*** ConnRef Clash! old is %ld, new %ld\n",conn->connref,connref);
-
-		mz = allocb(40,BPRI_HI); if(mz == NULL) goto cont;
+		mz = allocb(80,BPRI_HI); if(mz == NULL) goto cont;
 
 		if(*resp != '+') {
-			/* Throw away the incoming call */
+			/* Throw away this call, there's either an old one active
+			   or we want to call back */
 			if(log_34 & 2)printf("Dis1 ");
 			*mz->b_wptr++ = PREF_NOERR;
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
 			m_putsx (mz, ARG_FORCE);
-			m_putsx (mz, ARG_CONNREF);
-			m_puti (mz, connref);
 			m_putsx (mz, ARG_CAUSE);
 			m_putsx2(mz, ID_N1_CallRejected);
 			if(crd[0] != '\0') {
@@ -788,7 +785,7 @@ do_incoming(void)
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
 				conn->cause = ID_priv_Print;
-				conn->causeInfo = "Drop Incoming";
+				conn->causeInfo = resp+1;
 				cg->refs++;
 				/* dropgrab(conn->cg; ** is new anyway */
 				conn->cg = cg;
@@ -796,7 +793,7 @@ do_incoming(void)
 				dropconn(conn);
 			}
 			resp = NULL;
-		} else { /* Throw away the outgoing call */
+		} else { /* Throw away the old call */
 			if(log_34 & 2)printf("Dis2 ");
 			*mz->b_wptr++ = PREF_NOERR;
 			m_putid (mz, CMD_OFF);
@@ -823,28 +820,45 @@ do_incoming(void)
 			(void) strwrite (xs_mon, mz->b_rptr, xlen, 1);
 			freeb(mz);
 
-			resp = NULL;
 			cg->refs++; dropgrab(conn->cg); conn->cg = cg;
 			ReportConn(conn);
-#if 1
-			/* cg->flags &=~ F_INCOMING; */
-			/* cg->flags |= F_OUTGOING; */
-			startconn(cg,fminor,connref,&resp, NULL);
-#endif
+
 			conn = xmalloc(sizeof(*conn));
 			if(conn != NULL) {
 				bzero(conn,sizeof(*conn));
 				conn->seqnum = ++connseq;
 				conn->cause = ID_priv_Print;
-				conn->causeInfo = "Drop Outgoing";
+				conn->causeInfo = resp+1;
 				cg->refs++;
 				/* dropgrab(conn->cg; ** is new anyway */
 				conn->cg = cg;
 				conn->next = isdn4_conn; isdn4_conn = conn;
 				dropconn(conn);
 			}
+			resp = NULL;
+#if 1
+			/* cg->flags &=~ F_INCOMING; */
+			/* cg->flags |= F_OUTGOING; */
+			startconn(cg,fminor,connref,&resp, NULL);
+			if(resp != NULL) {
+				printf("OhNo %s\n",resp);
+				conn = xmalloc(sizeof(*conn));
+				if(conn != NULL) {
+					bzero(conn,sizeof(*conn));
+					conn->seqnum = ++connseq;
+					conn->cause = ID_priv_Print;
+					conn->causeInfo = resp+1;
+					cg->refs++;
+					/* dropgrab(conn->cg; ** is new anyway */
+					conn->cg = cg;
+					conn->next = isdn4_conn; isdn4_conn = conn;
+					dropconn(conn);
+				}
+			}
+#endif
 		}
 		goto cont;
+			resp = NULL;
 	} else if(conn != NULL) /* existing connection record */
 		goto cont;
 	
@@ -942,8 +956,8 @@ do_incoming(void)
 			cg->refs++;
 			/* dropgrab(conn->cg); ** is new anyway */
 			conn->cg = cg;
-			conn->next = isdn4_conn; isdn4_conn = conn;
 			run_rp(conn,'r');
+			conn->next = isdn4_conn; isdn4_conn = conn;
 			dropconn(conn);
 		}
 	}
@@ -1059,10 +1073,8 @@ do_discrun(CState state)
 			}					
 			break;
 		case c_up:
-			setconnstate(conn,state);
-			break;
 		case c_down:
-			setconnstate(conn,c_down);
+			setconnstate(conn,state);
 			break;
 		default:;
 		} 
@@ -1449,8 +1461,6 @@ do_hasdisconnect(void)
 	}
 #endif
 	if(conn != NULL) {
-		syslog(LOG_INFO,"DOWN %s:%s",conn->cg->site,conn->cg->protocol);
-
 		switch(conn->state) {
 		case c_going_up:
 			do_updown(c_going_down);
@@ -1626,7 +1636,7 @@ do_atcmd(void)
 					}
 					if(conn != NULL) {
 						if(conn->state >= c_going_up || (dodrop && conn->state == c_down)) {
-							mblk_t *mb = allocb(30,BPRI_MED);
+							mblk_t *mb = allocb(80,BPRI_MED);
 
 							if(dodrop)
 								setconnstate(conn, c_forceoff);
@@ -2067,7 +2077,7 @@ do_getinfo(void)
 	}
 	if((charge > 0) && (conn->state >= c_going_up)) {
 			/* Send a TICK messge to the protocol stack to sync timers. */
-		mblk_t *mb = allocb(30,BPRI_MED);
+		mblk_t *mb = allocb(80,BPRI_MED);
 
 		if(mb != NULL) {
 			m_putid (mb, CMD_PROT);

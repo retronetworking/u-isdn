@@ -73,6 +73,8 @@ chstate (isdn3_talk talk, uchar_t ind, short add)
 				if (mb != NULL) {
 					m_putid (mb, PROTO_WANT_CONNECTED);
 					m_putsx (mb, ARG_FORCE);
+					m_putsx (mb, ARG_MINOR);
+					m_puti (mb,conn->minor);
 					if ((err = isdn3_at_send (conn, mb, 0)) != 0) 
 						freemsg (mb);
 				}
@@ -137,7 +139,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					err = -ENOENT;
 					break;
 				}
-				if (!(conn->talk->state & ST_up) || ((conn->minorstate & (MS_PROTO|MS_INITPROTO)) != (MS_PROTO|MS_INITPROTO))) {
+				if (!(conn->talk->state & ST_up) || !(conn->minorstate & MS_INITPROTO)) {
 					if((conn->talk->state & (ST_sent|ST_up)) == 0) {
 						conn->talk->state = ST_sent;
 						isdn3_chstate(conn->talk,PH_ACTIVATE_REQ,0,CH_OPENPROT);

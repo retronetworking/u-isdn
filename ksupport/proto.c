@@ -24,7 +24,7 @@
 
 static struct module_info proto_minfo =
 {
-		0, PROTO_NAME, 0, INFPSZ, 5000, 2000
+		0, PROTO_NAME, 0, INFPSZ, 200,100
 };
 
 static qf_open proto_open;
@@ -245,6 +245,16 @@ proto_prot (queue_t * q, mblk_t * mp)
 			break;
 		}
 		break;
+	case PROTO_INTERRUPT:
+		mp->b_rptr = origmp;
+		*(ushort_t *) (mp->b_rptr) = PROTO_HAS_INTERRUPT;
+#if 0
+		goto conn_intr;
+#else
+		qreply(q,mp);
+		mp = NULL;
+		break;
+#endif
 	case PROTO_CONNECTED:
 		mp->b_rptr = origmp;
 		*(ushort_t *) (mp->b_rptr) = PROTO_HAS_CONNECTED;
@@ -327,6 +337,12 @@ proto_prot (queue_t * q, mblk_t * mp)
 			}
 			splx (ms);
 		}
+		break;
+	case PROTO_WILL_INTERRUPT:
+		mp->b_rptr = origmp;
+		*(ushort_t *) (mp->b_rptr) = PROTO_INTERRUPT;
+		qreply (q, mp);
+		mp = NULL;
 		break;
 	case PROTO_MODULE:
 		if (strnamecmp (q, mp)) {	/* Config information for me. */

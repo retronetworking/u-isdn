@@ -337,14 +337,14 @@ char *loghdr(char level)
 
 void do_i_sleep_on(struct wait_queue **p)
 {
-	long s = splx(~0);
+	long s = spl(1);
     interruptible_sleep_on(p);
 	splx(s);
 }
 
 void do_sleep_on(struct wait_queue **p)
 {
-	long s = splx(~0);
+	long s = spl(1);
     sleep_on(p);
 	splx(s);
 }

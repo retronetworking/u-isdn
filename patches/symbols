@@ -1,6 +1,7 @@
 Einige zusaetzliche Symbole fuer kernel/swap.c.
+NICHT für 1.3.xx verwenden, die sind dort schon alle drin.
 
-Notwendig.
+Notwendig fuer 1.2.
 
 diff -rub --unidir /pub/src/linux/kernel/linux/include/linux/time.h ./include/linux/time.h
 --- /pub/src/linux/kernel/linux/include/linux/time.h	Wed Feb  1 08:19:36 1995

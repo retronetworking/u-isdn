@@ -61,7 +61,13 @@ int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line);
 
 #else /* DO_DEBUGGING */
 
+#ifdef kcheck
+#undef kcheck
+#endif
 #define kcheck(x) do { } while(0)
+#ifdef deb_kcheck
+#undef deb_kcheck
+#endif
 #define deb_kcheck(x,y,z) do { } while(0)
 
 #endif /* DO_DEBUGGING */
@@ -91,67 +97,9 @@ typedef unsigned long ulong_t;
 #endif
 
 #ifdef __KERNEL__
-/*
- * splx(XXX) sets the interrupt mask to XXX.
- *
- * spl(XXX) adds XXX to the current interrupt mask.
- * Note that all mask bits mean "enabled"!
- */
 
-extern inline unsigned long get_bh_mask(void)
-{
-	unsigned long flags;
-	save_flags(flags);
-	if(flags & 0x200)
-		return bh_mask | (1<<IRQ_BH);
-	else
-		return bh_mask &~(1<<IRQ_BH);
-}
-
-#define splx(i) (								\
-{												\
-	unsigned long oldmask;						\
-												\
-	oldmask = get_bh_mask();					\
-												\
-	if(i & (1<<IRQ_BH))							\
-		sti();									\
-	else										\
-		cli();									\
-	bh_mask = i;								\
-	oldmask;									\
-}												\
-)
-
-#define spl(x) splx(get_bh_mask()&~(x))
-#define splxcheck() do { } while(0)
-#define spl0() spl(0)
-#define spl1() spl(1<<IRQ_BH)
-#define spl2() spl(1<<IRQ_BH)
-#define spl3() spl(1<<IRQ_BH)
-#define spl4() spl(1<<IRQ_BH)
-#define spl5() spl(1<<IRQ_BH)
-#define spl6() splx(0)
-#define spl7() splx(0)
-#define splnet() spl((1<<NET_BH)|(1<<TIMER_BH))
-#define splimp() spl((1<<NET_BH)|(1<<TIMER_BH)|(1<<SERIAL_BH)|(1<<IRQ_BH))
-#define splhigh() spl((1<<NET_BH)|(1<<TIMER_BH)|(1<<SERIAL_BH)|(1<<IRQ_BH))
-
-#define IRQ1 1
-#define IRQ2 2
-#define IRQ3 3
-#define IRQ4 4
-#define IRQ5 5
-#define IRQ6 6
-#define IRQ7 7
-#define IRQ9 9
-#define IRQ10 10
-#define IRQ11 11
-#define IRQ12 12
-#define IRQ13 13
-#define IRQ14 14
-#define IRQ15 15
-
+#define spl(x) ({ long flags; save_flags(flags); cli(); flags;})
+#define splx(i) restore_flags(i)
 
 __BEGIN_DECLS
 

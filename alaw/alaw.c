@@ -29,7 +29,7 @@
  */
 static struct module_info alaw_minfo =
 {
-		0, "alaw", 0, INFPSZ, 10000, 2000
+		0, "alaw", 0, INFPSZ, 200,100
 };
 
 static qf_open alaw_open;

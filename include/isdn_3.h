@@ -190,7 +190,6 @@ typedef struct _isdn3_conn {
 
 /** Minorstate flags */
 /* State */
-#define MS_PROTO                 01				  /* mirrors MINOR_PROTO flag */
 #define MS_INCOMING              02			  /* This is an incoming connection */
 #define MS_OUTGOING              04			  /* This is an outgoing connection */
 

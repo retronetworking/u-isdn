@@ -1,5 +1,5 @@
 /**
- ** Streams T70 module
+ ** Streams fakecept module
  **/
 
 #include "f_module.h"
@@ -17,37 +17,37 @@
 #endif
 #include <sys/errno.h>
 #include "streamlib.h"
-#include "t70.h"
+#include "fakecept.h"
 #include "isdn_proto.h"
 
 
 /*
  * Standard Streams stuff.
  */
-static struct module_info t70_minfo =
+static struct module_info fakecept_minfo =
 {
-		0, "t70", 0, INFPSZ, 200,100
+		0, "fakecept", 0, INFPSZ, 200,100
 };
 
-static qf_open t70_open;
-static qf_close t70_close;
-static qf_put t70_rput,t70_wput;
-static qf_srv t70_rsrv,t70_wsrv;
+static qf_open fakecept_open;
+static qf_close fakecept_close;
+static qf_put fakecept_rput,fakecept_wput;
+static qf_srv fakecept_rsrv,fakecept_wsrv;
 
-static struct qinit t70_rinit =
+static struct qinit fakecept_rinit =
 {
-		t70_rput, t70_rsrv, t70_open, t70_close, NULL, &t70_minfo, NULL
+		fakecept_rput, fakecept_rsrv, fakecept_open, fakecept_close, NULL, &fakecept_minfo, NULL
 };
 
-static struct qinit t70_winit =
+static struct qinit fakecept_winit =
 {
-		t70_wput, t70_wsrv, NULL, NULL, NULL, &t70_minfo, NULL
+		fakecept_wput, fakecept_wsrv, NULL, NULL, NULL, &fakecept_minfo, NULL
 };
 
-struct streamtab t70info =
-{&t70_rinit, &t70_winit, NULL, NULL};
+struct streamtab fakeceptinfo =
+{&fakecept_rinit, &fakecept_winit, NULL, NULL};
 
-struct t70_ {
+struct fakecept_ {
 	mblk_t *msg;
 	ushort_t mtu;
 	ushort_t offset;
@@ -55,48 +55,48 @@ struct t70_ {
 
 /* Streams code to open the driver. */
 static int
-t70_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
+fakecept_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 {
-	register struct t70_ *t_70;
+	register struct fakecept_ *fakecept;
 
 	if (q->q_ptr) {
 		return 0;
 	}
-	t_70 = malloc(sizeof(*t_70));
-	if(t_70 == NULL)
+	fakecept = malloc(sizeof(*fakecept));
+	if(fakecept == NULL)
 		ERR_RETURN(-ENOMEM);
-	memset(t_70,0,sizeof(*t_70));
-	WR (q)->q_ptr = (char *) t_70;
-	q->q_ptr = (char *) t_70;
+	memset(fakecept,0,sizeof(*fakecept));
+	WR (q)->q_ptr = (char *) fakecept;
+	q->q_ptr = (char *) fakecept;
 
-	t_70->mtu = T70_mtu;
+	fakecept->mtu = FAKECEPT_MTU-2;
 
 	return 0;
 }
 
 /* Streams code to close the driver. */
 static void
-t70_close (queue_t * q, int dummy)
+fakecept_close (queue_t * q, int dummy)
 {
-	register struct t70_ *t_70;
+	register struct fakecept_ *fakecept;
 
-	t_70 = (struct t70_ *) q->q_ptr;
+	fakecept = (struct fakecept_ *) q->q_ptr;
 
-	if (t_70->msg != NULL) {
-		freemsg (t_70->msg);
-		t_70->msg = NULL;
+	if (fakecept->msg != NULL) {
+		freemsg (fakecept->msg);
+		fakecept->msg = NULL;
 	}
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
-	free(t_70);
+	free(fakecept);
 	return;
 }
 
 
 static void
-t70_proto (queue_t * q, mblk_t * mp, char down)
+fakecept_proto (queue_t * q, mblk_t * mp, char down)
 {
-	register struct t70_ *t_70 = (struct t70_ *) q->q_ptr;
+	register struct fakecept_ *fakecept = (struct fakecept_ *) q->q_ptr;
 	streamchar *origmp = mp->b_rptr;
 	ushort_t id;
 	int error = 0;
@@ -116,8 +116,8 @@ t70_proto (queue_t * q, mblk_t * mp, char down)
 			if (z < 0 || z >= 1024)
 				goto err;
 			if(!down) {
-				t_70->offset = z;
-				z += 2;
+				fakecept->offset = z;
+				z += 4;
 				freemsg(mp);
 				if((mp = allocb(10,BPRI_MED)) != NULL) {
 					m_putid(mp,PROTO_OFFSET);
@@ -128,9 +128,9 @@ t70_proto (queue_t * q, mblk_t * mp, char down)
 			}
 		} break;
 	case PROTO_CONNECTED:
-		if (t_70->msg != NULL) {
-			freemsg (t_70->msg);
-			t_70->msg = NULL;
+		if (fakecept->msg != NULL) {
+			freemsg (fakecept->msg);
+			fakecept->msg = NULL;
 		}
 		break;
 	case PROTO_MODULE:
@@ -143,12 +143,12 @@ t70_proto (queue_t * q, mblk_t * mp, char down)
 					goto err;
 				case PROTO_MODULE:
 					break;
-				case T70_MTU:
+				case FAKECEPT_MTU_ID:
 					if ((error = m_geti (mp, &z)) != 0)
 						goto err;
-					if ((z != 0) && (z < 4 || z >= 4090))
+					if (z < 4 || z >= 4090)
 						goto err;
-					t_70->mtu = z;
+					fakecept->mtu = z - 2; /* Two less because of the two additional header bytes */
 					break;
 				}
 			}
@@ -173,7 +173,7 @@ t70_proto (queue_t * q, mblk_t * mp, char down)
 
 /* Streams code to write data. */
 static void
-t70_wput (queue_t * q, mblk_t * mp)
+fakecept_wput (queue_t * q, mblk_t * mp)
 {
 	switch (DATA_TYPE(mp)) {
 	case MSG_PROTO:
@@ -194,15 +194,15 @@ t70_wput (queue_t * q, mblk_t * mp)
 
 /* Streams code to scan the write queue. */
 static void
-t70_wsrv (queue_t * q)
+fakecept_wsrv (queue_t * q)
 {
-	register struct t70_ *t_70 = (struct t70_ *) q->q_ptr;
+	register struct fakecept_ *fakecept = (struct fakecept_ *) q->q_ptr;
 	mblk_t *mp;
 
 	while ((mp = getq (q)) != NULL) {
 		switch (DATA_TYPE(mp)) {
 		case MSG_PROTO:
-			t70_proto (q, mp, 1);
+			fakecept_proto (q, mp, 1);
 			break;
 		case CASE_DATA:
 			{
@@ -213,14 +213,14 @@ t70_wsrv (queue_t * q)
 					putbq (q, mp);
 					return;
 				}
-				mh = allocb(2+t_70->offset,BPRI_LO);
+				mh = allocb(4+fakecept->offset,BPRI_LO);
 				if(mh == NULL) {
 					putbqf(q,mp);
 					return;
 				}
 				DATA_TYPE(mh) = DATA_TYPE(mp);
-				if ((t_70->mtu != 0) && (dsize (mp) > t_70->mtu)) {
-					int ml = t_70->mtu;
+				if (dsize (mp) > fakecept->mtu) {
+					int ml = fakecept->mtu;
 					mblk_t *mr = dupmsg (mp);
 					mblk_t *mz = mp;
 
@@ -256,14 +256,17 @@ t70_wsrv (queue_t * q)
 					putbq (q, mr);
 				}
 				if (/* XXX */ 0 || DATA_REFS(mp) > 1 ||
-				    	DATA_START(mp) > mp->b_rptr - 2) {
-					mh->b_rptr += t_70->offset+2;
-					mh->b_wptr += t_70->offset+2;
+				    	DATA_START(mp) > mp->b_rptr - 4) {
+					mh->b_rptr += fakecept->offset+4;
+					mh->b_wptr += fakecept->offset+4;
 					linkb (mh, mp);
 					mp = mh;
 				} else
 					freeb (mh);
-				*--mp->b_rptr = cont ? 0x80 : 0x00;
+				*--mp->b_rptr = 0x00;
+				*--mp->b_rptr = 0x01;
+/*				*--mp->b_rptr = cont ? 0x80 : 0x00;*/
+				*--mp->b_rptr = 0x00;
 				*--mp->b_rptr = 0x01;
 
 				putnext (q, mp);
@@ -288,7 +291,7 @@ t70_wsrv (queue_t * q)
 
 /* Streams code to read data. */
 static void
-t70_rput (queue_t * q, mblk_t * mp)
+fakecept_rput (queue_t * q, mblk_t * mp)
 {
 	switch (DATA_TYPE(mp)) {
 
@@ -311,15 +314,15 @@ t70_rput (queue_t * q, mblk_t * mp)
 
 /* Streams code to scan the read queue. */
 static void
-t70_rsrv (queue_t * q)
+fakecept_rsrv (queue_t * q)
 {
 	mblk_t *mp;
-	register struct t70_ *t_70 = (struct t70_ *) q->q_ptr;
+	register struct fakecept_ *fakecept = (struct fakecept_ *) q->q_ptr;
 
 	while ((mp = getq (q)) != NULL) {
 		switch (DATA_TYPE(mp)) {
 		case MSG_PROTO:
-			t70_proto (q, mp, 0);
+			fakecept_proto (q, mp, 0);
 			break;
 		case CASE_DATA:
 			{
@@ -334,7 +337,7 @@ t70_rsrv (queue_t * q)
 					freemsg (mp);
 					continue;
 				}
-				tlen = 1 + (uchar_t) * mp->b_rptr;
+				tlen = 3 + (uchar_t) * mp->b_rptr;
 				if(tlen > 1)
 					cont = (*(mp->b_rptr + 1) & 0x80);
 				else
@@ -349,21 +352,21 @@ t70_rsrv (queue_t * q)
 				if(mp == NULL)
 					continue;
 				mp->b_rptr += tlen;
-				if (t_70->msg == NULL)
-					t_70->msg = mp;
+				if (fakecept->msg == NULL)
+					fakecept->msg = mp;
 				else
-					linkb (t_70->msg, mp);
+					linkb (fakecept->msg, mp);
 				if (!cont) {
-					putnext (q, t_70->msg);
-					t_70->msg = NULL;
+					putnext (q, fakecept->msg);
+					fakecept->msg = NULL;
 				}
 			}
 			break;
 		case M_HANGUP:
 		case M_ERROR:
-			if (t_70->msg != NULL) {
-				freemsg (t_70->msg);
-				t_70->msg = NULL;
+			if (fakecept->msg != NULL) {
+				freemsg (fakecept->msg);
+				fakecept->msg = NULL;
 			}
 			/* FALL THRU */
 		default:
@@ -384,11 +387,11 @@ t70_rsrv (queue_t * q)
 #ifdef MODULE
 static int do_init_module(void)
 {
-	return register_strmod(&t70info);
+	return register_strmod(&fakeceptinfo);
 }
 
 static int do_exit_module(void)
 {
-	return unregister_strmod(&t70info);
+	return unregister_strmod(&fakeceptinfo);
 }
 #endif

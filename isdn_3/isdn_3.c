@@ -70,8 +70,6 @@ static ushort_t minorflags[NMINOR];
 #define MINOR_CONN_SENT 0300		  /* PROTO_CONN has ben sent down. */
 #define MINOR_STATE_MASK 0300
 
-#define MINOR_PROTO 0400
-
 #define MINOR_INT 01000	/* Don't send HANGUP on connection close */
 
 /*
@@ -80,7 +78,7 @@ static ushort_t minorflags[NMINOR];
 
 static struct module_info isdn3_minfo =
 {
-		0, "isdn_3", 0, INFPSZ, 4000, 2000
+		0, "isdn_3", 0, INFPSZ, 10000,5000
 };
 
 static qf_open isdn3_open;
@@ -256,7 +254,6 @@ isdn3_killconn (isdn3_conn conn, char force)
 	if (conn->hupdelay
 			&& ((minorflags[conn->minor] & MINOR_STATE_MASK) == MINOR_CONN_SENT
 					|| (minorflags[conn->minor] & MINOR_STATE_MASK) == MINOR_LISTEN_SENT)
-			&& (minorflags[conn->minor] & MINOR_PROTO)
 			&& (conn->minorstate & MS_INITPROTO)
 			&& (force == 0)) {		  /* Connection end delay? */
 
@@ -479,7 +476,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
      ** -1 B channel (MS_BCHAN)
      ** -2 Mode setting (MS_INITPROTO)
      ** -3 Minor number (conn->minor)
-     ** -4 Protocol stack set up (MINOR_PROTO)
+     ** -4 Protocol stack set up (MS_INITPROTO)
      ** -5 Direction is known (MS_INCOMING/OUTGOING)
      ** -6 Connection state (MS_CONN_SETUP,MS_CONN_LISTEN,MS_CONN)
      **
@@ -496,10 +493,6 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			conn, conn->delay, conn->conn_id, conn->minor, conn->fminor,
 			conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0,
 			established, deb_file, deb_line);
-	if((conn->minor > 0) && (minorflags[conn->minor] & MINOR_PROTO)) 
-		conn->minorstate |= MS_PROTO;
-	else
-		conn->minorstate &=~ MS_PROTO;
 	/*
 	 * Waiting for Godot
 	 */
@@ -580,15 +573,10 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		printf ("-SentAttach: ");
 		if (conn->minor == 0)
 			printf ("Minor zero; ");
-#if 0
-		if ((conn->minorstate & MS_INCOMING) && (established == EST_LISTEN)) 
-			printf ("Incoming Listen; ");
-#else
 		if ((established == EST_LISTEN)) 
 			printf ("Listen; ");
 		else if(established < EST_LISTEN)
 			printf ("<Listen; ");
-#endif
 		if (conn->minorstate & MS_DETACHED)
 			printf("Detached; ");
 		if (conn->card->is_up != 1)
@@ -645,7 +633,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 	 * Send directional information, setup info to protocol stack.
 	 */
 	if ((conn->minorstate & (MS_INCOMING | MS_OUTGOING))
-			&& (minorflags[conn->minor] & MINOR_PROTO)
+			&& (conn->minorstate & MS_SETUP_MASK)
+			&& (conn->minorstate & MS_INITPROTO)
 			&& !(conn->minorstate & MS_DIR_SENT)) {
 		mb = allocb (3, BPRI_HI);
 		if (mb == NULL) {
@@ -673,8 +662,10 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			printf ("Minor zero; ");
 		if (!(conn->minorstate & (MS_INCOMING | MS_OUTGOING)))
 			printf ("Unknown; ");
-		if (!(minorflags[conn->minor] & MINOR_PROTO))
-			printf ("Protocol stack not set; ");
+		if (!(conn->minorstate & (MS_SETUP_MASK)))
+			printf ("Not Set; ");
+		if (!(conn->minorstate & (MS_INITPROTO)))
+			printf ("NoProtocol; ");
 	}
 
 	/*
@@ -682,7 +673,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 	 */
 	switch (established) {
 	case EST_WILL_DISCONNECT:
-		if ((conn->minor != 0) && (minorflags[conn->minor] & MINOR_PROTO)) {
+		if ((conn->minor != 0) && (conn->minorstate & MS_INITPROTO)) {
 			mb = allocb (3, BPRI_HI);
 			if (mb == NULL)
 				err = -ENOMEM;
@@ -692,9 +683,12 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 					freemsg (mb);
 			}
 			break;
-		} else
+		} else {
 			established = EST_DISCONNECT;
+			/* FALL THRU */
+		}
 	case EST_DISCONNECT:
+		conn->minorstate &=~ (MS_INITPROTO | MS_INITPROTO_SENT);  /* XXX correct ? */
 		conn->minorstate &= ~MS_CONN_MASK;
 		conn->minorstate |= MS_CONN_NONE;
 		if (conn->minorstate & MS_CONN_TIMER) {
@@ -753,7 +747,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 	/*
 	 * If the protocol stack is set up, tell it about the change.
 	 */
-	if ((conn->minor != 0) && (minorflags[conn->minor] & MINOR_PROTO)) {
+	if ((conn->minor != 0) && !(conn->minorstate & MS_NOMINOR)) {
 		switch (conn->minorstate & MS_CONN_MASK) {
 		case MS_CONN_NONE:
 			if ((minorflags[conn->minor] & MINOR_STATE_MASK) >= MINOR_LISTEN_SENT) {
@@ -771,6 +765,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			}
 			break;
 		case MS_CONN_SETUP:
+			if(!(conn->minorstate & MS_INITPROTO))
+				break;
 			if ((minorflags[conn->minor] & MINOR_STATE_MASK) != MINOR_SETUP_SENT) {
 				mb = allocb (3, BPRI_HI);
 				if (mb == NULL)
@@ -786,6 +782,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			}
 			break;
 		case MS_CONN_LISTEN:
+			if(!(conn->minorstate & MS_INITPROTO))
+				break;
 			if ((minorflags[conn->minor] & MINOR_STATE_MASK) != MINOR_LISTEN_SENT) {
 				mb = allocb (3, BPRI_HI);
 				if (mb == NULL)
@@ -801,6 +799,8 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			}
 			break;
 		case MS_CONN:
+			if(!(conn->minorstate & MS_INITPROTO))
+				break;
 			if (((minorflags[conn->minor] & MINOR_STATE_MASK) != MINOR_CONN_SENT) && !(conn->minorstate & MS_CONNDELAY_TIMER)) {
 				mb = allocb (3, BPRI_HI);
 				if (mb == NULL)
@@ -853,7 +853,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			untimeout (timeout_conn, conn);
 #endif
 		}
-		if ((conn->minorstate && MS_SETUP_MASK) && !(conn->minorstate & (MS_NOMINOR | MS_DETACHED))
+		if ((conn->minorstate && MS_SETUP_MASK) && !(conn->minorstate & MS_DETACHED)
 			   && (minor2conn[conn->minor] == conn || minor2conn[conn->minor] == NULL)
 			   && ((mp = allocb (sizeof (struct _isdn23_hdr), BPRI_MED)) != NULL)) {
 			hdr = ((isdn23_hdr) mp->b_wptr)++;
@@ -871,6 +871,7 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 			}
 		}
 		conn->minorstate &= ~MS_SETUP_MASK;
+		conn->minorstate |= MS_SETUP_NONE;
 		conn->minorstate |= MS_DETACHED;
 		conn->minorstate &=~ MS_INITPROTO;
 		if(log_34 & 2)
@@ -880,11 +881,11 @@ Xisdn3_setup_conn (isdn3_conn conn, char established, const char *deb_file, unsi
 		if (established >= EST_NO_REAL_CHANGE)
 			printf ("Establ %d ", established);
 		if (minor2conn[conn->minor] != conn && minor2conn[conn->minor] != NULL)
-			printf ("conn %d ", conn->minor);
+			printf ("conn %d, ", conn->minor);
 		if (!(conn->minorstate & MS_SETUP_MASK))
-			printf ("MS %lx ", conn->minorstate);
-		if (!(minorflags[conn->minor] & (MINOR_PROTO)))
-			printf ("MF %x ", minorflags[conn->minor]);
+			printf ("NoSetupMask, ");
+		else if (!(conn->minorstate & MS_INITPROTO))
+			printf ("NoInitProto; ");
 		printf ("\n");
 	}
 	if (conn->talk == NULL)
@@ -1629,7 +1630,8 @@ printf(" Got SP %ld; ",subprotocol);
   found_ref:;
 
 	if (conn == NULL && minor != 0 && (minorflags[minor] & (MINOR_OPEN|MINOR_WILL_OPEN)) && !noconn) {
-		printf("! Find: minor %d",minor);
+		if(log_34 & 2)
+			printf("! Find: minor %d",minor);
 		if(minor > 0) 
 			printf(": Flags %o, 2conn %p",minorflags[minor], minor2conn[minor]);
 		printf("\n");
@@ -2085,7 +2087,6 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 			if (0)
 				printf ("Proto SetMode\n");
 			/* Protocol setup completed. Or so it seems. */
-			minorflags[minor] |= MINOR_PROTO;
 
 			if ((conn->minorstate & (MS_INITPROTO | MS_INITPROTO_SENT)) != MS_INITPROTO_SENT) {
 				err = -EBUSY;
@@ -2154,24 +2155,19 @@ conn->fminor, conn->minorstate, (conn->minor > 0) ? minorflags[conn->minor]: 0);
 		}
 		break;
 	case CMD_OFF:
-#if 0
-		if(nodisc) { /* Prevent disconnect from being sent to the stream */
+#if 1
+		if(nodisc) { /* Prevent PROTO_DICSONNECT from being sent to the stream */
 			if(conn != NULL) {
-				if(conn->minor != 0 && minor2conn[conn->minor] == conn) 
-					minor2conn[conn->minor] = NULL;
-				conn->minor = 0;
 				conn->minorstate |= MS_NOMINOR;
 			}
-			minor = fminor = 0; /* XXX */
 		}
+#endif
+#if 0
 		if ((conn != NULL) && ((conn->minorstate & MS_CONN_MASK) == MS_CONN) && !force) {
 			isdn3_killconn (conn, 0);
 			break;
 		}
 #endif
-		if(minor != 0 && do_int < 0) {
-			minorflags[minor] &=~ MINOR_PROTO;
-		}
 		/* FALL THRU */
 	default:
 		/*
@@ -3174,41 +3170,33 @@ printf(" *SM %d: %d %d.%d\n",__LINE__,conn->conn_id,conn->minor,conn->fminor);
 							case PH_ACTIVATE_NOTE:
 							case PH_ACTIVATE_IND:
 							case PH_ACTIVATE_CONF:
-								{
-									isdn3_card card = isdn3_findcard(hdr.hdr_notify.card);
-									if(card != NULL) {
-										if(card->is_up > 1) {
-											mblk_t *mx = allocb(32,BPRI_MED);
-											if(mx != NULL) {
-												m_putid(mx,IND_RECARD);
-												m_putlx(mx,card->id);
-												putnext (q, mx);
-											}
-										}
-										if((card->modes & CHM_INTELLIGENT) || (hdr.hdr_notify.ind != PH_ACTIVATE_NOTE))
-											card->is_up = 1;
+								if(card->is_up > 1) {
+									mblk_t *mx = allocb(32,BPRI_MED);
+									if(mx != NULL) {
+										m_putid(mx,IND_RECARD);
+										m_putlx(mx,card->id);
+										putnext (q, mx);
 									}
 								}
-								break;
-							case PH_DISCONNECT_IND:
-								{
-									isdn3_card card = isdn3_findcard(hdr.hdr_notify.card);
-									if(card != NULL) {
-										if(card->is_up != 2) {
-											mblk_t *mx = allocb(32,BPRI_MED);
-											if(mx != NULL) {
-												m_putid(mx,IND_OFFCARD);
-												m_putlx(mx,card->id);
-												putnext (q, mx);
-											}
-										}
-										card->is_up = 2;
-									}
-								}
+								if((card->modes & CHM_INTELLIGENT) || (hdr.hdr_notify.ind != PH_ACTIVATE_NOTE))
+									card->is_up = 1;
 								break;
 							case PH_DEACTIVATE_IND:
 							case PH_DEACTIVATE_CONF:
-								card->is_up = 0;
+								if(card->talk == NULL || card->talk->hndl->SAPI != SAPI_FIXED) {
+									card->is_up = 0;
+									break;
+								} /* ELSE FALL THRU */
+							case PH_DISCONNECT_IND:
+								if(card->is_up != 2) {
+									mblk_t *mx = allocb(32,BPRI_MED);
+									if(mx != NULL) {
+										m_putid(mx,IND_OFFCARD);
+										m_putlx(mx,card->id);
+										putnext (q, mx);
+									}
+								}
+								card->is_up = 2;
 								break;
 							}
 						} else {

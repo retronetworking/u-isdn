@@ -26,7 +26,7 @@
 
 static struct module_info ip_mon_minfo =
 {
-		0, "ip_mon", 0, INFPSZ, 4096,1024
+		0, "ip_mon", 0, INFPSZ, 200,100
 };
 
 static qf_open ip_mon_open;

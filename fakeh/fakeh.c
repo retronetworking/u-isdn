@@ -29,7 +29,7 @@
  */
 static struct module_info fakeh_minfo =
 {
-		0, "fakeh", 0, INFPSZ, 4096, 2048
+		0, "fakeh", 0, INFPSZ, 200,100
 };
 
 static qf_open fakeh_open;

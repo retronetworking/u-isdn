@@ -90,7 +90,7 @@ const char *CauseInfo(int cause, char *pri)
 	switch(cause) {
 	case 0: return "OK";
 	case ID_priv_Busy:					return "Local Busy";
-	case ID_priv_Print:					if(isdigit(*pri)) return pri+1; else return pri;
+	case ID_priv_Print:					if(pri == NULL) return "???"; else if(isdigit(*pri)) return pri+1; else return pri;
 	case ID_NOCARD:						return "card is not connected";
 	case ID_NOREPLY:					return "network doesn't answer";
 	case CHAR2('?','?'):				return "-unknown-";

@@ -43,9 +43,6 @@
 
 #define REP_T303 01000000
 #define RUN_ET_TFOO 02000000
-#if 0
-#define SVC_PENDING 080000
-#endif
 
 #define VAL_ET_T301 ( 180 *HZ)	/* timeout when calling out */
 #define VAL_ET_T302 ( 15 *HZ)
@@ -298,12 +295,6 @@ printf("FacL 6a is %d %d\n",ilen,nlen);
 					ident = (ident << 8) | (*qd_data++ & 0xFF);
 					ilen--;
 				}
-#if 0
-				if(ident != 0x7F7D) {
-printf("Fac 7 is %x\n",ident);
-					return;
-				}
-#endif
 
 				if(nlen < 2) {
 printf("FacL 7 is %d\n",nlen);
@@ -468,50 +459,6 @@ report_adddate (mblk_t * mb, uchar_t * data, int len)
 		return;
 	m_putsx (mb, ID_E0_date);
 	m_puts (mb, qd_data, qd_len);
-}
-
-#if 0
-static void
-report_addcost (mblk_t * mb, uchar_t * data, int len)
-{
-	int qd_len;
-	uchar_t *qd_data;
-
-	qd_data = qd_find (data, len, 6, PT_E5_chargingInfo, &qd_len);
-	if (qd_data == NULL)
-		return;
-	if (qd_len < 2)
-		return;
-	m_putsx (mb, ID_E5_chargingInfo);
-	m_puts (mb, qd_data + 1, qd_len - 1);
-}
-#endif
-
-static void
-report_addstatus (mblk_t * mb, uchar_t * data, int len)
-{
-#if 0
-	int qd_len;
-	uchar_t *qd_data;
-
-	qd_data = qd_find (data, len, 6, PT_N6_StatusCalled, &qd_len);
-	if (qd_data == NULL)
-		return;
-	if (qd_len < 1)
-		return;
-	m_putsx (mb, ID_N6_StatusCalled);
-	switch (*qd_data) {
-	case N1_St_Unknown:
-		m_putsx2 (mb, ID_N1_St_Unknown);
-		break;
-	case N1_St_Calling:
-		m_putsx2 (mb, ID_N1_St_Calling);
-		break;
-	default:
-		m_putx (mb, *qd_data & 0x7f);
-	}
-	m_puts (mb, qd_data, qd_len);
-#endif
 }
 
 static int
@@ -779,9 +726,6 @@ report_conn (isdn3_conn conn, uchar_t * data, int len)
 	m_putid (mb, IND_CONN);
 	conn_info (conn, mb);
 	report_addisplay (mb, data, len);
-#if 0
-	report_addnsf (mb, data, len);
-#endif
 	report_addfac (mb, data, len);
 	report_adddate (mb, data, len);
 
@@ -819,55 +763,6 @@ report_conn_ack (isdn3_conn conn, uchar_t * data, int len)
 	}
 	return err;
 }
-
-#if 0 /* unused */
-static int
-report_stat (isdn3_conn conn, uchar_t * data, int len)
-{
-	int err = 0;
-	char cval;
-
-	mblk_t *mb = allocb (256, BPRI_MED);
-
-	if (mb == NULL) {
-		setstate (conn, 0);
-		return -ENOMEM;
-	}
-	m_putid (mb, IND_INFO);
-	m_putid (mb, ID_ET_STAT);
-	conn_info (conn, mb);
-
-	cval = report_addcause (mb, data, len);
-	switch (cval) {
-	case 0: /* RemoteUserSuspend */
-		isdn3_setup_conn (conn, EST_DISCONNECT /* was INTERRUPT */ );
-		break;
-	case 1: /* ET_RemoteUserResumed */
-		switch (conn->state) {
-		case 7:
-		case 8:
-			isdn3_setup_conn (conn, EST_LISTEN);
-			break;
-		case 14:
-			break;
-#ifdef HAS_SUSPEND
-		case 15:
-#endif
-		case 10:
-			isdn3_setup_conn (conn, EST_CONNECT);
-		}
-		break;
-	}
-
-	if ((err = isdn3_at_send (conn, mb, 0)) < 0) {
-		freemsg (mb);
-		setstate (conn, 99);
-		return err;
-	}
-	return err;
-}
-#endif
-
 
 #define report_terminate(a,b,c,d) Xreport_terminate((a),(b),(c),(d),__LINE__)
 static void
@@ -1352,22 +1247,6 @@ ET_TALERT (isdn3_conn conn)
 	case 6:
 		{
 			mblk_t *asn = NULL;
-#if 0
-			int qd_len = 0;    
-			uchar_t *qd_d;
-
-			if ((((struct e_info *)conn->p_data)->flags & SVC_PENDING) && (asn = allocb (32, BPRI_MED)) != NULL) {
-				if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {                                   
-					freeb(asn);
-					asn = NULL;
-				} else {
-					*(uchar_t *) qd_d++ = 0;                            
-					*(uchar_t *) qd_d++ = ET_FAC_SVC;
-					*(ushort_t *) qd_d = 0;                     
-					asn->b_wptr = asn->b_rptr + qd_len;
-				}
-			}                                                       
-#endif
 
 			if(phone_sendback (conn, MT_ET_ALERT, asn) != 0 && asn != NULL)
 				freemsg(asn);
@@ -1494,37 +1373,6 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				get_hex(conn,data,len,info->llc,&info->llc_len,sizeof(info->llc),PT_E0_compatLo);
 				get_hex(conn,data,len,info->ulc,&info->ulc_len,sizeof(info->ulc),PT_E0_compatHi);
 
-#if 0
-				/*
-				* Check if transferred call. If we are forwarding this B channel
-				* to another device, ignore the call.
-				*/
-				{
-					isdn3_conn nconn;
-
-					QD_INIT (data, len)
-							break;
-					conn->((struct e_info *)conn->p_data) &=~ SVC_PENDING;
-					QD {
-					QD_CASE (0, PT_N0_netSpecFac):
-						if (qd_len < 4)
-							continue;
-						switch (qd_data[1]) {
-						case ET_FAC_SVC:
-							conn->((struct e_info *)conn->p_data) |= SVC_PENDING;
-							break;
-						case ET_FAC_DisplayUebergeben:
-							if (!(conn->minorstate & MS_BCHAN))
-								break;
-							for (nconn = conn->talk->conn; nconn != NULL; nconn = nconn->next)
-								if ((nconn->minorstate & MS_FORWARDING) && (nconn->minorstate & MS_BCHAN) && (nconn->bchan == conn->bchan))
-									goto out;
-						}
-					}
-					QD_EXIT;
-				}
-#endif
-
 				{
 					long flags = isdn3_flags(conn->card->info,-1,-1);
 					if(flags & FL_ANS_IMMED) {
@@ -1583,7 +1431,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_REL:
 				/* send REL up -- done when dropping out below */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
@@ -1594,7 +1442,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL_COM:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			default:
@@ -1728,7 +1576,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_REL:
 				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				break;
 			case MT_ET_DISC:
 				isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1756,7 +1604,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_REL:
 				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
@@ -1781,7 +1629,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			default:
@@ -1803,7 +1651,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
@@ -1831,7 +1679,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
@@ -1866,7 +1714,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			case MT_ET_DISC:
@@ -1901,7 +1749,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			default:
@@ -1914,7 +1762,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			default:
@@ -1927,68 +1775,12 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 			case MT_ET_REL_COM:
-				setstate (conn, 99);
+				setstate (conn, 0);
 				report_terminate (conn, data, len,0);
 				break;
 			default:
 				goto msg_err;
 			}
-			break;
-#if 0
-		case 20:
-			switch (msgtype) {
-			case MT_ET_REL:
-				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
-				report_terminate (conn, data, len,0);
-				break;
-			case MT_ET_REG_ACK:
-				/* send REG_ACK up */
-				setstate (conn, 99);
-				break;
-			case MT_ET_REG_REJ:
-				/* send REG_REJ up */
-				setstate (conn, 99);
-				break;
-			case MT_ET_DISC:
-				isdn3_setup_conn (conn, EST_DISCONNECT);
-				goto common_20_REL_COM;
-			common_20_REL_COM:
-				phone_sendback (conn, MT_ET_REL, NULL);
-				setstate (conn, 19);
-				report_terminate (conn, data, len,0);
-				break;
-			default:
-				goto msg_err;
-			}
-			break;
-		case 21:
-			switch (msgtype) {
-			case MT_ET_REL:
-				phone_sendback (conn, MT_ET_REL_COM, NULL);
-				setstate (conn, 99);
-				report_terminate (conn, data, len,0);
-				break;
-			case MT_ET_CANC_ACK:
-				/* send CANC_ACK up */
-				setstate (conn, 99);
-				break;
-			case MT_ET_CANC_REJ:
-				/* send CANC_REJ up */
-				setstate (conn, 99);
-				break;
-			case MT_ET_DISC:
-				isdn3_setup_conn (conn, EST_DISCONNECT);
-				goto common_21_REL_COM;
-			common_21_REL_COM:
-				phone_sendback (conn, MT_ET_REL, NULL);
-				setstate (conn, 19);
-				report_terminate (conn, data, len,0);
-				break;
-			default:
-				goto msg_err;
-			}
-#endif
 			break;
 		case 25:
 			switch (msgtype) {
@@ -2158,7 +1950,7 @@ send_disc (isdn3_conn conn, char release, mblk_t * data)
 			goto common_off; /* XXX experimental */
 		if ((err = phone_sendback (conn, MT_ET_REL_COM, data)) != 0 && data != NULL)
 			freemsg(data);
-		setstate (conn, 99);
+		setstate (conn, 0);
 		break;
 	case 19:
 	case 99:
@@ -2428,24 +2220,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 		case 6:
 			{
 				mblk_t *asn = NULL;
-#if 0
-				int qd_len = 0;    
-				uchar_t *qd_d;
-#endif
 				setstate (conn, 7);
-#if 0
-				if ((conn->((struct e_info *)conn->p_data) & SVC_PENDING) && (asn = allocb (32, BPRI_MED)) != NULL) {
-					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {                                   
-						freeb(asn);
-						asn = NULL;
-					} else {
-						*(uchar_t *) qd_d++ = 0;                            
-						*(uchar_t *) qd_d++ = ET_FAC_SVC;
-						*(ushort_t *) qd_d = 0;                     
-						asn->b_wptr = asn->b_rptr + qd_len;
-					}
-				}                                                       
-#endif
 
 				if(phone_sendback (conn, MT_ET_ALERT, asn) != 0 && asn != NULL)
 					freemsg(asn);
@@ -2461,63 +2236,69 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			mblk_t *asn = NULL;
 
 			if (data != NULL) {
-				{
-					int qd_len = 0;
-					uchar_t *qd_d;
+				int qd_len = 0;
+				uchar_t *qd_d;
 
-					if ((asn = allocb (256, BPRI_MED)) == NULL) {
+				if ((asn = allocb (256, BPRI_MED)) == NULL) {
+					conn->lockit--;
+					return -ENOMEM;
+				}
+				if (info->llc_len > 0) {
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_compatLo, info->llc_len, 0)) == NULL) {
 						conn->lockit--;
-						return -ENOMEM;
+						return -EIO;
 					}
-					if (info->llc_len > 0) {
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_compatLo, info->llc_len, 0)) == NULL) {
-							conn->lockit--;
-							return -EIO;
-						}
-						bcopy(info->llc,qd_d,info->llc_len);
-					}
+					bcopy(info->llc,qd_d,info->llc_len);
+				}
 #if 0
-					if (info->ulc_len > 0) {
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_compatLo, info->ulc_len, 0)) == NULL) {
-							conn->lockit--;
-							return -EIO; 
-						}
-						bcopy(info->ulc,qd_d,info->ulc_len);
+				if (info->ulc_len > 0) {
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_compatLo, info->ulc_len, 0)) == NULL) {
+						conn->lockit--;
+						return -EIO; 
 					}
-					if (info->bearer_len > 0) {
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_bearer_cap, info->bearer_len, 0)) == NULL) {
-							conn->lockit--;
-							return -EIO;
-						}
-						bcopy(info->bearer,qd_d,info->bearer_len);
+					bcopy(info->ulc,qd_d,info->ulc_len);
+				}
+				if (info->bearer_len > 0) {
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 6, PT_E0_bearer_cap, info->bearer_len, 0)) == NULL) {
+						conn->lockit--;
+						return -EIO;
 					}
+					bcopy(info->bearer,qd_d,info->bearer_len);
+				}
 #endif
 
 #if 0 /* error? Seems to be bad */
-					if (conn->bchan != 0) {
-						int basic = (conn->card ? conn->card->bchans <= 2 : 1);
-						if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_chanID, basic ? 1 : 3, 0)) == NULL) {
-							conn->lockit--;
-							return -EIO;
-						}
-						if (basic) {
-							*qd_d = 0x80 | conn->bchan;
-						} else {
-							*qd_d++ = 0xA1;
-							*qd_d++ = 0x83;
-							*qd_d++ = conn->bchan;
-						}
+				if (conn->bchan != 0) {
+					int basic = (conn->card ? conn->card->bchans <= 2 : 1);
+					if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_E0_chanID, basic ? 1 : 3, 0)) == NULL) {
+						conn->lockit--;
+						return -EIO;
 					}
-#endif
-					asn->b_wptr = asn->b_rptr + qd_len;
+					if (basic) {
+						*qd_d = 0x80 | conn->bchan;
+					} else {
+						*qd_d++ = 0xA1;
+						*qd_d++ = 0x83;
+						*qd_d++ = conn->bchan;
+					}
 				}
+#endif
+				asn->b_wptr = asn->b_rptr + qd_len;
+			}
+			switch (conn->state) {
+			case 6:
+			case 7:
+				break;
+			default:
+				printf("BadState2 ");
+				err = -EINVAL;
+				break;
 			}
 			conn->minorstate |= MS_WANTCONN;
 
 			isdn3_setup_conn (conn, EST_SETUP);
 
 			if (((conn->delay > 0) && (conn->minorstate & MS_DELAYING))
-			     || !(conn->minorstate & MS_PROTO)
 				 || !(conn->minorstate & MS_INITPROTO)
 				 || ((conn->state == 7) && !(conn->minorstate & MS_BCHAN))) {
 				if (data != NULL)
@@ -2528,29 +2309,20 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				conn->lockit--;
 				return 0;
 			}
-			switch (conn->state) {
-			case 6:
-			case 7:
-				if(!(conn->minorstate & MS_BCHAN)) {
-					setstate (conn, 7);
-					err = phone_sendback (conn, MT_ET_ALERT, asn);
-				} else {
-					setstate (conn, 8);
-					err = phone_sendback (conn, MT_ET_CONN, asn);
-				}
-				if (err == 0)
-					asn = NULL;
-				if(conn->state == 7) {
-					isdn3_repeat (conn, id, data);
-					data = NULL;
-				} else
-					isdn3_setup_conn (conn, EST_LISTEN);
-				break;
-			default:
-				printf("BadState2 ");
-				err = -EINVAL;
-				break;
+			if(!(conn->minorstate & MS_BCHAN)) {
+				setstate (conn, 7);
+				err = phone_sendback (conn, MT_ET_ALERT, asn);
+			} else {
+				setstate (conn, 8);
+				err = phone_sendback (conn, MT_ET_CONN, asn);
 			}
+			if (err == 0)
+				asn = NULL;
+			if(conn->state == 7) {
+				isdn3_repeat (conn, id, data);
+				data = NULL;
+			} else
+				isdn3_setup_conn (conn, EST_LISTEN);
 			if (asn != NULL)
 				freemsg (asn);
 		}
