@@ -77,7 +77,8 @@ static void N1_TCONN (isdn3_conn conn);
 static void N1_TALERT (isdn3_conn conn);
 static void N1_TFOO (isdn3_conn conn);
 
-static int send_N1_disc (isdn3_conn conn, char release, mblk_t * data);
+static int send_disc (isdn3_conn conn, char release, mblk_t * data);
+static void report_terminate (isdn3_conn conn, uchar_t * data, int len, ushort_t cause);
 
 struct t_info {
 	unsigned short service;
@@ -109,9 +110,9 @@ phone_timerup (isdn3_conn conn)
 	rtimer (N1_TFOO, conn);
 }
 
-#define pr_setstate(a,b) Xpr_setstate((a),(b),__LINE__)
+#define setstate(a,b) Xsetstate((a),(b),__LINE__)
 static void
-Xpr_setstate (isdn3_conn conn, uchar_t state, int deb_line)
+Xsetstate (isdn3_conn conn, uchar_t state, int deb_line)
 {
 	if(log_34 & 2)printf ("Conn PostN1:%d %ld: State %d --> %d\n", deb_line, conn->call_ref, conn->state, state);
 	if (conn->state == state)
@@ -166,6 +167,8 @@ Xpr_setstate (isdn3_conn conn, uchar_t state, int deb_line)
 		break;
 	}
 	conn->state = state;
+	if(state > 10 || state == 0)
+		report_terminate (conn, NULL,0,0);
 	switch (conn->state) {
 	case 1:
 		timer (N1_T303, conn);
@@ -209,8 +212,8 @@ Xpr_setstate (isdn3_conn conn, uchar_t state, int deb_line)
 	}
 }
 
-int
-get_n1_serviceInd (isdn3_conn conn, uchar_t * data, int len)
+static int
+get_serviceInd (isdn3_conn conn, uchar_t * data, int len)
 {
 	int qd_len;
 	uchar_t *qd_data;
@@ -226,8 +229,8 @@ get_n1_serviceInd (isdn3_conn conn, uchar_t * data, int len)
 	return 1;
 }
 
-int
-get_n1_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t what)
+static int
+get_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t what)
 {
 	int qd_len;
 	uchar_t *qd_data;
@@ -252,8 +255,8 @@ get_n1_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t what)
 	return 1;
 }
 
-int
-get_n1_eaz (isdn3_conn conn, uchar_t * data, int len, uchar_t what)
+static int
+get_eaz (isdn3_conn conn, uchar_t * data, int len, uchar_t what)
 {
 	int qd_len;
 	uchar_t *qd_data;
@@ -275,8 +278,8 @@ get_n1_eaz (isdn3_conn conn, uchar_t * data, int len, uchar_t what)
 	return 1;
 }
 
-int
-get_n1_chanID (isdn3_conn conn, uchar_t * data, int len)
+static int
+get_chanID (isdn3_conn conn, uchar_t * data, int len)
 {
 	int qd_len;
 	uchar_t *qd_data;
@@ -325,7 +328,7 @@ get_n1_chanID (isdn3_conn conn, uchar_t * data, int len)
 }
 
 static int
-report_n1_setup (isdn3_conn conn, uchar_t * data, int len)
+report_setup (isdn3_conn conn, uchar_t * data, int len)
 	/* Send SETUP up */
 {
 	int err = 0;
@@ -333,7 +336,7 @@ report_n1_setup (isdn3_conn conn, uchar_t * data, int len)
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INCOMING);
@@ -343,21 +346,21 @@ report_n1_setup (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_setup_ack (isdn3_conn conn, uchar_t * data, int len)
+report_setup_ack (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -368,21 +371,21 @@ report_n1_setup_ack (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_call_sent (isdn3_conn conn, uchar_t * data, int len)
+report_call_sent (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -393,21 +396,21 @@ report_n1_call_sent (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_alert (isdn3_conn conn, uchar_t * data, int len)
+report_alert (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -420,14 +423,14 @@ report_n1_alert (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_user_info (isdn3_conn conn, uchar_t * data, int len)
+report_user_info (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 	int qd_len;
@@ -436,7 +439,7 @@ report_n1_user_info (isdn3_conn conn, uchar_t * data, int len)
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -455,21 +458,21 @@ report_n1_user_info (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_conn (isdn3_conn conn, uchar_t * data, int len)
+report_conn (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_CONN);
@@ -481,21 +484,21 @@ report_n1_conn (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_conn_ack (isdn3_conn conn, uchar_t * data, int len)
+report_conn_ack (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -508,21 +511,21 @@ report_n1_conn_ack (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_info (isdn3_conn conn, uchar_t * data, int len)
+report_info (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -535,14 +538,14 @@ report_n1_info (isdn3_conn conn, uchar_t * data, int len)
 
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	return err;
 }
 
 static int
-report_n1_stat (isdn3_conn conn, uchar_t * data, int len)
+report_stat (isdn3_conn conn, uchar_t * data, int len)
 {
 	int err = 0;
 	char cval;
@@ -550,7 +553,7 @@ report_n1_stat (isdn3_conn conn, uchar_t * data, int len)
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return -ENOMEM;
 	}
 	m_putid (mb, IND_INFO);
@@ -583,7 +586,7 @@ report_n1_stat (isdn3_conn conn, uchar_t * data, int len)
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
 		conn->lockit--;
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return err;
 	}
 	conn->lockit--;
@@ -592,14 +595,14 @@ report_n1_stat (isdn3_conn conn, uchar_t * data, int len)
 
 
 static void
-report_n1_terminate (isdn3_conn conn, uchar_t * data, int len, ushort_t cause)
+report_terminate (isdn3_conn conn, uchar_t * data, int len, ushort_t cause)
 {
 	int err = 0;
 
 	mblk_t *mb = allocb (256, BPRI_MED);
 
 	if (mb == NULL) {
-		pr_setstate (conn, 0);
+		setstate (conn, 0);
 		return;
 	}
 	if(conn->state == 0 || conn->state == 99)
@@ -619,17 +622,17 @@ report_n1_terminate (isdn3_conn conn, uchar_t * data, int len, ushort_t cause)
 	}
 	if ((err = isdn3_at_send (conn, mb, 0)) != 0) {
 		freemsg (mb);
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return;
 	}
 	return;
 }
 
 static void
-n1_checkterm (isdn3_conn conn, uchar_t * data, int len)
+checkterm (isdn3_conn conn, uchar_t * data, int len)
 {
 	if (conn->state == 0) {
-		report_n1_terminate (conn, data, len,0);
+		report_terminate (conn, data, len,0);
 		isdn3_killconn (conn, 1); /* XXX */
 	}
 }
@@ -643,10 +646,10 @@ N1_T313 (isdn3_conn conn)
 	switch (conn->state) {
 	case 8:
 		phone_sendback (conn, MT_N1_DISC, NULL);
-		pr_setstate (conn, 11);
+		setstate (conn, 11);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 #ifdef HAS_SUSPEND
@@ -658,10 +661,10 @@ N1_T318 (isdn3_conn conn)
 	switch (conn->state) {
 	case 17:
 		/* Err */
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 #endif
@@ -675,7 +678,7 @@ N1_T305 (isdn3_conn conn)
 	case 11:
 		/* Err */
 		phone_sendback (conn, MT_N1_REL, NULL);
-		pr_setstate (conn, 19);
+		setstate (conn, 19);
 		break;
 	}
 }
@@ -690,10 +693,10 @@ N1_T3D1 (isdn3_conn conn)
 	case 21:
 		/* Err */
 		phone_sendback (conn, MT_N1_REL, NULL);
-		pr_setstate (conn, 19);
+		setstate (conn, 19);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -704,12 +707,12 @@ N1_T303 (isdn3_conn conn)
 	switch (conn->state) {
 	case 1:
 		/* Err */
-		send_N1_disc(conn,0,NULL);
+		send_disc(conn,0,NULL);
 		isdn3_setup_conn (conn, EST_DISCONNECT);
-		report_n1_terminate (conn, NULL,0,ID_NOREPLY);
+		report_terminate (conn, NULL,0,ID_NOREPLY);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -721,10 +724,10 @@ N1_T304 (isdn3_conn conn)
 	case 2:
 		/* Err */
 		phone_sendback (conn, MT_N1_DISC, NULL);
-		pr_setstate (conn, 11);
+		setstate (conn, 11);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -736,10 +739,10 @@ N1_T310 (isdn3_conn conn)
 	case 3:
 		/* Err */
 		phone_sendback (conn, MT_N1_DISC, NULL);
-		pr_setstate (conn, 11);
+		setstate (conn, 11);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -760,7 +763,7 @@ N1_T3D2 (isdn3_conn conn)
 		}
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -771,14 +774,14 @@ N1_T308 (isdn3_conn conn)
 	switch (conn->state) {
 	case 19:
 		if (conn->timerflags & REP_T308) {
-			pr_setstate (conn, 99);
+			setstate (conn, 99);
 		} else {
 			conn->timerflags |= REP_T308;
 			phone_sendback (conn, MT_N1_REL, NULL);
 			timer (N1_T308, conn);
 		}
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 #ifdef HAS_SUSPEND
@@ -790,10 +793,10 @@ N1_T319 (isdn3_conn conn)
 	switch (conn->state) {
 	case 15:
 		/* Err */
-		pr_setstate (conn, 10);
+		setstate (conn, 10);
 		break;
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 #endif
@@ -869,7 +872,7 @@ release_postn1 (isdn3_conn conn, uchar_t minor, char force)
 	case 99:
 		return;
 	default:
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		return;
 	}
 	if (force) {
@@ -887,10 +890,10 @@ release_postn1 (isdn3_conn conn, uchar_t minor, char force)
 		}
 		conn->bchan = 0;
 		conn->minorstate &=~ MS_BCHAN;
-		pr_setstate (conn, 19);
+		setstate (conn, 19);
 	} else {
 		phone_sendback (conn, MT_N1_DISC, NULL);
-		pr_setstate (conn, 11);
+		setstate (conn, 11);
 	}
 }
 
@@ -908,13 +911,13 @@ N1_T3AA (isdn3_conn conn)
 		if (conn->bchan != 0)
 			release_postn1 (conn, 0, 0);
 	}
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void N1_TFOO(isdn3_conn conn)
 {
-	conn->state = 0;
-	n1_checkterm (conn, NULL, 0);
+	setstate(conn, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -944,17 +947,17 @@ N1_TCONN (isdn3_conn conn)
 				mb->b_wptr = mb->b_rptr + qd_len;
 			}
 		}
-		if(send_N1_disc (conn, 0, mb) != 0 && mb != NULL)
+		if(send_disc (conn, 0, mb) != 0 && mb != NULL)
 			freemsg(mb);
 		goto term;
 		}
 	case 6:
-		pr_setstate (conn, 99);
-	  term:
-		report_n1_terminate(conn,NULL,0,0);
+		setstate (conn, 99);
+		break;
 	}
+  term:
 	conn->lockit--;
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static void
@@ -985,12 +988,12 @@ N1_TALERT (isdn3_conn conn)
 			if(phone_sendback (conn, MT_N1_ALERT, asn) != 0 && asn != NULL)
 				freemsg(asn);
 
-			pr_setstate (conn, 7);
+			setstate (conn, 7);
 		}
 		break;
 	}
 	conn->lockit--;
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 }
 
 static int
@@ -1009,17 +1012,17 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		switch (msgtype) {
 		case MT_N1_SETUP:
 			conn->minorstate |= MS_INCOMING;
-			pr_setstate (conn, 6);
+			setstate (conn, 6);
 
-			(void) get_n1_chanID (conn, data, len);
-			if (!get_n1_serviceInd (conn, data, len)) {
-				pr_setstate(conn,99);
+			(void) get_chanID (conn, data, len);
+			if (!get_serviceInd (conn, data, len)) {
+				setstate(conn,99);
 				goto pack_err;
 			}
 			if (isdn3_setup_conn (conn, EST_LISTEN) != 0)
 				goto pack_err;
-			get_n1_nr (conn, data, len, PT_N0_origAddr);
-			get_n1_eaz (conn, data, len, PT_N0_destAddr);
+			get_nr (conn, data, len, PT_N0_origAddr);
+			get_eaz (conn, data, len, PT_N0_destAddr);
 
 			/*
 			 * Check if transferred call. If we are forwarding this B channel
@@ -1057,7 +1060,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 					N1_TALERT(conn);
 				}
 			}
-			report_n1_setup (conn, data, len);
+			report_setup (conn, data, len);
 			break;
 		case MT_N1_CANC_ACK:
 		case MT_N1_CANC_REJ:
@@ -1072,42 +1075,42 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			break;
 		default:
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		}
 		break;
 	case 1:
 		switch (msgtype) {
 		case MT_N1_SETUP_ACK:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (isdn3_setup_conn (conn, EST_LISTEN) != 0)
 				goto pack_err;
-			report_n1_setup_ack (conn, data, len);
-			pr_setstate (conn, 2);
+			report_setup_ack (conn, data, len);
+			setstate (conn, 2);
 			break;
 		case MT_N1_CALL_SENT:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (isdn3_setup_conn (conn, EST_LISTEN) != 0)
 				goto pack_err;
-			report_n1_call_sent (conn, data, len);
-			pr_setstate (conn, 3);
+			report_call_sent (conn, data, len);
+			setstate (conn, 3);
 			break;
 		case MT_N1_REL:
 			/* send REL up -- done when dropping out below */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
-			report_n1_terminate (conn, data, len,0);
+			setstate (conn, 99);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-			(void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+			(void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
-			report_n1_terminate (conn, data, len,0);
+			setstate (conn, 19);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1124,31 +1127,31 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 	case 2:
 		switch (msgtype) {
 		case MT_N1_CALL_SENT:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (isdn3_setup_conn (conn, EST_LISTEN) != 0)
 				goto pack_err;
-			report_n1_call_sent (conn, data, len);
-			pr_setstate (conn, 3);
+			report_call_sent (conn, data, len);
+			setstate (conn, 3);
 			break;
 		case MT_N1_ALERT:
-			report_n1_alert (conn, data, len);
-			pr_setstate (conn, 4);
+			report_alert (conn, data, len);
+			setstate (conn, 4);
 			break;
 		case MT_N1_CONN:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (!(conn->minorstate & MS_BCHAN))
 				goto pack_err;
-			get_n1_serviceInd (conn, data, len);
+			get_serviceInd (conn, data, len);
 			if (isdn3_setup_conn (conn, EST_CONNECT) != 0)
 				goto pack_err;
-			report_n1_conn (conn, data, len);
+			report_conn (conn, data, len);
 			phone_sendback (conn, MT_N1_CONN_ACK, NULL);
-			pr_setstate (conn, 10);
+			setstate (conn, 10);
 			break;
 		case MT_N1_INFO:
 			{
 				QD_INIT (data, len) break;
-				report_n1_info (conn, data, len);
+				report_info (conn, data, len);
 				QD {
 				  QD_CASE (0, PT_N0_netSpecFac):
 					{
@@ -1163,7 +1166,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 						qd_data += nlen;
 						facility = *qd_data++;
 						if (facility != N1_FAC_Forward1 && facility != N1_FAC_Forward2) {
-							pr_setstate (conn, 3);
+							setstate (conn, 3);
 						}
 					}
 					break;
@@ -1173,17 +1176,17 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1200,38 +1203,38 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 	case 3:
 		switch (msgtype) {
 		case MT_N1_ALERT:
-			report_n1_alert (conn, data, len);
-			pr_setstate (conn, 4);
+			report_alert (conn, data, len);
+			setstate (conn, 4);
 			break;
 		case MT_N1_CONN:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (!(conn->minorstate & MS_BCHAN))
 				goto pack_err;
 			if (isdn3_setup_conn (conn, EST_CONNECT) != 0)
 				goto pack_err;
-			report_n1_conn (conn, data, len);
+			report_conn (conn, data, len);
 			phone_sendback (conn, MT_N1_CONN_ACK, NULL);
-			pr_setstate (conn, 10);
+			setstate (conn, 10);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
-			pr_setstate (conn, 3);
+			report_info (conn, data, len);
+			setstate (conn, 3);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			untimer (N1_T310, conn);
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1248,14 +1251,14 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 	case 4:
 		switch (msgtype) {
 		case MT_N1_CONN:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (!(conn->minorstate & MS_BCHAN))
 				goto pack_err;
 			if (isdn3_setup_conn (conn, EST_CONNECT) != 0)
 				goto pack_err;
-			report_n1_conn (conn, data, len);
+			report_conn (conn, data, len);
 			phone_sendback (conn, MT_N1_CONN_ACK, NULL);
-			pr_setstate (conn, 10);
+			setstate (conn, 10);
 			break;
 		case MT_N1_FAC_ACK:
 			/* send FAC_ACK up */
@@ -1266,25 +1269,25 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			untimer (N1_T3D2, conn);
 			break;
 		case MT_N1_ALERT:
-			report_n1_alert (conn, data, len);
+			report_alert (conn, data, len);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			untimer (N1_T3D2, conn);
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1304,16 +1307,16 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			break;
 		case MT_N1_REL:
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1330,7 +1333,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 	case 7:
 		switch (msgtype) {
 		case MT_N1_SETUP:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (isdn3_setup_conn (conn, EST_LISTEN) != 0)
 				goto pack_err;
 			break;
@@ -1343,26 +1346,26 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			untimer (N1_T3D2, conn);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			untimer (N1_T3D2, conn);
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1379,13 +1382,13 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 	case 8:
 		switch (msgtype) {
 		case MT_N1_CONN_ACK:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (!(conn->minorstate & MS_BCHAN))
 				goto pack_err;
 			if (isdn3_setup_conn (conn, EST_CONNECT) != 0)
 				goto pack_err;
-			report_n1_conn_ack (conn, data, len);
-			pr_setstate (conn, 10);
+			report_conn_ack (conn, data, len);
+			setstate (conn, 10);
 			break;
 		case MT_N1_SETUP:
 			break;
@@ -1398,25 +1401,25 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			untimer (N1_T3D2, conn);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1446,13 +1449,13 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			untimer (N1_T3D2, conn);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_USER_INFO:
-			report_n1_user_info (conn, data, len);
+			report_user_info (conn, data, len);
 			break;
 		case MT_N1_CON_CON:
 			/* send CON_CON up */
@@ -1460,18 +1463,18 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
-			pr_setstate (conn, 12);
+			setstate (conn, 12);
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 			/* Fehler */
@@ -1500,33 +1503,33 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			untimer (N1_T3D2, conn);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_CONN_ACK:
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (!(conn->minorstate & MS_BCHAN))
 				goto pack_err;
 			if (isdn3_setup_conn (conn, EST_CONNECT) != 0)
 				goto pack_err;
-			report_n1_conn_ack (conn, data, len);
-			pr_setstate (conn, 10);
+			report_conn_ack (conn, data, len);
+			setstate (conn, 10);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1547,32 +1550,32 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			break;
 		case MT_N1_SUSP_ACK:
 			/* send SUSP_ACK up */
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_SUSP_REJ:
 			/* send SUSP_REJ up */
-			pr_setstate (conn, 10);
+			setstate (conn, 10);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
-            (void)send_N1_disc (conn, 1, NULL);
-			report_n1_terminate (conn, data, len,0);
+            (void)send_disc (conn, 1, NULL);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_RES_REJ:
 		case MT_N1_REG_ACK:
@@ -1589,19 +1592,19 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		switch (msgtype) {
 		case MT_N1_RES_ACK:
 			/* send RES_ACK up */
-			(void) get_n1_chanID (conn, data, len);
+			(void) get_chanID (conn, data, len);
 			if (isdn3_setup_conn (conn, EST_CONNECT) != 0)
 				goto pack_err;
-			pr_setstate (conn, 10);
+			setstate (conn, 10);
 			break;
 		case MT_N1_RES_REJ:
 			/* send RES_REJ up */
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
@@ -1610,8 +1613,8 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			isdn3_setup_conn (conn, EST_DISCONNECT);
 		  common_17_REL:
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
-			report_n1_terminate (conn, data, len,0);
+			setstate (conn, 19);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_REG_ACK:
@@ -1619,7 +1622,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_CANC_ACK:
 		case MT_N1_CANC_REJ:
 			/* Fehlermeldung */
-			pr_setstate (conn, 4);
+			setstate (conn, 4);
 			break;
 		default:
 			break;
@@ -1633,7 +1636,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_SUSP_ACK:
 			/* xxx */
@@ -1645,16 +1648,16 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			/* send FAC_REJ up */
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			/* Release B chan */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		default:
 			break;
@@ -1667,7 +1670,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_FAC_ACK:
 			/* send FAC_ACK up */
@@ -1678,15 +1681,15 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			untimer (N1_T3D2, conn);
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1710,7 +1713,7 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL_ACK:
 			/* send REL_ACK up */
 		  common_19_REL_ACK:
-			pr_setstate (conn, 99);
+			setstate (conn, 99);
 			break;
 		case MT_N1_FAC_ACK:
 			/* send FAC_ACK up */
@@ -1719,10 +1722,10 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			/* send FAC_REJ up */
 			break;
 		case MT_N1_INFO:
-			report_n1_info (conn, data, len);
+			report_info (conn, data, len);
 			break;
 		case MT_N1_STAT:
-			report_n1_stat (conn, data, len);
+			report_stat (conn, data, len);
 			break;
 		default:
 			break;
@@ -1733,15 +1736,15 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_REG_ACK:
 			/* send REG_ACK up */
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_REG_REJ:
 			/* send REG_REJ up */
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1750,8 +1753,8 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			/* send REL_ACK up */
 		  common_20_REL_ACK:
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
-			report_n1_terminate (conn, data, len,0);
+			setstate (conn, 19);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1768,15 +1771,15 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 		case MT_N1_REL:
 			/* send REL up */
 			phone_sendback (conn, MT_N1_REL_ACK, NULL);
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_CANC_ACK:
 			/* send CANC_ACK up */
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_CANC_REJ:
 			/* send CANC_REJ up */
-			pr_setstate (conn, 0);
+			setstate (conn, 99);
 			break;
 		case MT_N1_DISC:
 			isdn3_setup_conn (conn, EST_DISCONNECT);
@@ -1785,8 +1788,8 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 			/* send REL_ACK up */
 		  common_21_REL_ACK:
 			phone_sendback (conn, MT_N1_REL, NULL);
-			pr_setstate (conn, 19);
-			report_n1_terminate (conn, data, len,0);
+			setstate (conn, 19);
+			report_terminate (conn, data, len,0);
 			break;
 		case MT_N1_SUSP_ACK:
 		case MT_N1_RES_REJ:
@@ -1801,11 +1804,11 @@ recv (isdn3_conn conn, uchar_t msgtype, char isUI, uchar_t * data, ushort_t len)
 	case 99:
 		break;
 	default:
-		pr_setstate (conn, 0);
+		setstate (conn, 99);
 		break;
 	}
   out:
-	n1_checkterm (conn, data, len);
+	checkterm (conn, data, len);
 	return 0;
   pack_err:
 	release_postn1 (conn, 0, 1);
@@ -1847,8 +1850,7 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 			case 2:
 				/* Error */
 				phone_sendback (conn, MT_N1_DISC, NULL);
-				pr_setstate (conn, 11);
-				report_n1_terminate (conn, NULL, 0,0);
+				setstate (conn, 11);
 				break;
 			case 7:
 				if (0) {		  /* Last MSG war ALERT */
@@ -1861,7 +1863,7 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 				}
 				break;
 			}
-			n1_checkterm (conn, NULL, 0);
+			checkterm (conn, NULL, 0);
 		} else
 			phone_timerup (conn);
 		break;
@@ -1874,15 +1876,15 @@ chstate (isdn3_conn conn, uchar_t ind, short add)
 	case PH_DEACTIVATE_CONF:
 	case PH_DEACTIVATE_IND:
 	case PH_DISCONNECT_IND:
-		pr_setstate (conn, 0);
-		n1_checkterm (conn, NULL, 0);
+		setstate (conn, 99);
+		checkterm (conn, NULL, 0);
 		break;
 	}
 	return 0;
 }
 
 static int
-send_N1_disc (isdn3_conn conn, char release, mblk_t * data)
+send_disc (isdn3_conn conn, char release, mblk_t * data)
 {
 	int err = 0, err2;
 
@@ -1910,9 +1912,9 @@ send_N1_disc (isdn3_conn conn, char release, mblk_t * data)
 #endif
 			if ((err2 = phone_sendback (conn, MT_N1_REL, data)) != 0)
 				err = err2;
-			pr_setstate (conn, 19);
+			setstate (conn, 19);
 		} else {
-			pr_setstate (conn, 11);
+			setstate (conn, 11);
 		}
 		break;
 	case 11:
@@ -1932,16 +1934,16 @@ send_N1_disc (isdn3_conn conn, char release, mblk_t * data)
 		if ((err = phone_sendback (conn, MT_N1_DISC, data)) == 0)
 			data = NULL;
 		if (!release)
-			pr_setstate (conn, 11);
+			setstate (conn, 11);
 		else
-			pr_setstate (conn, 12);
+			setstate (conn, 12);
 		break; /* NO FALL THRU */
 	case 12:
 	  common_off_noconn:
 		/* B-Kanal trennen */
 		if ((err2 = phone_sendback (conn, MT_N1_REL, data)) != 0)
 			err = err2;
-		pr_setstate (conn, 19);
+		setstate (conn, 19);
 		break;
 	case 19:
 		break;
@@ -2139,7 +2141,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 						conn->lockit--;
 						return err;
 					}
-					pr_setstate (conn, 1);
+					setstate (conn, 1);
 				}
 				break;
 			default:
@@ -2155,7 +2157,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	 		mblk_t *asn = NULL;
         	int qd_len = 0;    
         	uchar_t *qd_d;
-			pr_setstate (conn, 7);
+			setstate (conn, 7);
                                                                   
         	if ((((struct t_info *)conn->p_data)->flags & SVC_PENDING) && (asn = allocb (32, BPRI_MED)) != NULL) {
             	if ((qd_d = qd_insert ((uchar_t *) asn->b_rptr, &qd_len, 0, PT_N0_netSpecFac, 4, 1)) == NULL) {                                   
@@ -2247,7 +2249,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			switch (conn->state) {
 			case 6:
 			case 7:
-				pr_setstate (conn, 8);
+				setstate (conn, 8);
 				if ((err = phone_sendback (conn, MT_N1_CONN, asn)) == 0)
 					asn = NULL;
 				isdn3_setup_conn (conn, EST_LISTEN);
@@ -2346,7 +2348,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				if ((err = phone_sendback (conn, MT_N1_FAC, asn)) == 0)
 					asn = NULL;
 				isdn3_setup_conn (conn, EST_LISTEN);
-				pr_setstate (conn, 8);
+				setstate (conn, 8);
 				break;
 			default:
 				printf("BadState4 ");
@@ -2379,7 +2381,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			}
 			/* set Data */
 			if (conn->state == 6 && cause == -1) {
-				pr_setstate(conn,99);
+				setstate(conn,99);
 				if(mb != NULL)
 					freemsg(mb);
 			} else {
@@ -2387,7 +2389,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 					doforce = 0;
 					/* Hmmm */
 				}
-				if (send_N1_disc (conn, 1 + doforce, mb) != 0 && mb != NULL)
+				if (send_disc (conn, 1 + doforce, mb) != 0 && mb != NULL)
 					freemsg (mb);
 			}
 
@@ -2403,7 +2405,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 	if (data != NULL && err == 0)
 		freemsg (data);
 
-	n1_checkterm (conn, NULL, 0);
+	checkterm (conn, NULL, 0);
 	conn->lockit--;
 	return err;
 }
@@ -2435,7 +2437,7 @@ killconn (isdn3_conn conn, char force)
 		if(force)
 			(void) phone_sendback (conn, MT_N1_REL, NULL);
 		else
-			(void) send_N1_disc (conn, 1, NULL);
+			(void) send_disc (conn, 1, NULL);
 	}
 }
 

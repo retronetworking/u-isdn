@@ -7,17 +7,6 @@
 
 #include "master.h"
 
-#if 0 /* master.h */
-struct loader {
-	char *card;
-	FILE *file;
-	long seqnum; /* number in config file */
-	int nrfile; /* number loaded to card */
-};
-
-/* cf_LF: num2: wait after load; num: block size */
-#endif
-
 static void
 card_load_close(struct loader *ld, char success)
 {
@@ -72,6 +61,20 @@ card_load_fail(struct loader *ld, int err)
 	int len;
     struct isdncard **pcard, *card = ld->card;
 
+	if(err == -EAGAIN) {
+		if(ld->timer)
+			untimeout(card_load,ld);
+		if(ld->thislen > 0)
+			ld->foffset -= ld->thislen;
+		else {
+			ld->thislen = 0;
+			ld->nrfile--;
+		}
+		ld->timer = 1;
+		timeout(card_load,ld,HZ/2);
+		return;
+	}
+	
     for (pcard = &isdn4_card; *pcard != NULL; pcard = &(*pcard)->next) {
         if (card == *pcard) {
             *pcard = card->next;
@@ -122,7 +125,7 @@ card_load_fail(struct loader *ld, int err)
 void
 card_load(struct loader *ld)
 {
-	cf dl,lf;
+	cf lf;
 	int do_again, thisseq;
 
 	ld->timer = 0;
@@ -153,130 +156,137 @@ card_load(struct loader *ld)
 		}
 	} else
 		do_again = 1;
-	if(!do_again || (ld->file != NULL)) {
-		char *buf = NULL;
-		int len, xlen, foffset;
-		mblk_t xx;
-		struct datab db;
-		struct iovec io[3];
-		streamchar ans[50];
+	if(ld->thislen >= 0) {
+		if (!do_again || (ld->file != NULL)) {
+			char *buf = NULL;
+			int len, xlen, foffset;
+			mblk_t xx;
+			struct datab db;
+			struct iovec io[3];
+			streamchar ans[50];
 
-		if(ld->file != NULL) {
-			buf = xmalloc(lf->num);
-			if(buf == NULL) {
-				syslog(LOG_ERR, "Card loader for %s !\n",ld->card);
-				goto ex_load;
-			}
-
-			if(fseek(ld->file,ld->foffset,0) < 0) {
-				syslog(LOG_ERR, "Card loader for %s: fseek returned %m\n",ld->card);
-				goto ex_load;
-			}
-			len = fread(buf,1,lf->num,ld->file);
-			if(len < 0) {
-				syslog(LOG_ERR, "Card loader for %s: read returned %m\n",ld->card);
-				free(buf);
-				goto ex_load;
-			}
-			foffset = ld->foffset;
-			ld->foffset += len;
-		} else {
-			len = 0;
-			foffset = 0;
-			ld->foffset = 0;
-		}
-		if(!do_again && (ld->file == NULL))
-			++ld->nrfile; /* last file; we're finished */
-		xx.b_rptr = xx.b_wptr = ans;
-		xx.b_datap = &db;
-		db.db_base = ans;
-		db.db_lim = ans + sizeof (ans);
-		m_putid (&xx, CMD_LOADFILE);
-		m_putsx(&xx,ARG_CARD);
-		m_putsz(&xx,ld->name);
-		m_putsx(&xx,ARG_SEQNUM);
-		m_puti(&xx,ld->nrfile);
-		m_putsx(&xx,ARG_OFFSET);
-		m_puti(&xx,foffset);
-		
-		*xx.b_wptr++ = ' ';
-		xlen = xx.b_wptr - xx.b_rptr;
-		DUMPW (ans, xlen);
-		io[0].iov_base = ans;
-		io[0].iov_len = xlen;
-		io[1].iov_base = "::";
-		io[1].iov_len = 2;
-		if(len > 0) {
-			io[2].iov_base = buf;
-			io[2].iov_len  = len;
-			len = 3;
-		} else {
-			len = 2;
 			if(ld->file != NULL) {
-				fclose(ld->file);
-				ld->file = NULL;
-				ld->seqnum++;
+				buf = xmalloc(lf->num);
+				if(buf == NULL) {
+					syslog(LOG_ERR, "Card loader for %s !\n",ld->card);
+					goto ex_load;
+				}
+
+				if(fseek(ld->file,ld->foffset,0) < 0) {
+					syslog(LOG_ERR, "Card loader for %s: fseek returned %m\n",ld->card);
+					goto ex_load;
+				}
+				len = fread(buf,1,lf->num,ld->file);
+				if(len < 0) {
+					syslog(LOG_ERR, "Card loader for %s: read returned %m\n",ld->card);
+					free(buf);
+					goto ex_load;
+				}
+				foffset = ld->foffset;
+				ld->foffset += len;
+				ld->thislen = len;
+			} else {
+				len = 0;
+				foffset = 0;
+				ld->foffset = 0;
 			}
-		}
-		(void) strwritev (xs_mon, io,len, 1);
-		if(buf != NULL)
-			free(buf);
-		if(do_again) {
+			if(!do_again && (ld->file == NULL))
+				++ld->nrfile; /* last file; we're finished */
+			xx.b_rptr = xx.b_wptr = ans;
+			xx.b_datap = &db;
+			db.db_base = ans;
+			db.db_lim = ans + sizeof (ans);
+			m_putid (&xx, CMD_LOADFILE);
+			m_putsx(&xx,ARG_CARD);
+			m_putsz(&xx,ld->name);
+			m_putsx(&xx,ARG_SEQNUM);
+			m_puti(&xx,ld->nrfile);
+			m_putsx(&xx,ARG_OFFSET);
+			m_puti(&xx,foffset);
+			
+			*xx.b_wptr++ = ' ';
+			xlen = xx.b_wptr - xx.b_rptr;
+			DUMPW (ans, xlen);
+			io[0].iov_base = ans;
+			io[0].iov_len = xlen;
+			io[1].iov_base = "::";
+			io[1].iov_len = 2;
+			if(len > 0) {
+				io[2].iov_base = buf;
+				io[2].iov_len  = len;
+				len = 3;
+			} else {
+				len = 2;
+				if(ld->file != NULL) {
+					fclose(ld->file);
+					ld->file = NULL;
+					ld->seqnum++;
+				}
+			}
+			(void) strwritev (xs_mon, io,len, 1);
+			if(buf != NULL)
+				free(buf);
 			ld->timer = 1;
 			timeout(card_load,ld,(ld->file || !lf) ? HZ : (HZ*lf->num2+HZ/3));
+			if(!do_again)
+				ld->thislen = -1;
+			return;
+		} else {
+			ld->seqnum = thisseq;
+			ld->nrfile++;
+			ld->file = fopen(lf->arg,"r");
+			ld->foffset = 0;
+			if(ld->file == NULL) {
+				syslog(LOG_ERR, "Card loader for %s: file %s: %m\n",ld->card,lf->arg);
+				goto ex_load;
+			}
+			ld->timer = 1;
+			timeout(card_load,ld,HZ/3);
 			return;
 		}
 	} else {
-		ld->seqnum = thisseq;
-		ld->nrfile++;
-		ld->file = fopen(lf->arg,"r");
-		ld->foffset = 0;
-		if(ld->file == NULL) {
-			syslog(LOG_ERR, "Card loader for %s: file %s: %m\n",ld->card,lf->arg);
-			goto ex_load;
+		cf dl;
+
+		for(dl = cf_DL; dl != NULL; dl = dl->next) {
+			struct iovec io[3];
+			int len;
+			mblk_t xx;
+			struct datab db;
+			streamchar ans[30];
+
+			if(!wildmatch(dl->card,ld->name))
+				continue;
+			xx.b_rptr = xx.b_wptr = ans;
+			xx.b_datap = &db;
+			db.db_base = ans;
+			db.db_lim = ans + sizeof (ans);
+			m_putid (&xx, CMD_DOCARD);
+			m_putsx(&xx,ARG_CARD);
+			m_putsz(&xx,ld->name);
+
+			*xx.b_wptr++ = ' ';
+			len = xx.b_wptr - xx.b_rptr;
+			DUMPW (ans, len);
+			io[0].iov_base = ans;
+			io[0].iov_len = len;
+			len = 1;
+			if(dl->args != NULL) {
+				printf ("+ ");
+				io[len].iov_base = "::";
+				io[len].iov_len = 2;
+				len++;
+				io[len].iov_base = dl->args;
+				io[len].iov_len  = strlen(dl->args);
+				DUMPW (dl->args,io[len].iov_len);
+				len++;
+			}
+			(void) strwritev (xs_mon, io,len, 1);
+			card_load_close(ld,1);
+			return;
 		}
-		ld->timer = 1;
-		timeout(card_load,ld,HZ/3);
-		return;
+		card_load_fail(ld,-EIO);
 	}
-
-	for(dl = cf_DL; dl != NULL; dl = dl->next) {
-		struct iovec io[3];
-		int len;
-		mblk_t xx;
-		struct datab db;
-		streamchar ans[30];
-
-		if(!wildmatch(dl->card,ld->name))
-			continue;
-		xx.b_rptr = xx.b_wptr = ans;
-		xx.b_datap = &db;
-		db.db_base = ans;
-		db.db_lim = ans + sizeof (ans);
-		m_putid (&xx, CMD_DOCARD);
-		m_putsx(&xx,ARG_CARD);
-		m_putsz(&xx,ld->name);
-
-		*xx.b_wptr++ = ' ';
-		len = xx.b_wptr - xx.b_rptr;
-		DUMPW (ans, len);
-		io[0].iov_base = ans;
-		io[0].iov_len = len;
-		len = 1;
-		if(dl->args != NULL) {
-			printf ("+ ");
-			io[len].iov_base = "::";
-			io[len].iov_len = 2;
-			len++;
-			io[len].iov_base = dl->args;
-			io[len].iov_len  = strlen(dl->args);
-			DUMPW (dl->args,io[len].iov_len);
-			len++;
-		}
-		(void) strwritev (xs_mon, io,len, 1);
-		card_load_close(ld,1);
-		return;
-	}
+	return;
 
   ex_load:
   	card_load_fail(ld,-EIO);

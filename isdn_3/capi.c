@@ -1379,9 +1379,11 @@ recv (isdn3_talk talk, char isUI, mblk_t * data)
 				err = after_active(conn,0);
 			} else {
 				printf("CAPI error: SELECTB3_CONF in wrong state %d, info %04x, wf 0x%lx\n",conn->state,c2->info,conn->waitflags);
-				if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
-					setstate(conn,99);
-				report_terminate(conn,c2->info,0);
+				if(conn->state < 15) {
+					if(send_disconnect(conn,0,N1_OutOfOrder) < 0) 
+						setstate(conn,99);
+					report_terminate(conn,c2->info,0);
+				}
 			}
 		}
 		break;

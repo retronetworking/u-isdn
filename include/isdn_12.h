@@ -72,11 +72,7 @@ struct _isdn1_card {
 	uchar_t nr_dchans;			  /* zero == one. */
 	void *ctl;				  /* Pointer for L2 data structures, card
 								   * drivers must not touch this. */
-#if 0
-	struct _isdn_chan *chan;		  /* Pointer to array. First is the D channel. */
-#endif
 	ulong_t modes;				  /* Modes available on this card. */
-#define CHM_INTELLIGENT 01 /* If this bit is set, the card is clever and modes>>1 has the ID of the high-level driver. */
 
 	C_ch_mode ch_mode;
 	C_ch_prot ch_prot;

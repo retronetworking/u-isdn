@@ -10,7 +10,7 @@
 #include <linux/major.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
-#if LINUX_VERSION_CODE >= 66348 /* 1.3.44 -- EXPERIMENTAL */
+#if 0 /* LINUX_VERSION_CODE >= 66348 */ /* 1.3.44 -- EXPERIMENTAL */
 #include <linux/skbuff.h>
 #define SK_STREAM
 #endif
