@@ -160,11 +160,11 @@ enable (void)
 #ifdef ROUTE_IF
 		if(!dontroutemyhost) 
 			sprintf(makeroute+strlen(makeroute), "%s add -host %s metric 2 dev lo; ", ROUTE_PATH,ichaddr);
-		sprintf(makeroute+strlen(makeroute), "%s add -host %s metric 2 dev %s; ", ROUTE_PATH,duaddr,ifname);
+		sprintf(makeroute+strlen(makeroute), "%s add -host %s metric 2 gw %s dev %s; ", ROUTE_PATH,duaddr,ichaddr,ifname);
 		if(arpaddr != NULL)
 			sprintf(makeroute+strlen(makeroute), "%s -s %s %s pub; ", ARP_PATH,duaddr,arpaddr);
 
-		sprintf(unmakeroute+strlen(unmakeroute), "%s del -host %s dev %s; ",ROUTE_PATH,duaddr,ifname);
+		sprintf(unmakeroute+strlen(unmakeroute), "%s del -host %s gw %s dev %s; ",ROUTE_PATH,duaddr,ichaddr,ifname);
 		if(arpaddr != NULL)
 			sprintf(unmakeroute+strlen(unmakeroute), "%s -d %s; ",ARP_PATH,duaddr);
 #endif

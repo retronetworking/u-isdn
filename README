@@ -4,6 +4,21 @@ Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
 README.isdn in den Kernelsourcen.
 
 
+*** 1996-07-25
+
+Update 42. Grummel...
+
+Neue Feature: Wenn eine Verbindung länger als 10 Sekunden im >down-Zustand
+bleibt, wird der Master umgebracht. (Das ist meistens ein Symptom für ein
+verknotetes D-Kanal-Handling oder eine verklemmte aktive Karte.)
+
+Syslog "CONN" loggt die Verbindungszeit in Sekunden. ("COST" loggt die
+Verbindungskosten, wie vorher.)
+
+Die Zahl der Verbindungen wird beim Minuten-Timestamp mitgeschrieben;
+daraus läßt sich sehr schön eine Grafik generieren...
+
+
 *** 1996-04-??
 
 Update 39. Support für "altes" /sbin/route ist gestrichen!

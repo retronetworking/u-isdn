@@ -702,7 +702,7 @@ str_if_rsrv (queue_t *q)
 				int len = msgdsize(mp);
 				int offset = 0;
 				{
-					skb = alloc_skb(len, GFP_ATOMIC);
+					skb = dev_alloc_skb(len);
 					if (skb == NULL) {
 						printk("%s%s: Memory squeeze, dropping packet.\n", KERN_INFO,dev->name);
 						lp->stats.rx_dropped++;
@@ -722,6 +722,7 @@ str_if_rsrv (queue_t *q)
 				}
 				skb->len = len;
 				skb->dev = dev;
+				skb->mac.raw= skb->data;
 				skb->protocol=encap;
 				netif_rx(skb);
 				lp->stats.rx_packets++;

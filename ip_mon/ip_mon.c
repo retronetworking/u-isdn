@@ -115,6 +115,7 @@ ip_mon_index (unsigned long local, unsigned long remote, int protocol, int *dose
 	mon->p_protocol = protocol;
 	mon->p_local = localp;
 	mon->p_remote = remotep;
+	mon->dir = dir;
 	if (ip_info[i = last_index = nexti] != NULL) {
 		struct _monitor *m2 = (struct _monitor *)(ip_info[i]->b_rptr);
 		if ((m2->bytes != 0 || m2->packets != 0) && ip_mon.qptr != NULL && canput (ip_mon.qptr->q_next))

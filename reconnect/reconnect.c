@@ -50,7 +50,6 @@ struct streamtab reconninfo =
 
 struct reconn_ {
 	short flags;
-#define RECONN_INUSE 01
 #define RECONN_INITED 02
 #define RECONN_HIGHER_INTR 04
 #define RECONN_LOWER_WANTED 010
@@ -82,7 +81,7 @@ reconn_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	q->q_ptr = (char *) reco;
 
 	reco->lowerstate = r_off;
-	reco->flags = RECONN_INUSE|RECONN_INITED;
+	reco->flags = RECONN_INITED;
 
 	MORE_USE;
 	return 0;
@@ -104,11 +103,47 @@ reconn_close (queue_t * q, int dummy)
 	return;
 }
 
+static void
+proto_log(struct reconn_ *reco) 
+{
+    mblk_t *mb;
+
+    mb = allocb(1024,BPRI_LO);
+    if(mb != NULL) {
+        streamchar *bufend;
+
+        m_putid(mb,PROTO_TELLME);
+        m_putdelim(mb);
+        DATA_TYPE(mb) = MSG_PROTO;
+        bufend = mb->b_wptr;
+
+        bufend += sprintf (bufend,"*** Reconn: ");
+		if(reco->flags & RECONN_INITED)       *bufend++ = 'i';
+		if(reco->flags & RECONN_HIGHER_INTR)  *bufend++ = 'h';
+		if(reco->flags & RECONN_LOWER_WANTED) *bufend++ = 'w';
+		if(reco->flags & RECONN_DISABLED)     *bufend++ = 'd';
+		if(reco->flags & RECONN_PRINTFIRST)   *bufend++ = 'p';
+		if(reco->flags & RECONN_FIRSTSEND)    *bufend++ = 's';
+		if(reco->flags & RECONN_FIRSTRECV)    *bufend++ = 'r';
+		if(reco->flags) bufend += sprintf(bufend,", ");
+		switch(reco->lowerstate) {
+		default           : bufend += sprintf(bufend,"?%d?",reco->lowerstate);
+		                    break;
+		case r_off        : bufend += sprintf(bufend,"off"); break;
+		case r_on         : bufend += sprintf(bufend,"on"); break;
+		case r_going_down : bufend += sprintf(bufend,">down"); break;
+		}
+		*bufend++ = '\n';
+    
+        mb->b_wptr = bufend;
+        putnext(WR(reco->qptr),mb);
+    }
+}
 
 static void
 reconn_proto (queue_t * q, mblk_t * mp, char down)
 {
-	register struct reconn_ *reco = (struct reconn_ *) q->q_ptr;
+	struct reconn_ *reco = (struct reconn_ *) q->q_ptr;
 	streamchar *origmp = mp->b_rptr;
 	ushort_t id;
 	int error = 0;
@@ -120,6 +155,9 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
     }
 	switch (id) {
 	default:
+		break;
+	case PROTO_TELLME:
+		proto_log(reco);
 		break;
 	case PROTO_LISTEN:
 		if(down) goto drop;
@@ -201,7 +239,7 @@ reconn_proto (queue_t * q, mblk_t * mp, char down)
 			}
 		}
 		reco->flags &= ~RECONN_LOWER_WANTED;
-#if 0
+#if 1
 		flushq(WRQ(q),FLUSHDATA);
 #endif
 		reco->lastdown = jiffies;
@@ -344,7 +382,7 @@ reconn_wsrv (queue_t * q)
 			goto def;
 		case CASE_DATA:
 			if(reco->flags & RECONN_DISABLED) {
-				if(jiffies-250*HZ > reco->lastdown) {
+				if(1 /* jiffies-250*HZ > reco->lastdown */ ) {
 					freemsg(mp);
 					continue;
 				} else {

@@ -1524,7 +1524,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		return err;
 	}
 #ifdef linux
-	if((dumb->info.irq != 0) && request_irq(dumb->info.irq,intr,SA_INTERRUPT,STRING(REALNAME),dumb)) {
+	if((dumb->info.irq != 0) && request_irq(dumb->info.irq,intr,SA_SAMPLE_RANDOM|SA_INTERRUPT,STRING(REALNAME),dumb)) {
 		printf("IRQ not available.\n");
 		kfree(dumb);
 		return -EEXIST;
