@@ -1,0 +1,241 @@
+# This Makefile is chaotic. Sorry.
+# It gets (most of) the job done and that's what counts.
+#
+
+all:: first_rule
+
+unexport KERNEL
+unexport PROGRAM
+unexport PROGRAMS
+unexport CC
+unexport CFLAGS
+unexport SOURCES
+unexport HEADERS
+unexport LIB
+unexport LIBS
+unexport OBJ
+unexport OBJS
+unexport DOCARDS
+unexport WHAT
+unexport REALSOURCE
+unexport DOSRC
+
+ifneq ($(strip $(DOCARDS)),)
+KERNEL=1
+endif
+
+include $(TOPDIR)/Make.config
+
+export KERNELSRC
+export TOPDIR
+
+VERSION := $(shell $(TOPDIR)/tools/getversion $(KERNELSRC))
+
+.PHONY:	dummy 
+
+ifeq ($(strip $(HEADERS)),)
+HEADERS := $(wildcard *.h)
+endif
+
+DOSRC:=1
+ifneq ($(strip $(REALSOURCE)),)
+DOSRC:=0
+endif
+ifneq ($(strip $(DOCARDS)),)
+DOSRC:=1
+endif
+
+ifeq ($(DOSRC),1)
+ifneq ($(strip $(KERNEL)),)
+ifeq ($(strip $(SOURCES)),)
+SOURCES := $(wildcard *.c)
+endif
+else
+ifeq ($(strip $(PSOURCES)),)
+PSOURCES := $(wildcard *.c)
+endif
+endif
+endif
+
+ifneq ($(strip $(DOCARDS)),)
+OLDSOURCES := $(SOURCES)
+SOURCES := $(filter $(addsuffix .c,$(CARDS)),$(SOURCES))
+endif
+
+
+INCLUDES = -I$(TOPDIR)/include -I$(TOPDIR)/compat -I$(TOPDIR)/streams -I$(KERNELSRC)/include $(EXTRA_INCLUDES)
+
+first_rule::	libs programs modules
+
+
+all depend indent clean install::
+ifneq ($(strip $(SUBDIRS)),)
+	$(MAKE) WHAT=$@ subdirs 
+
+subdirs::
+	 set -e; for i in $(SUBDIRS); do $(MAKE) TOPDIR=../$(TOPDIR) -C $$i $(WHAT); done
+endif
+
+depend:: 
+
+ifneq ($(strip $(SOURCES)),)
+OBJS = $(addsuffix .o, $(basename $(SOURCES)))
+endif
+ifneq ($(strip $(PSOURCES)),)
+POBJS = $(addsuffix .o, $(basename $(PSOURCES)))
+ifeq ($(strip $(PROGRAM)),)
+ifeq ($(strip $(PROGRAMS)),)
+ifeq ($(strip $(LIB)),)
+PROGRAMS = $(basename $(PSOURCES))
+endif
+endif
+endif
+endif
+
+ifneq ($(strip $(REALSOURCE)),)
+$(OBJS): $(REALSOURCE)
+	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -DREALNAME=$(basename $@) -D_$(basename $@)_ -c -o $@ $<
+else
+ifeq ($(DOCARDS),1)
+.c.o:
+	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -DREALNAME=$(basename $@) -D_$(basename $@)_ -c -o $@ $<
+else
+.c.o:
+	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -c -o $@ $<
+endif
+endif
+
+clean::
+	rm -f .depend core
+	rm -f *.vi? 
+ifneq ($(strip $(TARGET)),)
+	rm -f $(TARGET)
+endif
+ifneq ($(strip $(POBJS)),)
+	rm -f $(POBJS)
+endif
+ifneq ($(strip $(OBJ)),)
+	rm -f $(OBJ)
+endif
+ifneq ($(strip $(OBJS)),)
+	rm -f $(OBJS)
+endif
+ifneq ($(strip $(PROGRAM)),)
+	rm -f $(PROGRAM)
+endif
+ifneq ($(strip $(filter-out $(NOCLEAN),$(PROGRAMS))),)
+	rm -f $(filter-out $(NOCLEAN),$(PROGRAMS))
+endif
+ifneq ($(strip $(LIB)),)
+	rm -f $(LIB)
+endif
+
+ifneq ($(strip $(PROGRAM)),)
+programs:: $(PROGRAM)
+$(PROGRAM): $(POBJS) $(filter %.a,$(LIBS) $(EXTRA_LIBS))
+	$(CC) -o $@ $(POBJS) $(EXTRA_LIBS) $(LIBS)
+else
+ifneq ($(strip $(PROGRAMS)),)
+programs:: $(PROGRAMS)
+
+%:	%.o    $(filter %.a,$(LIBS) $(EXTRA_LIBS))
+	$(CC) $(LDFLAGS) -o $@ $< $(EXTRA_LIBS) $(LIBS) 
+else
+programs::
+
+endif
+endif
+
+ifneq ($(strip $(PROGRAMS)),)
+programs:: $(PROGRAMS)
+
+else
+programs::
+
+endif
+
+ifneq ($(strip $(LIB)),)
+libs: $(LIB)
+
+$(LIB): $(POBJS)
+	rm -f $@
+	$(AR) rcs $@ $^
+else
+libs:
+endif
+
+
+lib::
+ifneq ($(strip $(P_LIB)),)
+	$(MAKE) $(P_OBJ)
+endif
+
+ifneq ($(strip $(OBJS)),)
+ifeq ($(strip $(OBJ)),)
+modules: $(OBJS)
+else
+modules: $(OBJ)
+
+$(OBJ):	$(OBJS)
+	$(LD) -r -o $@ $^
+endif
+
+else
+modules:
+
+endif
+
+install::
+ifeq ($(strip $(KERNEL)),1)
+ifneq ($(strip $(OBJ)),)
+	$(TOPDIR)/tools/insmod $(OBJ)
+else
+ifeq ($(strip $(DOCARDS)),1)
+	$(foreach OBJ,$(OBJS),$(TOPDIR)/tools/d_insmod $(OBJ); )
+else
+	$(foreach OBJ,$(OBJS),$(TOPDIR)/tools/insmod $(OBJ); )
+endif
+endif
+else
+ifneq ($(strip $(PROGRAM)),)
+	install $(PROGRAM) $(DESTDIR)/bin-$(VERSION)
+endif
+ifneq ($(strip $(PROGRAMS)),)
+	install $(PROGRAMS) $(DESTDIR)/bin-$(VERSION)
+endif
+endif
+
+
+indent::
+ifneq ($(strip $(PSOURCES)),)
+	$(TOPDIR)/tools/indent.sh $(PSOURCES)
+endif
+ifneq ($(strip $(SOURCES)),)
+	$(TOPDIR)/tools/indent.sh $(SOURCES)
+endif
+ifneq ($(strip $(HEADERS)),)
+	$(TOPDIR)/tools/indent.sh $(HEADERS)
+endif
+
+ifeq (.depend,$(wildcard .depend))
+include .depend
+endif
+
+depend::
+	rm -f .depend
+
+ifneq ($(strip $(PSOURCES)),)
+depend::     Makefile $(PSOURCES) $(HEADERS)
+	$(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(PSOURCES) >> .depend
+endif
+
+ifneq ($(strip $(SOURCES)),)
+ifneq ($(strip $(REALSOURCE)),)
+depend::     Makefile $(REALSOURCE) $(HEADERS)
+	$(foreach SOURCE,$(SOURCES), $(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(REALSOURCE) -D_$(SOURCE:.c=)_ | sed -e s/$(REALSOURCE:.c=.o)/$(SOURCE:.c=.o)/ >> .depend ; )
+else
+depend::     Makefile $(SOURCES) $(HEADERS)
+	$(CC) -M $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) $(SOURCES) >> .depend
+endif
+endif
+

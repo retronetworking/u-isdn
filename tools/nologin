@@ -1,0 +1,7 @@
+#!/bin/sh
+echo -n "Kein Login: "
+read a
+echo ""
+echo "Ich sagte doch -- kein Login."
+sleep 2
+exit 0

@@ -1,0 +1,63 @@
+#!/bin/bash
+set -e
+
+if test ! -f .toldem ; then
+cat <<'EOF'
+
+Hi.
+
+FÜR ABSTÜRZE, DATENVERLUSTE UND ÄHNLICHE PROBLEME ÜBERNEHME ICH KEINERLEI
+WIE AUCH IMMER GEARTETE HAFTUNG.
+
+Wem das nicht paßt, der lösche diesen Code. Jetzt.
+
+Ansonsten: Erst DOKU lesen.
+
+Dann ggf. die Patches auf den aktuellen Kernel (momentan 1.2.13 / 1.3.29)
+anwenden (nicht alle Patches werden benötigt -- vorher nachlesen), Kernel
+bauen, mit diesem Kernel booten.
+
+Dann config/config.data ansehen und gegebenenfalls ändern.
+
+Dann nochmal make.isdn aufrufen.
+
+Die gebauten Module können automatisch beim Booten geladen werden; siehe
+tools/rc.isdn. Dazu in /lib/modules: modules.isdn.all nach modules.isdn
+kopieren; nicht benötigte Module ggf. aus dieser Datei rauswerfen.
+
+EOF
+touch .toldem
+if test "$(whoami)" = "root" ; then
+	echo "Ach ja -- make.isdn am besten zuerst als normaler Benutzer"
+	echo "starten (Programme bauen), dann als root (zum Installieren)."
+fi
+exit 1
+fi
+
+set -x
+
+if test -f make.isdn.local ; then 
+. make.isdn.local $*
+fi
+
+VERSION=$(tools/getversion)
+
+if test "$(whoami)" = "root" ; then
+	make --no-print-directory all
+	make --no-print-directory install
+
+	if test -f /lib/modules/modules.isdn ; then 
+		echo "Ist /lib/modules/modules.isdn auf dem neuesten Stand?"
+	else
+		cp /lib/modules/modules.isdn.all /lib/modules.isdn
+		echo "Die Datei /lib/modules/modules.isdn anpassen!"
+	fi
+	if grep -qs cardname /lib/modules/modules.isdn ; then 
+		:
+	else
+		echo "Die Treiber der Karten muessen parametrisiert werden. -> DOKU."
+	fi
+else
+	make --no-print-directory all
+	echo "Nun als Superuser bitte nochmal..."
+fi

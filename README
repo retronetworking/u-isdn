@@ -1,0 +1,193 @@
+[ This is a German version. An English version is in the works. ]
+
+Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
+README.isdn in den Kernelsourcen.
+
+
+*** 1995-10-21
+
+Release 14.
+
+Mit dem RP-Zeilen gibt es anscheinend Probleme. Wäre nett, wenn das jemand
+anders debuggen könnte, sonst dauert das nämlich bis Version 16 oder so.
+
+Wer kennt sich mit tcl/tk oder tclperl oder wish oder was-auch-immer aus?
+Gebraucht wird ein vernünftiges Frontend für die Konfigdatei...
+
+Login und Kermit, nächster Versuch...
+
+Aktive Karten (momentan: Bintec) tun NOCH NICHT, aber ich arbeite dran.
+
+Mehr Kommentare im Source. (Immer noch zuwenige, ich weiß. Working.)
+
+Fehler bereinigt. Insbesondere sollte der Treiber nun ca. eine Sekunde
+schneller sein beim Verbindungsaufbau, wenn gerade keine andere Verbindung
+offen ist. Grr...
+
+Debugmeldungen schreiben nun das Intervall (in Jiffies, also normalerweise
+Hundertstelsekunden) seit der letzten Debugmeldung mit.
+
+ACHTUNG, leichte Änderungen im Format der Konfigdatei (DL- und CL-Zeile:
+<Key>-Parameter ist dazugekommen); siehe Doku.
+
+Kann jemand aus Taylor-UUCP (oder sonstwoher) den Code "ist die aktuelle
+Zeit in dem durch diesen String angegebenen Zeitfenster" klauen und um die
+Angabe der Anzahl Sekunden bis zum Verlassen des Zeitfensters erweitern?
+Beispiel: wenn es jetzt Sonntag 23:00:01 Uhr ist:
+- isintime("Mon") => 0
+- isintime("Sun") => 3599
+Sonst muß ich das machen und dafür habe ich keine Zeit. Das Ganze wird
+benötigt, um zB Logins nur abends zu erlauben oder den Zeittakt
+umzustellen. Momentan braucht es dazu ein per cron aufgerufenes externes
+Programm, das /etc/isdn.conf.times von isdn.conf.times.day nach
+isdn.conf.times.night umlinkt und AT/R anstößt; geht, aber ist nicht
+besonders schön.
+
+
+*** 1995-09-31
+
+Release 13.
+
+Wenn es immer noch Probleme beim ISDN-Login gibt: am Anfang von
+streams/streams_io das #undef in ein #define ändern, isdn_2.o mit
+"mod2=0x05" installieren, nochmal testen, mir den Syslog-Output schicken
+(*.debug, NICHT *.=debug !!!). Vorsicht, Paßwörter etc. stehen in diesem
+Log mit drin!
+
+Wegen eines Fehlers im GNU-Make kann es passieren, daß "make" oder "make -w"
+nicht funktioniert. In diesem Fall "make --warn" verwenden.
+
+
+Die folgenden neuen Features sind noch mehr oder weniger ungetestet:
+SIGIO-Support.
+TTY-Code repariert.
+Starten beliebiger Programme bei Zustandsänderungen (RP-Zeile in der Konfig).
+Ethertype-Support (noch nicht vollständig).
+Callback wenn möglich auf derselben Leitung.
+Callback auf Leitung B, wenn ein Ruf auf A ankommt, dort aber besetzt ist.
+
+Einigermaßen getestet:
+Callback. (War das ein Nerv. Manche ISDN-Vermittlungen sind _doof_.)
+
+Fehlermeldungen reorganisiert.
+
+
+*** 1995-07-22
+
+isdn_4/master.c aufgesplittet, Verzeichnisstruktur leicht umgebaut,
+deshalb leider keine Diffs.
+
+
+*** 1995-06-12
+
+Wieder ein paar Bugs weniger.
+
+Der "arnet"-Treiber ist fuer die synchronen Karten dieser Firma gedacht und
+noch nicht 100% ausgetestet.
+
+Wenn jemand Uebermittlung von Gebuehreninformationen waehrend der
+Verbindung im Euro-ISDN aktiviert hat -> Mail an mich.
+
+Support fuer Standleitungen: Restart klemmt manchmal.
+
+Die Patches basieren auf aelteren Kernelversionen und sind nicht besonders
+sauber... 
+
+Support fuer Kernel 1.3 ist in Arbeit.
+
+
+*** 1995-02-04
+
+Euro-ISDN! Relativ rudimentär, sollte aber erstmal tun.
+(In der Doku steht was von FINGER WEG. Vorsicht -- ich garantiere nicht,
+daß sich der Kram nicht total danebenbenimmt. Ich wage es aber zu
+bezweifeln, daß mein Treiber dazu führt, daß der Anschluß gesperrt wird...)
+
+Support für 128kBit-Standleitungen.
+
+rm -rf streams/isdn isdn/cards/leonardo (für Leute, die den Patch
+verwenden).
+
+
+*** 1995-01-18
+
+Na endlich... modularisierte Version, basierend auf 1.1.83.
+_Ohne_ Spezialkram (OK, ein kleines bißchen ;-) nachdem das Linux-TCP/IP
+endlich einen brauchbaren Status erreicht zu haben scheint.
+
+
+*** 1994-10-27
+
+Interimsrelease, basierend auf 1.1.57.
+In libc.tar.gz beginden sich die letzten 4.5.26-Libraries und Include-
+dateien, angepaßt auf meinen Kernel. (Die nächste Version, basierend auf
+4.6.xx, ist weit weniger schlimm.)
+
+In kernel.tar.gz sind die Quellen fuer den angepassten Kernel, komplett.
+
+Konfiguration:
+CONFIG_SCHEDULER_BSD	Y
+CONFIG_INET_BSD		N
+CONFIG_MALLOC_TRACE	Y
+CONFIG_DEBUG_LATENCY	N
+
+Alles andere (fast) wie gewohnt. Ohne MALLOC-TRACE gibt es Probleme mit
+der Speicherverwaltung; wenn jemand den Fehler findet, immer nur her mit
+einem Patch.
+
+INET_BSD braucht BSD-Utilities für die Konfiguration, die ich momentan
+nicht im Source habe (Plattenfehler).
+
+Die Übersetzung des Streams-Teils liefert haufenweise Warnings; ignorieren.
+
+
+*** 1994-08-07
+
+Die Datei /usr/include/sys/conf.h muss die folgende Zeile enthalten:
+
+#include <linux/config.h>
+
+Sorry; dieser Fehler wird mit dem naechsten Update behoben.
+
+
+*** 1994-08-03
+
+Patch 38 passt sauber in den Kern.
+Festverbindungen tun; Patch (inkl. Update auf -38) folgt demnaechst.
+
+
+*** 1994-08-01
+
+CONFIG_MALLOC_TRACE funktioniert nicht korrekt (Speicherverluste). Ich
+arbeite dran.
+
+
+*** 1994-07-31
+
+Festverbindungen werden unterstützt.
+Diffs auf PL37 generiert.
+Networking-Code generiert.
+include- und libc-Diffs generiert.
+
+
+*** 1994-07-29
+
+In der Datei streams/isdn/config/config.data muss die Variable STR_IN von
+"in2" auf "linux" geaendert werden, wenn mit Linux-Networking gearbeitet
+werden soll.
+
+
+*** 1994-07-27
+
+Patch 36 läßt sich problemlos einspielen.
+
+
+*** 1994-07-26
+
+Die Datei "kernel-1.1.35.diff.gz" enthält die Diffs zu meinem Kernel.
+"streams-1.1.35.tar.gz" enthält den Streams-Teil (notwendig!).
+
+Warnung: Da ich selber leicht modifizierte Includedateien unter
+/usr/include einsetze, kann es sein, daß die Kompilation nicht
+durchläuft... in diesem Fall bitte Mail an mich.
+
