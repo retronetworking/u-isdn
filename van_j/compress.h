@@ -12,7 +12,7 @@
 /*
  * Definitions for tcp compression routines.
  * 
- * $Header: /usr/src/cvs/kernel/isdn/van_j/compress.h,v 1.1.1.1 1996/07/29 07:09:09 smurf Exp $
+ * $Header: /usr/src/cvs/kernel/isdn/van_j/compress.h,v 1.2 1996/09/16 01:03:31 smurf Exp $
  * 
  * Copyright (c) 1989 Regents of the University of California. All rights
  * reserved.

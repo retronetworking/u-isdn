@@ -3,7 +3,7 @@
 ##  =()<DESTDIR=@<DESTDIR>@>()=
 DESTDIR=/usr/lib/isdn
 ##  =()<LOCKNAME=@<LOCKNAME>@>()=
-LOCKNAME=/var/lock
+LOCKNAME=/var/lock/LCK..%s
 
 set -e
 
@@ -77,19 +77,19 @@ echo $$ > /var/run/isdn.pid
 if lsmod | grep isdn_2 >/dev/null 2>&1 ; then : ; else
 	cd /lib/modules/$(uname -r)
 	if test -f /tmp/symbols.isdn ; then mv /tmp/symbols.isdn /tmp/symbols.isdn.old ; fi
-	while read x a ; do
+	while read x a b ; do
 		case "$x" in
 		MO*)
 			/bin/echo -n "\rISDN Modules:                                                               "  >&2
-			/bin/echo -n "\rISDN Modules: $a: " >&2
-			eval "insmod -m $a"  ## wegen name=$(cardname Foo0) in $a
+			/bin/echo -n "\rISDN Modules: $a: $b " >&2
+			eval "insmod -m isdn/$a.o $b"  ## wegen evtl. name=$(cardname Foo0) in $b
 			;;
 		esac
 	done < /etc/isdn.conf > /tmp/symbols.isdn
 	/bin/echo "\rISDN Modules...done.                                                       "
 fi
 
-cd /var/tmp # for coredumps...
+cd /var/tmp # coredumps..?
 
 ulimit -c 40000
 # ulimit -d 20000

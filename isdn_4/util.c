@@ -24,12 +24,57 @@ xmalloc(size_t sz)
 	return foo;
 }
 
+void *
+gxmalloc(size_t sz)
+{
+	void *foo;
+
+	foo = gmalloc(sz);
+	if(foo == NULL) {
+		syslog(LOG_CRIT,"No memory for %d bytes! Dying!\n",sz);
+		abort();
+	}
+	return foo;
+}
+
+void *
+gcxmalloc(size_t sz)
+{
+	void *foo;
+
+	foo = gcmalloc(sz);
+	if(foo == NULL) {
+		syslog(LOG_CRIT,"No memory for %d bytes! Dying!\n",sz);
+		abort();
+	}
+	return foo;
+}
+
+void *
+gbxmalloc(size_t sz)
+{
+	void *foo;
+
+	foo = gbmalloc(sz);
+	if(foo == NULL) {
+		syslog(LOG_CRIT,"No memory for %d bytes! Dying!\n",sz);
+		abort();
+	}
+	return foo;
+}
+
 /* Too many strings to keep track of, no time for garbage collection. */
 /* Enter them in a binary tree... */
 /* str_enter MUST NOT be called while any string in the tree is temporarily
    modified. No string in the tree may be permanently modified in ANY way. */
+/* Actually, with GC enabled this gets a whole lot simpler. */
 char *str_enter(char *master)
 {
+#ifdef DO_GC
+	char *foo = gbxmalloc(strlen(master)+1);
+	strcpy(foo,master);
+	return foo;
+#else
 	struct string **str = &stringdb;
 	struct string *st = *str;
 
@@ -51,12 +96,14 @@ char *str_enter(char *master)
 	st = xmalloc(sizeof(struct string)+strlen(master));
 	if(st == NULL)
 		return NULL;
+	GrabStrs++;
 
 	strcpy(st->data,master);
 	st->left = st->right = NULL;
 	*str = st;
 	chkone(st);
 	return st->data;
+#endif
 }
 
 /* Simpleminded, bidirectional wildmat().
@@ -292,7 +339,7 @@ log_idle (void *xxx)
 	tm = localtime(&now);
 	now = (now - started) / 60;
 	
-	sprintf(repbuf,"#%d %02d:%02d %d,%d,%d", (int)now, tm->tm_hour,tm->tm_min,nc1,nc2,nc3);
+	sprintf(repbuf,"#%d %02d:%02d %d,%d,%d G:%d/%d+%d", (int)now, tm->tm_hour,tm->tm_min,nc1,nc2,nc3,GrabAllocs,GrabFrees,GrabStrs);
 	connreport(repbuf,"*",0);
 
 	if(!(now % 5))

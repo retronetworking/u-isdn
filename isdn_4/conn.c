@@ -16,9 +16,10 @@ Xnewgrab(conngrab master, int lin)
 {
 	conngrab slave;
 
-	slave = xmalloc(sizeof(*slave));
+	slave = gcxmalloc(sizeof(*slave));
 	if(slave == NULL)
 		return NULL;
+	GrabAllocs++;
 	if(master == NULL) {
 		bzero(slave,sizeof(*slave));
 		slave->cclass = "*";
@@ -47,6 +48,7 @@ Xdropgrab(conngrab cg,int lin)
 
 	if(--cg->refs == 0) {
 		chkone(cg);
+		GrabFrees++;
 		if(cg->par_out != NULL)
 			freemsg(cg->par_out);
 		if(cg->par_in != NULL)
@@ -58,7 +60,7 @@ Xdropgrab(conngrab cg,int lin)
 		cg->cclass  = (void *)0xdeadbeef;
 		cg->card    = (void *)0xdeadbeef;
 		chkone(cg);
-		free(cg);
+		gfree(cg);
 		return;
 	}
 }
@@ -98,8 +100,8 @@ connreport(char *foo, char *card, int minor)
 		if(conn->lastMsg != NULL && !strcmp(conn->lastMsg,foo))
 			continue;
 		if(conn->lastMsg != NULL) 
-			free(conn->lastMsg);
-		conn->lastMsg = xmalloc(strlen(foo)+1);
+			gfree(conn->lastMsg);
+		conn->lastMsg = gbxmalloc(strlen(foo)+1);
 		if(conn->lastMsg != NULL) 
 			strcpy(conn->lastMsg,foo);
 
@@ -326,7 +328,7 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		}
 		if(conn->state > c_forceoff && state <= c_forceoff && conn->pid != 0) {
 			struct conninfo *xconn;
-			xconn = xmalloc(sizeof(*xconn));
+			xconn = gcxmalloc(sizeof(*xconn));
 			if(xconn != NULL) {
 				bzero(xconn,sizeof(*xconn));
 				xconn->seqnum = ++connseq;
@@ -437,8 +439,8 @@ Xdropconn (struct conninfo *conn, const char *deb_file, unsigned int deb_line)
 	printf("Drop %p %s:%d\n",conn,deb_file,deb_line);
 	dropgrab(conn->cg);
 	if(conn->lastMsg != NULL)
-		free(conn->lastMsg);
-	free(conn);
+		gfree(conn->lastMsg);
+	gfree(conn);
 }
 
 

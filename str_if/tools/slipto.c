@@ -28,7 +28,9 @@
 #include <net/if_slvar.h>
 #include <net/slip.h>
 #else
+#if 0
 #include <linux/if_slip.h>
+#endif
 #endif
 #include <arpa/inet.h>
 #ifdef SYSV
@@ -370,7 +372,7 @@ enable (void)
 
 	islinked = 1;
 	if(fork() == 0) {
-		signal(SIGCHLD,SIG_DFL);
+		bsd_signal(SIGCHLD,SIG_DFL);
 		fprintf(stderr,"<<%s>>\n",makeroute);
 		execl("/bin/sh","sh","-c",makeroute,NULL);
 		/* system (makeroute); */
@@ -385,7 +387,7 @@ disable (void)
 
 	syslog(LOG_DEBUG,"Taking down IF %s",ifname);
 	if(fork() == 0) {
-		signal(SIGCHLD,SIG_DFL);
+		bsd_signal(SIGCHLD,SIG_DFL);
 		fprintf(stderr,"<<%s>>\n",unmakeroute);
 		execl("/bin/sh","sh","-c",unmakeroute,NULL);
 	}
@@ -464,15 +466,15 @@ main (int argc, char *argv[])
 
 	openlog (progname, LOG_PID|LOG_PERROR, LOG_LOCAL7);
 
-	signal (SIGUSR1, (sigfunc__t) enable);
-	signal (SIGUSR2, (sigfunc__t) disable);
-	signal (SIGPWR, (sigfunc__t) disable);
-	signal (SIGHUP, (sigfunc__t) disableq);
-	signal (SIGINT, (sigfunc__t) disableq);
-	signal (SIGTERM, (sigfunc__t) disableq);
-	signal (SIGQUIT, (sigfunc__t) disableq);
-	signal (SIGCHLD, SIG_IGN);
-	signal (SIGTTOU, SIG_IGN);
+	bsd_signal (SIGUSR1, (sigfunc__t) enable);
+	bsd_signal (SIGUSR2, (sigfunc__t) disable);
+	bsd_signal (SIGPWR, (sigfunc__t) disable);
+	bsd_signal (SIGHUP, (sigfunc__t) disableq);
+	bsd_signal (SIGINT, (sigfunc__t) disableq);
+	bsd_signal (SIGTERM, (sigfunc__t) disableq);
+	bsd_signal (SIGQUIT, (sigfunc__t) disableq);
+	bsd_signal (SIGCHLD, SIG_IGN);
+	bsd_signal (SIGTTOU, SIG_IGN);
 
 	while ((s = getopt (argc, argv, "Ddr:R:lEMm:vfLop:s:S:A:x")) != EOF)
 		switch (s) {
@@ -648,7 +650,7 @@ main (int argc, char *argv[])
 	}
 	if (dovanj) {
 		if (ioctl (devfd, I_PUSH, "van_j") < 0) {
-#ifdef SIOCSIFENCAP
+#if defined(SIOCSIFENCAP) && defined(SL_OPT_ADAPTIVE)
 			int i = SL_MODE_CSLIP|SL_OPT_ADAPTIVE;
 			ioctl(devfd,SIOCSIFENCAP,&i);
 #endif

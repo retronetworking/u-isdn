@@ -6,9 +6,8 @@
 FILE=$1
 
 VERSION=${VERSION:-$(${TOPDIR}/tools/getversion)}
-MODDIR=${MODDIR:-/lib/modules}
-dir=${MODDIR}/$VERSION
-echo isdn/d_$FILE >>$dir/../modules.isdn.all
+dir=${MODDIR}/${VERSION}
+echo MOD $(basename d_$FILE .o) >>$TOPDIR/modules.isdn
 rm -f $dir/isdn/d_$FILE
 (
 cp $FILE $dir/isdn/d_$FILE 

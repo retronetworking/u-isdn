@@ -1,5 +1,5 @@
 #! /bin/sh
-##  $Revision: 1.1 $
+##  $Revision: 1.1.1.1 $
 ##
 ##  Check the config.data file to make sure there is a tab on every
 ##  non-comment line.

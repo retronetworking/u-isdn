@@ -50,7 +50,7 @@
 #define HSCX_R_FIFO_SIZE 32
 #define HSCX_W_FIFO_SIZE 32
 
-#ifdef _teles3_
+#if defined(_teles3_) || defined(_creatixpnp_)
 #define FIFO(x) Fifo
 #else
 #define FIFO(x) fifo[0] /* forget the address -- WARNING: side effects of x get lost */
@@ -147,7 +147,7 @@ typedef struct _hscx {
 #define ByteInHSCX(_dumb,_hcr,_what) InHSCX((_dumb),(_hcr),offsetof(struct _hscx,r._what))
 #define ByteOutHSCX(_dumb,_hcr,_what,_data) OutHSCX((_dumb),(_hcr),offsetof(struct _hscx,w._what),(_data))
 
-#ifdef linux
+#ifdef __linux__
 #define SetSPL(x) spl(1)
 #else
 #define SetSPL(x) spl((x))
@@ -176,6 +176,10 @@ typedef struct _hscx {
 
 #ifdef _teles3_
 #include "teles3_io.c"
+#endif
+
+#ifdef _creatixpnp_
+#include "creatixpnp_io.c"
 #endif
 
 

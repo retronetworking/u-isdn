@@ -3,7 +3,7 @@ Basiert auf Linuxkernel 2.0.8.
 
 Dies ist eine Betaversion.
 
-Dieses Programmpaket ist (c) 1994,1995 Matthias Urlichs <urlichs@noris.de>.
+Dieses Programmpaket ist (c) 1994-1997 Matthias Urlichs <urlichs@noris.de>.
 Es darf ohne meine Zustimmung _nicht_ weitergegeben werden. Kommerzielle
 Verwertung jedweder Art bedarf meiner Zustimmung. Das Anbieten auf
 FTP-Servern, in Mailboxen, etc.pp. ist ohne meine Zustimmung nicht
@@ -32,55 +32,18 @@ Es gibt eine Mailingliste zum Thema: linux-isdn@uranus.central.de.
 linux-isdn-request@uranus.central.de.
 
 
-Version 14: Die CL- und DL-Zeilen haben sich geändert (erweitert um
-<Key>-Parameter).  Intelligente Karten funktionieren NOCH NICHT.
+Änderungen Version 45
+---------------------
 
-In der Version 11 lagen noch ein paar .depend-Dateien und anderer Kram rum,
-die den Buildprozeß gestört haben. Abhilfe: "make clean".
+Die ISDN-Modulliste steht jetzt nicht mehr in /lib/modules/modules.isdn
+oder so, sondern wird mit MOD-Zeilen in die /etc/isdn.conf-Datei geschrieben.
+Umsetzung (so ähnlich):
+# sed -e 's/isdn./MOD /' < /lib/modules/modules.isdn >> /etc/isdn.conf
 
+Die volle Liste findet sich in modules.isdn (im Hauptverzeichnis der
+Sourcen, nach dem Installieren), nicht in /lib/modules/modules.isdn.all.
 
-Mit der Version 11 ist das OK am Ende des statischen Teils der AT/L-Ausgabe
-weggefallen, weil das zu viele Leute irritiert hat. (Schließlich folgt noch
-was nach.)
-
-Mit der Version 11 hat sich die Installationsprozedur fuer ISDN-Karten
-geaendert. Vorher: Config.c editieren, Modul bauen. Jetzt: d_teles.o
-laden, dann fuer jede Karte "insmod teles.o -o Tel0 name=$(cardname Tel0)
-mem=0xD6000 irq=5" ausfuehren. Daten anpassen! Unterschiedliche Namen
-verwenden! Das rc-Skript in tools/ wurde entsprechend angepasst.
-16-Bit-Karten: Zusaetzlich "ipl=X" (X=1..3) fuer die erste bis dritte Karte.
-Damit sollte es problemlos sein, zwischen verschiedenen Systemen (mit
-einigermaßen identisch konfigurierten Kernels) die Treiber auszutauschen.
-
-Mit der Version für 1.2.0 hat sich die Syntax der cf-Datei leicht geändert:
-
-Der :ea-Parameter in der P-Zeile wurde durch den :lr-Parameter ersetzt:
--   verwende ":lr /X" statt ":ea X".
--   hänge an die DL-Zeile an die Nummer einen / an und danach ":pr 0 :sp 65
-    :pr 63" für 1TR6 oder :sp 8 für Euro-ISDN.
-Generell steht nun "/" für EAZs und so; "." steht für Nebenstellennummern.
-Bei externen Nummern verwende ich generell ".", aber das ist
-Geschmackssache.
-
-Einige Konfigzeilen haben als zusätzlichen Parameter das ISDN-Interface
-verpaßt bekommen.
-
-Die Parameter :pr und :sp stehen nun in der DL-Zeile und nicht mehr in
-der P-Zeile.
-
-Die I- und O-Flags werden nun klein geschrieben.
-
-Die Verzögerung beim Auflegen (ML-Zeile) wird nun mit einem Komma an die
-Flags angehängt anstatt als Extraparameter.
-
-
-Einen leicht genervten Dank an den einen von ca. 30 Leuten, die den Fehler
-in der letzten DOKU-Ausgabe nicht nur bemerkt haben, sondern der sogar auf
-die unheimlich neuartige Idee gekommen ist, mir eine entsprechende Mail zu
-schreiben. (You know who you are.)  Und zwar nicht eine Mail "Du da paßt
-was nicht zusammen, ey boah ey", sondern sogar mit der anscheinend (wenn
-ich mir die anderen Mails so ansehe) absolut unnötigen Info, _was_ nicht
-stimmt. Echt goil ey.
+rc.isdnmon schreibt nach /var/log/acct/ip.isdn.
 
 
 Geldmangel
@@ -157,9 +120,10 @@ Linux. GCC 2.7.2, Libraries 5.0.9, oder neuere (Testumgebung: Libraries
 Passive ISDN-Karte mit Hardware-Doku, oder Teles-8 oder -16 / Creatix.
 Support fuer BSC- und AVM A1-Karten ist in Vorbereitung, Source liegt bei,
 funktioniert aber noch nicht so ganz (BSC: B-Kanäle; beide: Interrupts?) --
-wer kann und will, möge sich dransetzen. Die neuen PnP-Creatix unterstütze
-ich auch noch nicht, weil PnP-Support für Linux erst unter 2.1 kommt und
-ich keinerlei Bock habe, das Rad neu zu erfinden.
+wer kann und will, möge sich dransetzen.
+
+Support für Teles S0/16.3 und Creatix PNP ist seit neuesten auch dabei;
+Dank an Peter Brückner.
 
 
 Kernelpatches
@@ -287,18 +251,23 @@ make.isdn
 # Nun als Superuser:
 make.isdn
 # oder einfach "make install".
-### Editiere /lib/modules/modules.isdn (die automatisch erzeugte Version
-### steht in /lib/modules/modules.isdn.all:
-    isdn/teles.o -o Tel0 name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
-  anstatt
-    isdn/teles.o
   eintragen. Näheres siehe "Treiberparameter" weiter unten.
 cd /usr/local/isdn/bin-Kernelversion  # also zB .../bin-1.3.29
 vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
+                  # MOD-Zeilen anpassen Insbesondere
+    MOD teles -o Tel0 name=$(cardname Tel0) mem=0xD6000 irq=5 ipl=1
+  anstatt
+    MOD teles
+  (zum Beispiel)
 /etc/rc.d/rc.isdn # geht automatisch in den Hintergrund
+### oder
+/sbin/init.d/uisdn start
+### .. je nach installierter Distribution
 # Wenn das alles funktioniert, rc.isdn via rc.local starten.
 
-Sämtliche Gerätedateien werden automatisch angelegt.
+Sämtliche Gerätedateien werden automatisch angelegt; die Zuordnung zu
+Gerätenummern erfolgt dynamisch.
+
 
 Probleme bei der Installation
 --------
@@ -335,9 +304,9 @@ Autoconfig und wieso nicht: Nein, ich weigere mich (momentan), automatisch
 nach Karten, deren Interrupts, deren Konfigurationsregister etc.pp. zu
 suchen. Bei einem laufenden Kernel ist das alles andere als einfach!
 
-Stattdessen müssen die entsprechenden Daten in /lib/modules/modules.isdn
-eingetragen werden. Wenn irgendwas nicht stimmt, wird im allgemeinen die
-Karte nicht erkannt und das Treibermodul nicht geladen.
+Stattdessen müssen die entsprechenden Daten in /etc/isdn.conf eingetragen
+werden. Wenn irgendwas nicht stimmt, wird im allgemeinen die Karte nicht
+erkannt und das Treibermodul nicht geladen.
 Ausnahme: IRQs, die werden momentan nicht überprüft. Das kann man manuell
 machen: nach der installation der Treiber beim ISDN-Anschluß der Karte
 anrufen. Dann "cat /proc/interrupts". Wenn neben dem Wort ISDN eine Zahl
@@ -1167,9 +1136,10 @@ Mod:
    nach n Sekunden der Verbindungsaufbau wieder erlaubt. (Noch nicht 
    implementiert)
 $ Die Befehlszeile wird nicht direkt ausgeführt, sondern der Shell übergeben.
+B Die Verbindung wird beim Hochfahren des Managers automatisch aufgebaut.
+D /dev/ttyiXX wird angelegt und nach Programmende gelöscht.
 E Beim Auftreten eines Fehlers wird dieses Programm deaktiviert.
   (Reaktivieren: AT/R.)
-D /dev/ttyiXX wird angelegt und nach Programmende gelöscht.
 F Das Programm wird sofort gestartet, und die Verbindung wird aufgebaut.
   Interessant insbesondere bei Festverbindungen und SPVs.
 L nur der angegebene Benutzer kann die Verbindung aktivieren.
@@ -1178,7 +1148,8 @@ R kein Dialout via ATD möglich.
 S stderr des Programms liegt auf ISDN (sonst: stderr des Treiberprogramms)
 T Verbindung im Terminalmodus (ankommend, also zB beim Start von /bin/login).
 U ein Eintrag in /etc/utmp wird angelegt (wichtig zB für login).
-B Die Verbindung wird beim Hochfahren des Managers automatisch aufgebaut.
+X der Verbindungsaufbau wird erst vollendet, wenn FD 3 geschlossen wird
+  (Fehlercode, wenn ein Zeichen kommt).
 i für ankommende Verbindungen
 o für abgehende Verbindungen
 f für Festverbindungen. "B" wird hier normalerweise ebenfalls angegeben.

@@ -211,67 +211,67 @@ pmatch1 (cf prot, conngrab *cgm)
 #define CHKVI()																\
 	({ __label__ ex; int xx,yy,xm; streamchar *vx,*vy,*vm; ushort_t id2;		\
 		yy = m_gethexlen(cand);												\
-		if (yy <= 0 || (vy=xmalloc(yy))==NULL) break;						\
-		if(m_gethex(cand,vy,yy) != 0) { free(vy); break; }					\
+		if (yy <= 0 || (vy=gcxmalloc(yy))==NULL) break;						\
+		if(m_gethex(cand,vy,yy) != 0) { gfree(vy); break; }					\
 		if ((xm = m_gethexlen(cand)) > 0) {									\
 			if ((vm=xmalloc(xm)) == NULL)									\
-				{ free(vy); break; }										\
+				{ gfree(vy); break; }										\
 			if(m_gethex(cand,vm,xm) != 0)									\
-				{ free(vy); free(vm); break; }								\
+				{ gfree(vy); gfree(vm); break; }							\
 		} else																\
 			{ vm=NULL; xm=0; }												\
 		if(cgc->par_in != NULL) {											\
 			while(m_getsx(cgc->par_in,&id2) == 0) {							\
 				if(id != id2) continue;										\
 				xx = m_gethexlen(cgc->par_in);								\
-				if (xx <= 0 || (vx=xmalloc(xx))==NULL) break;				\
+				if (xx <= 0 || (vx=gcxmalloc(xx))==NULL) break;				\
 				if(m_gethex(cgc->par_in,vx,xx) != 0)						\
-					{ free(vx); break; }									\
+					{ gfree(vx); break; }									\
 				if(abs(vectcmp(vx,xx,vy,yy,vm,xm)) < 5)						\
-					{ free(vx); free(vy); if(xm>0)free(vm); goto ex; }		\
+					{ gfree(vx); gfree(vy); if(xm>0)gfree(vm); goto ex; }	\
 				if(0)if(!strchr(prot->type,'F') && !first) continue;		\
 				cgc->par_in->b_rptr = mbs_in;								\
 				freeb(cand);												\
 				if(0)printf("MatchVI %x: %s vs %s\n",id,vx,vy);				\
-				free(vx); free(vy); if(xm>0)free(vm);						\
+				gfree(vx); gfree(vy); if(xm>0)gfree(vm);					\
 				dropgrab(cgc); dropgrab(cg); return "3ERR FIND Match Arg";	\
 			}																\
-			free(vy); if(xm>0)free(vm);										\
+			gfree(vy); if(xm>0)gfree(vm);									\
 		}																	\
 	ex:; })				 														/**/
 #define CHKVO()																\
 	({ __label__ ex; int xx,yy,xm; streamchar *vx,*vy,*vm; ushort_t id2;		\
 		yy = m_gethexlen(cand);												\
-		if (yy <= 0 || (vy=xmalloc(yy))==NULL) break;						\
-		if(m_gethex(cand,vy,yy) != 0) { free(vy); break; }					\
+		if (yy <= 0 || (vy=gcxmalloc(yy))==NULL) break;						\
+		if(m_gethex(cand,vy,yy) != 0) { gfree(vy); break; }					\
 		if ((xm = m_gethexlen(cand)) > 0) {									\
-			if ((vm=xmalloc(xm)) == NULL)									\
-				{ free(vy); break; }										\
+			if ((vm=gcxmalloc(xm)) == NULL)									\
+				{ gfree(vy); break; }										\
 			if(m_gethex(cand,vm,xm) != 0)									\
-				{ free(vy); free(vm); break; }								\
+				{ gfree(vy); gfree(vm); break; }							\
 		} else																\
 			{ vm=NULL; xm=0; }												\
 		if(cgc->par_out != NULL) {											\
 			while(m_getsx(cgc->par_out,&id2) == 0) {						\
 				if(id != id2) continue;										\
 				xx = m_gethexlen(cgc->par_out);								\
-				if (xx <= 0 || (vx=xmalloc(xx))==NULL) break;				\
+				if (xx <= 0 || (vx=gcxmalloc(xx))==NULL) break;				\
 				if(m_gethex(cgc->par_out,vx,xx) != 0)						\
-					{ free(vx); break; }									\
+					{ gfree(vx); break; }									\
 				if(abs(vectcmp(vx,xx,vy,yy,vm,xm)) < 5)						\
-					{ free(vx); free(vy); if(xm>0)free(vm); goto ex; }		\
+					{ gfree(vx); gfree(vy); if(xm>0)gfree(vm); goto ex; }	\
 				if(0)if(!strchr(prot->type,'F') && !first) continue;		\
 				cgc->par_out->b_rptr = mbs_out;								\
 				if(0)printf("MatchVO %x: %s vs %s\n",id,vx,vy);				\
 				freeb(cand);												\
-				free(vx); free(vy); if(xm>0)free(vm);						\
+				gfree(vx); gfree(vy); if(xm>0)gfree(vm);					\
 				dropgrab(cgc); dropgrab(cg); return "3ERR FIND Match Arg";	\
 			}																\
 			if(!(cgc->flags & F_OUTCOMPLETE)) {								\
 				m_putsx(cgc->par_out,id);									\
 				m_puthex(cgc->par_out,vy,yy);								\
 			}																\
-			free(vy); if(xm>0)free(vm);										\
+			gfree(vy); if(xm>0)gfree(vm);									\
 		}																	\
 	ex:; })			 														/**/
 

@@ -2,11 +2,7 @@
 #define __IP_MON
 
 #include "primitives.h"
-#include <netinet/in.h>
-#ifndef linux
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#endif
+#include "f_ip.h"
 
 #define IP_MON_TIMEOUT CHAR2('t','o')
 #define IP_MON_EACHPACKET CHAR2('p','a')

@@ -35,7 +35,7 @@ ROUTE_PATH	/sbin/route
 ##
 ##
 ##
-## Card drivers to install. teles bintec.
+## Card drivers to install. teles bintec teles3 creatixpnp.
 ##
 #### =()<CARDS	@<CARDS>@>()=
 CARDS	teles
@@ -89,7 +89,7 @@ CFLAGS			-g -O2 -Wall -fomit-frame-pointer -DKERNEL -D__KERNEL__ -DMODULE
 ##  C flags for programs
 ##
 #### =()<HOSTCFLAGS			@<HOSTCFLAGS>@>()=
-HOSTCFLAGS			-g -O2 -Wall
+HOSTCFLAGS			-g -O2 -Wall -D_GNU_SOURCE
 #CFLAGS			-x c++ -g -O2 -W -Wreturn-type -Wshadow -Wcomment 
 #CFLAGS			-g -W -Wreturn-type -Wshadow -Wcomment -D_BSD_SOURCE -D_SYSV_SOURCE 
 ##

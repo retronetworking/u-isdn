@@ -334,7 +334,7 @@ streams_close (struct inode *inode, struct file *file)
 	 */
 	xtimeout = jiffies + HZ * STRTIMOUT;
 	while (p_queue->q_next != NULL) {
-		if (p_stream->error >= 0 && !(file->f_flags & O_NDELAY)) {
+		if (jiffies < xtimeout && p_stream->error >= 0 && !(file->f_flags & O_NDELAY)) {
 			current->timeout = xtimeout;
 			if(p_queue->q_next->q_count != 0 &&
 					!(current->signal & ~current->blocked))

@@ -6,6 +6,11 @@
 #include <linux/signal.h>
 #else
 #include <signal.h>
+
+#if __GNU_LIBRARY__ -0 < 6
+#define bsd_signal(a,b) signal((a),(b))
+#endif
+
 #endif
 
 #ifdef SYSV_SIGTYPE
@@ -33,7 +38,7 @@
 #else
 #define SIG_SUSPEND(_var,_sig) do { (_var).__sign = _sig;  (_var).__sig = signal(_sig,SIG_IGN); } while(0)
 #endif
-#define SIG_RESUME(_var) do { (void) signal((_var).__sign, (_var).__sig); } while(0)
+#define SIG_RESUME(_var) do { (void) bsd_signal((_var).__sign, (_var).__sig); } while(0)
 
 #endif
 

@@ -162,6 +162,7 @@ backrun (int fd, int timeo)
 		rdx = rd;
 
 		runqueues (); deadkid(); runqueues ();
+		MALLOC_IDLE();
 		if(fd >= 0) FD_SET(fd,&rdx);
 		err = select (FD_SETSIZE, &rdx, NULL, NULL, &now);
 		if (err == 0 || (err < 0 && errno == EINTR)) {

@@ -4,7 +4,7 @@
 #define INET
 #include "primitives.h"
 
-#if defined(linux) && !defined(CONFIG_INET_BSD)
+#if defined(linux) && (defined(KERNEL) || (__GNU_LIBRARY__-0 < 6))
 
 /* If somebody could please reboot the person responsible for this.
    Start over. It avoids a big whole lot of hassle for us all. Thanks. */
@@ -49,7 +49,6 @@
 #define icmp_code code
 #define icmp_cksum checksum
 
-
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/icmp.h>
@@ -70,13 +69,17 @@
 #include <sys/protosw.h>
 #endif
 #include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/in_var.h>
-#include <netinet/ip.h>
 #include <netinet/tcp.h>
+#ifndef __linux__
+#include <netinet/in_var.h>
+#include <netinet/in_systm.h>
+#include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
+#endif
 #define THFLAG(a) (a)->th_flags
+#ifndef linux
 #define SOCK_HAS_LEN	/* socket has sa_len field */
 #endif
+#endif /* F_DONE */
 #endif /* _F_IP */

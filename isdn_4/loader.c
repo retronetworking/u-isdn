@@ -34,7 +34,7 @@ card_load_close(struct loader *ld, char success)
 				break;
 		}
 		if(conn == NULL) {
-			conn = xmalloc(sizeof(*conn));
+			conn = gcxmalloc(sizeof(*conn));
 			newconn = 1;
 		}
 		if(conn != NULL) {
@@ -49,7 +49,7 @@ card_load_close(struct loader *ld, char success)
 			dropconn(conn);
 		}
 	}
-	free(ld);
+	gfree(ld);
 	if(cards_loading > 0)
 		cards_loading--;
     do_run_now++;
@@ -106,7 +106,7 @@ card_load_fail(struct loader *ld, int err)
 				break;
 		}
 		if(conn == NULL) {
-			conn = xmalloc(sizeof(*conn));
+			conn = gcxmalloc(sizeof(*conn));
 			newconn = 1;
 		}
 		if(conn != NULL) {
@@ -121,7 +121,7 @@ card_load_fail(struct loader *ld, int err)
 		}
 	}
 	card_load_close(ld,0);
-	free(card);
+	gfree(card);
 }
 
 void
@@ -168,7 +168,7 @@ card_load(struct loader *ld)
 			streamchar ans[50];
 
 			if(ld->file != NULL) {
-				buf = xmalloc(lf->num);
+				buf = gbxmalloc(lf->num);
 				if(buf == NULL) {
 					syslog(LOG_ERR, "Card loader for %s !\n",ld->card);
 					goto ex_load;
@@ -181,7 +181,7 @@ card_load(struct loader *ld)
 				len = fread(buf,1,lf->num,ld->file);
 				if(len < 0) {
 					syslog(LOG_ERR, "Card loader for %s: read returned %m\n",ld->card);
-					free(buf);
+					gfree(buf);
 					goto ex_load;
 				}
 				foffset = ld->foffset;
@@ -227,7 +227,7 @@ card_load(struct loader *ld)
 			}
 			(void) strwritev (xs_mon, io,len, 1);
 			if(buf != NULL)
-				free(buf);
+				gfree(buf);
 			ld->timer = 1;
 			timeout(card_load,ld,(ld->file || !lf) ? HZ : (HZ*lf->num2+HZ/3));
 			if(!do_again)
