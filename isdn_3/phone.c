@@ -40,9 +40,6 @@ phone_sendback (isdn3_conn conn, uchar_t msgtype, mblk_t * data)
 	if (data != NULL)
 		linkb (mb, data);
 
-	*mb->b_wptr++ = conn->subprotocol;
-	*mb->b_wptr++ = creflen;
-
 	if (conn->subprotocol == SAPI_PHONE_DSS1) {
 		if(conn->card == NULL || conn->card->bchans <= 2) {
 			if (creflen < 1)
@@ -52,6 +49,9 @@ phone_sendback (isdn3_conn conn, uchar_t msgtype, mblk_t * data)
 				creflen = 2;
 		}
 	}
+
+	*mb->b_wptr++ = conn->subprotocol;
+	*mb->b_wptr++ = creflen;
 
 	if (creflen > 0) {
 		int clen = creflen;

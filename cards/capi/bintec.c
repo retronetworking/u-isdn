@@ -977,11 +977,17 @@ sendone(struct _bintec *bp, int thechan)
 				freemsg(mb);
 			if(thechan != 0)
 				chan->waitflow++;
+			if(BOARD_TYPE(bp) != BOARD_ID_PMX) {
+				*bp->ctrl = bp->cflag | 0x10;
+				*bp->ctrl = bp->cflag;
+			} else
+				CTRL_SET(bp,1);
 		}
 	} else if(err == -EAGAIN) {
 		S_requeue(&chan->q_out,mb);
 	} else {
 		freemsg(mb);
+		/* TODO: Kill the board? */
 	}
 	return err;
 }
@@ -1349,8 +1355,16 @@ DoIRQ(struct _bintec *bp)
 				if (err < 0)
 					freemsg(mb);
 			} else {
-				printf("BINTEC error: msg type %04x\n",ntohs(err));
-				getflush(bp,len);
+				mblk_t *mb = allocb(len+2,BPRI_LO);
+				if(mb != NULL) {
+					*((ushort_t *)mb->b_wptr)++ = ntohs(err);
+					getmb(bp,mb,len);
+					log_printmsg(NULL,"BINTEC error: msgtype",mb,KERN_WARNING);
+					freemsg(mb);
+				} else {
+					printf("BINTEC error: msg type %04x\n",ntohs(err));
+					getflush(bp,len);
+				}
 				err = getend(bp);
 			}
 		}
@@ -1436,7 +1450,7 @@ bintectimer(struct _bintec *bp)
 #ifdef NEW_TIMEOUT
 	bp->timer =
 #endif
-		timeout((void *)bintectimer,bp,(bp->info.irq == 0) ? ((bp->type == BOARD_ID_PMX) ? HZ/100+1 : HZ/20+1) : HZ/2);
+		timeout((void *)bintectimer,bp, (bp->info.irq == 0) ? (HZ/100+1) : (HZ/2));
 }
 #endif
 

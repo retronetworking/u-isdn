@@ -2049,9 +2049,8 @@ printf("ErX k\n");
 				conn->lockit++;
 				isdn3_setup_conn (conn, EST_NO_CHANGE);
 				conn->lockit--;
-				if(conn->state == 0) {
+				if(conn->state == 0 && conn->id_msg == 0) 
 					isdn3_killconn(conn,0);
-				}
 			}
 		} else {
 			if (minor == 0) {
@@ -2150,9 +2149,8 @@ printf("ErX k\n");
 			conn->lockit++;
 			isdn3_setup_conn (conn, EST_NO_CHANGE);
 			conn->lockit--;
-			if(conn->state == 0) {
-				/* XXX */
-			}
+			if(conn->state == 0 && conn->id_msg == 0) 
+				isdn3_killconn(conn,0);
 		} else {
 #if 1
 			printf("ErrOut 2c");
@@ -2363,7 +2361,7 @@ if(theID == CMD_OFF) printf(" D9 ");
 		if (mb != NULL) {
 			m_putid (mb, IND_ERR);
 			m_putsx (mb, ARG_ERRNO);
-			m_puti (mb, err);
+			m_puti (mb, (err>0) ? err : -err);
 			if(conn_id == 0 && conn != NULL)
 				conn_id = conn->conn_id;
 			if(conn_id != 0) {
@@ -2633,6 +2631,15 @@ isdn3_flags(mblk_t *info, uchar_t protocol, uchar_t subprot)
 					break;
 				case ARG_L2CLOSE:
 					flags &=~ FL_L2KEEP;
+					break;
+				case ARG_BUG1:
+					flags |= FL_BUG1;
+					break;
+				case ARG_BUG2:
+					flags |= FL_BUG2;
+					break;
+				case ARG_BUG3:
+					flags |= FL_BUG3;
 					break;
 				default:
 					break;

@@ -138,6 +138,7 @@
 #define ARG_CALLREF  CHAR2 ('c','r')	/* long call reference number */
 #define ARG_PBX      CHAR2 ('p','b')    /* behave like a PBX */
 #define ARG_EAZ      CHAR2 ('e','a')	/* map EAZ to local phone nr */
+#define ARG_LWAIT    CHAR2 ('l','w')	/* how long to wait for additional digits */
 #define ARG_LNUMBER  CHAR2 ('l','r')	/* local phone nr */
 #define ARG_NUMBER   CHAR2 ('n','r')	/* remote phone nr */
 #define ARG_OUTNUMS  CHAR2 ('o','m')    /* outgoing, for build */
@@ -158,6 +159,7 @@
 #define ARG_ERRHDR   CHAR2 ('e','H')    /* reported error type */
 #define ARG_SPV		 CHAR2 ('p','v')	/* semipermanent */
 #define ARG_FORCETALK CHAR2 ('F','t')	/* force talker */
+#define ARG_INCOMPLETE CHAR2('i','C')   /* Number may be incomplete */
 #define ARG_SUBPROT  CHAR2 ('s','p')	/* long Subprotocol to use. For SAPI 0:
 										 * "65" for calls according to 1TR6,
 										 * "0" for Q.931. */
@@ -177,7 +179,7 @@
 
 #define ARG_POINTOPOINT CHAR2('p','p') /* point-to-point link */
 #define ARG_MULTIPOINT1 CHAR2('m','p') /* multipoint link, variable ID */
-#define ARG_MULTIPOINT2 CHAR2('m','f') /* multipoint link, fixed ID */
+#define ARG_MULTIPOINT2 CHAR2('m','q') /* multipoint link, fixed ID */
 #define ARG_MULTIPOINT3 CHAR2('m','t') /* multipoint link, fixed TEI */
 
 #define ARG_ANSWER_IMMED CHAR2('a','i') /* grab the TEI on startup */
@@ -191,6 +193,9 @@
 #define ARG_DEBUG CHAR2('d','e')
 #define ARG_EVENT CHAR2('e','v')
 #define ARG_SUBEVENT CHAR2('e','s')
+#define ARG_BUG1 CHAR2('b','1')
+#define ARG_BUG2 CHAR2('b','2')
+#define ARG_BUG3 CHAR2('b','3')
 
 /* Other arguments are protocol dependent. See the appropriate include files. */
 

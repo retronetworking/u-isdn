@@ -83,7 +83,7 @@ checkdev(int dev)
 			else
 				sbuf[len]='\0';
 			pid = atoi(sbuf);
-			if(pid <= 0 || (kill(pid,0) == -1 && errno == -ESRCH)) {
+			if(pid <= 0 || (kill(pid,0) == -1 && errno == ESRCH)) {
 				if(0)syslog(LOG_WARNING,"Checking %s: unkillable, pid %d, deleted, %m",permtt1, pid);
 				unlink(permtt1);
 			}
@@ -104,7 +104,7 @@ checkdev(int dev)
 			else
 				sbuf[len]='\0';
 			pid = atoi(sbuf);
-			if(pid <= 0 || (kill(pid,0) == -1 && errno == -ESRCH)) {
+			if(pid <= 0 || (kill(pid,0) == -1 && errno == ESRCH)) {
 				if(0)syslog(LOG_WARNING,"Checking %s: unkillable, pid %d, deleted, %m",permtt2, pid);
 				unlink(permtt2);
 			}

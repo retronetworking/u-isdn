@@ -15,7 +15,7 @@ struct loader {
 	int nrfile; /* number loaded to card */
 };
 
-/* cf_LF: num2: sequence number; num: block size */
+/* cf_LF: num2: wait after load; num: block size */
 #endif
 
 static void
@@ -121,17 +121,21 @@ void
 card_load(struct loader *ld)
 {
 	cf dl,lf;
-	int do_again;
+	int do_again, thisseq;
 
 	ld->timer = 0;
   again:
     do_again = 0;
+	thisseq = 0;
+	/* Now find the next applicable entry. ld->seqnum is the cf number of the
+	   next file to load. */
 	for(lf = cf_LF; lf != NULL; lf = lf->next) {
+		thisseq++;
 		if(!wildmatch(ld->name,lf->card))
 			continue;
-		if(ld->seqnum != 0 && ld->seqnum != lf->num2) {
-			if(ld->seqnum < lf->num2 && (do_again == 0 || do_again > lf->num2))
-				do_again = ld->seqnum;
+		if(ld->seqnum != 0 && ld->seqnum != thisseq) {
+			if(ld->seqnum < thisseq && (do_again == 0 || do_again < thisseq))
+				do_again = thisseq;
 			continue;
 		}
 		break;
@@ -216,11 +220,11 @@ card_load(struct loader *ld)
 		free(buf);
 		if(do_again) {
 			ld->timer = 1;
-			timeout(card_load,ld,ld->file ? HZ : HZ*(ld->nrfile+2));
+			timeout(card_load,ld,(ld->file || !lf) ? HZ : (HZ*lf->num2+HZ/3));
 			return;
 		}
 	} else {
-		ld->seqnum = lf->num2;
+		ld->seqnum = thisseq;
 		ld->nrfile++;
 		ld->file = fopen(lf->arg,"r");
 		ld->foffset = 0;
@@ -229,7 +233,7 @@ card_load(struct loader *ld)
 			goto ex_load;
 		}
 		ld->timer = 1;
-		timeout(card_load,ld,HZ*2);
+		timeout(card_load,ld,HZ/3);
 		return;
 	}
 

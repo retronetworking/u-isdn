@@ -8,7 +8,6 @@
 #include "master.h"
 
 
-
 /**
  ** Number String Stuff 
  **/
@@ -74,11 +73,11 @@ char *match_nr (char *extnr, char *locnr, char *locpref)
 					if(*extpos == '\0')
 						return "";
 					if(!isdigit(*extpos)) {
-						if(strcmp(extpos,locpos+1) && !wildmat(extpos,locpos+1))
+						if(strcmp(extpos,locpos+1) && wildmat(extpos,locpos+1) <= 0)
 							return NULL;
 					}
 				} else {
-					if(locpos[1] != '\0' && !wildmat(extpos,locpos+1))
+					if(locpos[1] != '\0' && wildmat(extpos,locpos+1) <= 0)
 						return NULL;
 				}
 				*destpos++=*locpos;
@@ -117,7 +116,7 @@ int match_suffix(char *extsuf, char *extnr)
 	if(*extsuf=='\0')
 		return 1;
 	extsuf++; extnr++;
-	return (wildmatch(extsuf,extnr) != NULL);
+	return (wildmat(extsuf,extnr));
 }
 
 char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
@@ -155,17 +154,20 @@ char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
 	}
 	if(lastprefpos==NULL)
 		return NULL;
-	if(*prefpos == '\0' && islocal) {
+	if(*prefpos == '\0' && (islocal & 1)) {
 		char *xextpos = strchr(extnr,'/');
 		char *xlocpos = strchr(locnr,'/');
 		if(xextpos != NULL && xlocpos != NULL && 
-				(!strcmp(xextpos,xlocpos) || wildmatch(xextpos+1,xlocpos+1)))
+				(!strcmp(xextpos,xlocpos) || wildmatch(xextpos+1,xlocpos+1) > 0))
 			lastprefpos="/";
 	}
 	
 	locpos=strchr(locnr,*lastprefpos);
 	extpos=strchr(extnr,*lastprefpos);
-	lastprefpos++;
+	if(islocal & 2)
+		*destpos++ = *lastprefpos++;
+	else
+		lastprefpos++;
 	while(*lastprefpos != '\0' && isdigit(*lastprefpos)) {
 		*destpos++ = *lastprefpos;
 		lastprefpos++;
@@ -197,7 +199,7 @@ char *append_nr(char *extnr, char *extext)
 		return NULL;
 	if((extpos = strchr(extnr,*extext)) == NULL)
 		return NULL;
-	if(extpos[1] != '\0' && !wildmatch(extpos,extext))
+	if(extpos[1] != '\0' && wildmatch(extpos,extext) <= 0)
 		return NULL;
 	while(extnr != extpos)
 		*destpos++ = *extnr++;
@@ -208,7 +210,7 @@ char *append_nr(char *extnr, char *extext)
 	return str_enter(destnr);
 }
 
-char *strip_nr(char *extnr)
+char *strip_nr(char *extnr, int keepfirst)
 /* entfernt die Spezialzeichen aus einer vollständigen Nummer,
    zwecks Dialout; NULL wenn die Nummer unvollständig ist */
 /* 123.45 -> 12345 */
@@ -219,7 +221,8 @@ char *strip_nr(char *extnr)
 	char *destpos = destnr;
 	int lastspc=1;
 
-
+	if(keepfirst && (*extnr != '\0'))
+		*destpos++ = *extnr++;
 	while(*extnr != '\0') {
 		if(isdigit(*extnr)) {
 			lastspc=0;
