@@ -1020,6 +1020,8 @@ Die Reihenfolge ist wichtig.
     :b1    an manchen Nebenstellen zur korrekten Nummernerkennung notwendig.
            Einschalten, wenn die Nebenstellennummer nicht mit . oder /
            eingeleitet wird.
+    :b2    anscheinend senden manche Idioten (holländische PTT?) die
+           Gebühreninfo in DISPLAY- Datenblöcken.  Grummel hoch drei.
   :sp 65   1TR6, deutscher Standard. [german]
 
   :ai      Ankommenden Anruf mit dem ISDN-Äquivalent von "RINGING"
