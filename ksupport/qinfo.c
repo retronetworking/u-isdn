@@ -77,6 +77,10 @@ qinf (streamchar *buf, queue_t * q)
 	if (fl & QUSE)
 		*buf++ = 'u';
 #endif
+#ifdef QRETRY
+	if (fl & QRETRY)
+		*buf++ = 'a'; /* "a"gain */
+#endif
 	if (fl & QNOENB)
 		*buf++ = 'n';
 	*buf++ = ' ';
