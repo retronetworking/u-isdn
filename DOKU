@@ -603,7 +603,7 @@ Parameter:
 Spezifisch für 1TR6 und CAPI:
 :sv Dienstkennung; zwei Bytes in Hex. Telefon ist 0101 und 0102; DFÜ ist
     07xx (xx ist üblicherweise 00).
-:pv Semipermanente Verbindung bei abgehenden Rufen. (Noch nicht bei CAPI.)
+:pv Semipermanente Verbindung bei abgehenden Rufen. 
     Ankommend werden SPVs automatisch unterstützt.
 
 Spezifisch für Euro-ISDN:

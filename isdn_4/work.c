@@ -588,7 +588,19 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			syslog(LOG_CRIT,"Pipe: %m");
 			return "NO PIPE";
 		}
-
+		{
+			struct conninfo *xconn;
+			int id = 0; char *ids = strchr(cfr->type,'/');
+			if(ids != NULL)
+				id = atoi(ids);
+			if(id != 0) {
+				for(xconn = isdn4_conn; xconn != NULL; xconn = xconn->next) {
+					if(xconn->id == id) {
+						return "Already Running";
+					}
+				}
+			}
+		}
 		{
 			char *err;
 
@@ -619,6 +631,17 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 			ReportConn(conn);
 		}
 	} else {
+		if(conn != NULL) {
+			int id = 0; char *ids = strchr(cfr->type,'/');
+			if(ids != NULL)
+				id = atoi(ids);
+			if(id != 0) {
+				for(prog = conn->run; prog != NULL; prog = prog->next) {
+					if(prog->id == id)
+						return "Already Running";
+				}
+			}
+		}
 		prog = (struct proginfo *) malloc (sizeof (struct proginfo));
 
 		if (prog == NULL)
@@ -1101,6 +1124,8 @@ run_rp(struct conninfo *conn, char what)
 	for(cfr = cf_RP; cfr != NULL; cfr = cfr->next) {
 		char *sit,*pro,*car,*cla;
 		ulong_t sub;
+		int id = 0;
+		char *ids;
 
 		if(strchr(cfr->type,what) == NULL) continue;
 		if((sit = wildmatch(conn->cg->site,cfr->site)) == NULL) continue;
@@ -1108,9 +1133,13 @@ run_rp(struct conninfo *conn, char what)
 		if((car = wildmatch(conn->cg->card,cfr->card)) == NULL) continue;
 		if((sub = maskmatch(conn->cg->mask,cfr->mask)) == 0) continue;
 		if((cla = classmatch(conn->cg->cclass,cfr->cclass)) == NULL) continue;
+		if((ids = strchr(cfr->type,'/')) != NULL)
+			id = atoi(ids);
 
 		for(pr = conn->run; pr != NULL; pr = pr->next) {
 			struct conninfo *xconn;
+			if(id != 0 && pr->id == id)
+				break;
 			if(strchr(pr->type,what) == NULL) continue;
 			if(wildmatch(pr->site,sit) == NULL) continue;
 			if(wildmatch(pr->protocol,pro) == NULL) continue;

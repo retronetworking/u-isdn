@@ -576,6 +576,11 @@ extern int strmsgsz;			/* maximum stream message size */
 extern int nstrpush;			/* maximum # of pushed modules */
 extern volatile queue_t *sched_first, *sched_last;
 
+#ifdef CONFIG_DEBUG_STREAMS
+extern void putnext(queue_t *p_queue, mblk_t *p_msg);
+extern void linkb(mblk_t *p_msg1, mblk_t *p_msg2);
+extern mblk_t *unlinkb(mblk_t *p_msg);
+#else
 static inline void putnext(queue_t *p_queue, mblk_t *p_msg)
 {
 	(*p_queue->q_next->q_qinfo->qi_putp)(p_queue->q_next, p_msg);
@@ -603,5 +608,6 @@ static inline mblk_t *unlinkb(mblk_t *p_msg)
     p_msg->b_cont = NULL;
     return p_nextmsg;
 }
+#endif /* DEBUG */
 
 #endif /* __sys_stream_h */

@@ -184,7 +184,9 @@ xstreams_open (struct inode *inode, struct file *file, struct stream_header **pp
 		p_stream->flag &= ~SF_WAITOPEN;
 		wake_up (&p_stream->waiting);
 		if (p_stream->error < 0) {
+#ifdef CONFIG_DEBUG_STREAMS
 			printk("XOpen RetErr %d\n",p_stream->error);
+#endif
 			return p_stream->error;
 		}
 		return 0;
@@ -255,8 +257,16 @@ xstreams_open (struct inode *inode, struct file *file, struct stream_header **pp
 		freeq (p_queue);
 		kfree_s (p_stream, sizeof (*p_stream));
 
+#ifdef CONFIG_DEBUG_STREAMS
 		printk("XOpen RetErrR %d\n",err);
-		return err;
+#endif
+		if(p_stream->next != NULL)
+			p_stream->next->prev = p_stream->prev;
+		if(p_stream->prev != NULL)
+			p_stream->prev->next = p_stream->next;
+		else 
+			first_stream = p_stream->next;
+  		return err;
 	}
 
 	/*
@@ -318,7 +328,7 @@ streams_close (struct inode *inode, struct file *file)
     wake_up (&p_stream->ioctling);
 
 	p_queue = p_stream->write_queue;
-#if 0 /* def CONFIG_DEBUG_STREAMS */
+#ifdef CONFIG_DEBUG_STREAMS_1
 	printf("Closing %p q %p\n",p_stream,RD(p_queue));
 #endif
 	/*
