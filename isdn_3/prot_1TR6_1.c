@@ -2232,10 +2232,13 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			switch (conn->state) {
 			case 6:
 			case 7:
+				break;
 			default:
 				printf("BadState2 ");
 				err = -EINVAL;
-				break;
+				if(asn != NULL)
+					freemsg(asn);
+				goto ex;
 			}
 			conn->minorstate |= MS_WANTCONN;
 
@@ -2258,6 +2261,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 			if (asn != NULL)
 				freemsg (asn);
 		}
+	  ex:
 		break;
 #if 0
 	case CMD_FORWARD:

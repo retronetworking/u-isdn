@@ -1533,7 +1533,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		kfree(bp);
 		return err;
 	}
-	if((bp->info.irq != 0) && request_irq(bp->info.irq,bintecintr,0,STRING(REALNAME),bp)) {
+	if((bp->info.irq != 0) && request_irq(bp->info.irq,bintecintr,SA_SAMPLE_RANDOM,STRING(REALNAME),bp)) {
 		printf("IRQ not available.\n");
 		kfree(bp);
 		return -EIO;

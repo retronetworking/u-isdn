@@ -1531,7 +1531,7 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 		MEM(char,arn,0x53) = 0xFF;
 	}
 
-    if((arn->info.irq != 0) && request_irq(arn->info.irq,arnet_intr,0 /* SA_INTERRUPT */,"arnet",arn)) {  
+    if((arn->info.irq != 0) && request_irq(arn->info.irq,arnet_intr,SA_SAMPLE_RANDOM|0 /* SA_INTERRUPT */,"arnet",arn)) {  
 		printf("*** IRQ %d not available\n",arn->info.irq);
 		kfree(arn);
 		return -EBUSY;

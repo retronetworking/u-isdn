@@ -93,11 +93,14 @@ main (int argc, char *argv[])
 			break;
 		default:
 		  usage:
-			fprintf (stderr, "Usage: %s -WQLwql[ogging] [ -f device ] \n"
-					"\t-d[ebug]", progname);
+			fprintf (stderr, "Usage: %s -iIdlLwWqQmM -f masterfile cf-datei...\n", progname);
+			fprintf (stderr, "   (READ THE DOCUMENTATION if you want to know what the options mean.)\n");
 			exit (1);
 		}
 	}
+	if(argv[optind] == NULL)
+		goto usage;
+
 	openlog (progname, debug ? LOG_PERROR : 0, LOG_LOCAL7);
 
 	/* Remember all files to scan */
@@ -211,9 +214,11 @@ main (int argc, char *argv[])
 	signal (SIGALRM, (sigfunc__t) alarmsig);
 	signal (SIGPIPE, SIG_IGN);
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
-		signal (SIGHUP, SIG_DFL);
+		signal (SIGHUP, (void *)do_quitnow);
 	if(signal(SIGINT,SIG_IGN) != SIG_IGN)
 		signal (SIGINT, (void *)do_quitnow); /* Always these "incompatible" pointers... */
+	if(signal(SIGTERM,SIG_IGN) != SIG_IGN)
+		signal (SIGTERM, (void *)do_quitnow); /* Always these "incompatible" pointers... */
 	signal (SIGQUIT, (sigfunc__t) do_quitnow);
 	signal (SIGUSR1, (sigfunc__t) kill_progs);
 

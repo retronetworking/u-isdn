@@ -18,7 +18,7 @@ xmalloc(size_t sz)
 
 	foo = malloc(sz);
 	if(foo == NULL) {
-		syslog(LOG_CRIT,"No memory for %ld bytes! Dying!\n",sz);
+		syslog(LOG_CRIT,"No memory for %d bytes! Dying!\n",sz);
 		abort();
 	}
 	return foo;
@@ -270,15 +270,29 @@ log_idle (void *xxx)
 	char repbuf[80];
 	struct tm *tm;
 	time_t now;
+	int nc1=0,nc2=0,nc3=0;
+	struct conninfo *conn;
 
+	for(conn = isdn4_conn; conn != NULL; conn = conn->next) {
+		if(conn->ignore)
+			continue;
+		if(conn->state < c_down)
+			continue;
+		else if(conn->state == c_up)
+			nc1++;
+		else if(conn->state == c_down)
+			nc3++;
+		else
+			nc2++;
+	}
 	if(started == 0)
 		started = time(NULL);
 
-	now = time(NULL);	
+	now = time(NULL);
 	tm = localtime(&now);
 	now = (now - started) / 60;
 	
-	sprintf(repbuf,"#%d %02d:%02d", (int)now, tm->tm_hour,tm->tm_min);
+	sprintf(repbuf,"#%d %02d:%02d %d,%d,%d", (int)now, tm->tm_hour,tm->tm_min,nc1,nc2,nc3);
 	connreport(repbuf,"*",0);
 
 	if(!(now % 5))

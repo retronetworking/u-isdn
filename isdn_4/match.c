@@ -797,7 +797,7 @@ findit (conngrab *foo, int ignbusy)
 					m_getstr (p, st, 4);
 					if((foo = wildmatch(str_enter(st),cg->card)) == NULL) {
 						char buf[80];
-						sprintf(buf,"0CARD MISMATCH %s %s",st,cg->card);
+						sprintf(buf,"9CARD MISMATCH %s %s",st,cg->card);
 						dropgrab(cg);
 						return str_enter(buf);
 					}

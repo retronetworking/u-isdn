@@ -522,8 +522,8 @@ get_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t *nrpos, uchar_t what)
 	qd_data = qd_find (data, len, 0, what, &qd_len);
 	if (qd_data == NULL)
 		return 0;
-	if (qd_len > MAXNR)
-		qd_len = MAXNR;
+	if (qd_len >= MAXNR)
+		qd_len = MAXNR-1;
 	if (qd_len < 1)
 		return 0;
 	switch(*qd_data & 0x70) {
@@ -533,8 +533,10 @@ get_nr (isdn3_conn conn, uchar_t * data, int len, uchar_t *nrpos, uchar_t what)
 			if(flags & FL_BUG1) {
 				if(qd_data[0] == 0x00 && qd_data[1] == 0x83)
 					*nrpos++ = '='; /* at least one PBX is stupid */
+				else if(qd_data[0] == 0x01 && qd_data[1] == 0x80)
+					*nrpos++ = '='; /* another terminally stupid PBX */
 				else if(qd_data[0] == 0x81)
-					*nrpos++='.'; /* the very same PBX */
+					*nrpos++='.'; /* the first PBX, above, again */
 			}
 		}
 		break;

@@ -162,6 +162,12 @@ ReportOneConn(conninfo conn, int minor)
 	connreport(sp,(conn->cg ? conn->cg->card : "*"),minor);
 }
 
+static void nodown(conninfo conn)
+{
+	syslog(LOG_CRIT,"Verbindung geht nicht runter! Problem! Nothalt wegen %s!", conn->cg ? conn->cg->site : "???");
+	_exit(10);
+}
+
 static inline int retimeout(conninfo conn)
 {
 	int tim = 0;
@@ -278,6 +284,13 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 		conn->cause = 999999;
 		conn->did_bounce = 1;
 	}
+	if(conn->state == c_up && state < c_up) {
+		int conntime = time(NULL) - conn->upwhen;
+		if(conn->cg != NULL)
+			syslog(LOG_INFO,"CONN %s:%s %ld",conn->cg->site,conn->cg->protocol,conntime);
+		else
+			syslog(LOG_WARNING,"CONN ??? %ld",conntime);
+	}
 	if((conn->state < c_going_down && state > c_going_down) || state < c_off) {
 		if(conn->charge > 0) {
 			if(conn->cg != NULL)
@@ -330,6 +343,10 @@ Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CState 
 			conn->pid = 0;
 		}
 	}
+	if(conn->state != c_going_down && state == c_going_down)
+		timeout(nodown,conn,10*HZ);
+	else if(conn->state == c_going_down && state != c_going_down)
+		untimeout(nodown,conn);
 	if(conn->state == c_off && state > c_off) {
 		conn->retries = 0;
 		conn->want_reconn = 0;

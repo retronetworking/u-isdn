@@ -671,10 +671,11 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo, char what)
 		}
 		prog = (struct proginfo *) xmalloc (sizeof (struct proginfo));
 
-		if (prog == NULL)
+		if (prog == NULL) {
 			if(dev > 0)
 				unlockdev(dev);
 			return "NO MEMORY.2";
+		}
 		bzero (prog, sizeof (prog));
 		prog->master = conn;
 		prog->site = cfr->site;
@@ -1190,7 +1191,9 @@ run_rp(struct conninfo *conn, char what)
 			break;
 		}
 		if(pr == NULL) {
-			runprog (cfr, &conn, NULL, what);
+			char *err = runprog (cfr, &conn, NULL, what);
+			if(err != NULL)
+				syslog(LOG_ERR, "Can't runprog: %s",err);
 		}
 	}
 }
@@ -1287,7 +1290,7 @@ run_now(void *nix)
 					if(log_34 & 2)
 						printf("\n");
 					progidx = spos;
-					timeout(run_now,NULL,HZ);
+					timeout(run_now,NULL,HZ/2);
 					return;
 				} else {
 					if(log_34 & 2)
