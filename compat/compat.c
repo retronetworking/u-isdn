@@ -5,12 +5,7 @@
  *
  * Copyright 1994: Matthias Urlichs <urlichs@smurf.noris.de>
  */
-#ifdef MODULE
-#include <linux/config.h>
-#include <linux/module.h>
-#include <linux/version.h>
-#endif
-
+#include "f_module.h"
 #include "kernel.h"
 #include <linux/delay.h>
 #include <asm/delay.h>
@@ -60,7 +55,11 @@ static void dotimer(void *arg)
 
 	(*tim->proc)(tim->arg);
 	sti();
+#ifdef CONFIG_MALLOC_NAMES
+	deb_kfree(tim,__FILE__,__LINE__);
+#else
 	kfree_s(tim,sizeof(struct timing));
+#endif
 #ifdef MODULE
 	MOD_DEC_USE_COUNT;
 #endif
@@ -83,7 +82,11 @@ static void droptimer_old(void (*func)(void *), void *arg, char del)
 			restore_flags(flags);
 			if(del) {
 				del_timer(&tim->tim.tim);
+#ifdef CONFIG_MALLOC_NAMES
+				deb_kfree(tim,__FILE__,__LINE__);
+#else
 				kfree_s(tim,sizeof(struct timing_old));
+#endif
 			}
 #ifdef MODULE
 			MOD_DEC_USE_COUNT;
@@ -103,7 +106,11 @@ static void dotimer_old(void *arg)
 	(*tim->tim.proc)(tim->tim.arg);
 
 	sti();
+#ifdef CONFIG_MALLOC_NAMES
+	deb_kfree(tim,__FILE__,__LINE__);
+#else
 	kfree_s(tim,sizeof(*tim));
+#endif
 }
 
 #ifdef CONFIG_MALLOC_NAMES
@@ -116,7 +123,7 @@ int timeout(void (*func)(void *), void *arg, int expire)
 	struct timing *timer;
 
 #ifdef CONFIG_MALLOC_NAMES
-	timer = (struct timing *)deb_kmalloc(deb_file,deb_line, sizeof(struct timing), GFP_ATOMIC);
+	timer = (struct timing *)deb_kmalloc(sizeof(struct timing), GFP_ATOMIC,deb_file,deb_line);
 #else
 	timer = (struct timing *)kmalloc(sizeof(struct timing), GFP_ATOMIC);
 #endif
@@ -152,7 +159,7 @@ void timeout_old(void (*func)(void *), void *arg, int expire)
 	int s;
 
 #ifdef CONFIG_MALLOC_NAMES
-	timer = (struct timing_old *)deb_kmalloc(deb_file,deb_line, sizeof(struct timing_old), GFP_ATOMIC);
+	timer = (struct timing_old *)deb_kmalloc(sizeof(struct timing_old), GFP_ATOMIC,deb_file,deb_line);
 #else
 	timer = (struct timing_old *)kmalloc(sizeof(struct timing_old), GFP_ATOMIC);
 #endif
@@ -191,7 +198,7 @@ void untimeout(int timer)
 {
 	del_timer(&((struct timing *)timer)->tim);
 #ifdef CONFIG_MALLOC_NAMES
-	deb_kfree_s(deb_file,deb_line, (void *)timer,sizeof(struct timing));
+	deb_kfree((void *)timer,deb_file,deb_line);
 #else
 	kfree_s((void *)timer,sizeof(struct timing));
 #endif
@@ -322,7 +329,7 @@ char *loghdr(char level)
 {
 	static char sbuf[30];
 	static int tdiff = 0;
-	sprintf(sbuf,"<%d>%d:",level,jiffies-tdiff);
+	sprintf(sbuf,"<%d>%ld:",level,jiffies-tdiff);
 	tdiff = jiffies;
 	return sbuf;
 }
@@ -342,24 +349,86 @@ void do_sleep_on(struct wait_queue **p)
 	splx(s);
 }
 
-#ifdef MODULE
+#ifdef DO_DEBUGGING
 
-char kernel_version[] = UTS_RELEASE;
+struct d_hdr {
+	long magic;
+	const char *file;
+	unsigned int line;
+	size_t size;
+};
+#define MAGIC_HEAD 0x12348725
+#define MAGIC_TAIL 0x37867489
 
-int init_module(void)
+void *deb_kmalloc(size_t sz, int prio, const char *deb_file, unsigned int deb_line)
 {
-/* This should _really_ work... */
-	printk("If exactly two \"rename...\" errors follow, ignore them.\n");
-	if(!rename_module_symbol("_do_i_sleep_on","_interruptible_sleep_on") &&
-	   !rename_module_symbol( "do_i_sleep_on", "interruptible_sleep_on"))
-		return -ENOENT;
-	if(!rename_module_symbol("_do_sleep_on","_sleep_on") &&
-	   !rename_module_symbol( "do_sleep_on", "sleep_on"))
-		return -ENOENT;
+	struct d_hdr *foo = kmalloc(sz+sizeof(long)+sizeof(struct d_hdr), prio);
+	if(foo == NULL)
+		return NULL;
+	foo->magic = MAGIC_HEAD;
+	foo->file = deb_file;
+	foo->line = deb_line;
+	foo->size = sz;
+	foo++;
+	*(long *)(sz + (char *)(foo)) = MAGIC_TAIL;
+	return foo;
+}
+
+int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line)
+{
+	struct d_hdr *foo = fo;
+	foo--;
+	if(foo->magic != MAGIC_HEAD) {
+		printk("\n%sBad magic at free in %s:%d\n",KERN_EMERG,deb_file,deb_line);
+		return 1;
+	}
+	if(*(long *)(foo->size + (char *)(fo)) != MAGIC_TAIL) {
+		printk("\n%sMem Overwrite between %s:%d and %s:%d\n",KERN_EMERG,foo->file,foo->line, deb_file,deb_line);
+		return 1;
+	}
+	foo->file = deb_file; foo->line = deb_line;
 	return 0;
 }
 
-int cleanup_module(void)
+void deb_kfree(void *fo, const char *deb_file, unsigned int deb_line)
+{
+	struct d_hdr *foo = fo;
+	foo--;
+	if(foo->magic != MAGIC_HEAD) {
+		printk("\n%sBad magic at free in %s:%d\n",KERN_EMERG,deb_file,deb_line);
+		return;
+	}
+	if(*(long *)(foo->size + (char *)(fo)) != MAGIC_TAIL) {
+		printk("\n%sMem Overwrite between %s:%d and %s:%d\n",KERN_EMERG,foo->file,foo->line, deb_file,deb_line);
+		return;
+	}
+	foo->magic = 0x77776666;
+	kfree(foo);
+}
+
+#endif
+
+#ifdef MODULE
+
+#if LINUX_VERSION_CODE < 66344
+char kernel_version[] = UTS_RELEASE;
+#endif
+
+static int do_init_module(void)
+{
+/* This should _really_ work... */
+	if(rename_module_symbol( "do_i_sleep_on", "interruptible_sleep_on") &&
+	   rename_module_symbol( "do_sleep_on", "sleep_on"))
+	    return 0;
+	if (rename_module_symbol("_do_i_sleep_on","_interruptible_sleep_on") &&
+	   rename_module_symbol("_do_sleep_on","_sleep_on")) {
+		printk("Ignore the two \"rename...\" errors above.\n");
+		return 0;
+	}
+	return -ENOENT;
+}
+
+static int do_exit_module(void)
 {
 	return 0;
 }

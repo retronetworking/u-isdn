@@ -276,14 +276,38 @@ pushcardprot (conngrab cg, int minor, int connref)
 				if (!wildmatch(prot->arg,cmod->arg)) continue;
 				break;
 			}
-			if (cmod == NULL)
+			if (cmod == NULL) {
+				struct conninfo *xconn = malloc(sizeof(*xconn));
+				if(xconn != NULL) {
+					bzero(xconn,sizeof(*xconn));
+					xconn->seqnum = ++connseq;
+					xconn->cause = ID_priv_Print;
+					xconn->causeInfo = "No CM entry found";
+					cg->refs++;
+					xconn->cg = cg;
+					xconn->next = isdn4_conn; isdn4_conn = xconn;
+					dropconn(xconn);
+				}
 				return -ENOENT;
+			}
 			num = cmod->num;
 		}
 		break;
 	}
-	if (prot == NULL) 
+	if (prot == NULL) {
+		struct conninfo *xconn = malloc(sizeof(*xconn));
+		if(xconn != NULL) {
+			bzero(xconn,sizeof(*xconn));
+			xconn->seqnum = ++connseq;
+			xconn->cause = ID_priv_Print;
+			xconn->causeInfo = "No ML entry found";
+			cg->refs++;
+			xconn->cg = cg;
+			xconn->next = isdn4_conn; isdn4_conn = xconn;
+			dropconn(xconn);
+		}
 		return -ENOENT;
+	}
 	
 	if (minor != 0) {
 		mblk_t *mj = allocb (64, BPRI_LO);
@@ -440,7 +464,9 @@ startconn(conngrab cg, int fminor, int connref, char **ret, conngrab *retcg)
 	chkall();
 	dropgrab(conn->cg);
 	conn->cg = cg;
-	conn->flags |= cg->flags & F_MOVEFLAGS;
+
+	syncflags(conn,0);
+
 	chkone(cg);
 
 	if (cg->flags & F_INCOMING) {
@@ -622,10 +648,6 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 		sdev++;
 	}
 	if (foo != NULL) {		  /* We're launching a master program */
-		if (pipe (pip) == -1) {
-			syslog(LOG_CRIT,"Pipe: %m");
-			return "NO PIPE";
-		}
 		{
 			struct conninfo *xconn;
 			int id = 0; char *ids = strchr(cfr->type,'/');
@@ -642,7 +664,7 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 		{
 			char *err;
 
-			if((err = findit (foo,0)) != NULL) {
+			if((err = findit (foo,!!(cg->flags & F_PERMANENT))) != NULL) {
 				if(conn != NULL)
 					free(conn);
 				return err;
@@ -681,6 +703,10 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
 				flags |= F_LEASED;
 			cg->flags = (cg->flags &~ (F_MULTIDIALUP|F_DIALUP|F_PERMANENT|F_LEASED)) | flags;
 		}
+		if (pipe (pip) == -1) {
+			syslog(LOG_CRIT,"Pipe: %m");
+			return "NO PIPE";
+		}
 	} else {
 		if(conn != NULL) {
 			int id = 0; char *ids = strchr(cfr->type,'/');
@@ -717,8 +743,10 @@ runprog (cf cfr, struct conninfo **rconn, conngrab *foo)
     signal (SIGCHLD, SIG_DFL);
 	switch ((pid = fork ())) {
 	case -1:
+		close(pip[0]);
+		close(pip[1]);
 		if(0)callout_async ();
-		return "CANT FORK";
+		return "CANNOT FORK";
 	case 0:
 		{					  /* child. Go to some lengths to detach us. */
 			char *ap;
@@ -1109,19 +1137,9 @@ printf("NoProtoEnable NotPushprot\n");
 						kill(conn->pid,SIGHUP);
 					return "CANT PUSHPROT";
 				}
-				if(conn->flags & F_PERMANENT) {
-					m_putid (&yy, CMD_PROT);
-					m_putsx (&yy, ARG_MINOR);
-					m_puti (&yy, conn->minor);
-					m_putdelim (&yy);
-					m_putid(&yy,PROTO_ENABLE);
-					xlen = yy.b_wptr - yy.b_rptr;
-					DUMPW (yy.b_rptr, xlen);
-					(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, xlen, 1);
-				}
-else printf("NoProtoEnable NotPermanent\n");
+				conn->sentsetup = 1;
 				cg->card = str_enter("*"); /* cosmetic */
-				ReportConn(conn); /* even more cosmetic... */
+				setconnstate(conn,c_down);
 			}
 		}
 	}
@@ -1227,11 +1245,11 @@ void
 run_now(void *nix)
 {
 	cf what;
-	static int npos = 0;
 	int spos = 0;
 
 	if(do_run_now > 1) {
 		do_run_now--;
+		progidx = 0;
 		return;
 	}
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
@@ -1240,11 +1258,11 @@ run_now(void *nix)
 		return;
 
 	for(what = cf_R; what != NULL; what = what->next) {
-		if(spos++ < npos) {
+		if(spos++ < progidx) {
 printf("Skip #%d; ",spos);
 			continue;
 		}
-		npos++;
+		progidx++;
 printf("Do #%d...",spos);
 		if(what->got_err) {
 printf("StoredErr; ");
@@ -1282,6 +1300,18 @@ printf("run %s:%s; ",what->site,what->protocol);
 					conn->classname = what->cclass;
 					kill_rp(conn,'t');
 					run_rp(conn,'i');
+				} else if(err != NULL) {
+					conn = malloc(sizeof(*conn));
+					if(conn != NULL) {
+						bzero(conn,sizeof(*conn));
+						conn->seqnum = ++connseq;
+						conn->cause = ID_priv_Print;
+						conn->causeInfo = err;
+						cg->refs++;
+						conn->cg = cg;
+						conn->next = isdn4_conn; isdn4_conn = conn;
+						dropconn(conn);
+					}
 				}
 				chkone(cg);
 				dropgrab(cg);
@@ -1291,22 +1321,27 @@ printf("run %s:%s; ",what->site,what->protocol);
 						printf("Try again: %s",err);
 					}
 printf("\n");
-					timeout(run_now,(void *)spos,2*HZ);
+					progidx = spos;
+					timeout(run_now,NULL,HZ);
 					return;
 				} else {
 printf("FAIL %s\n",err);
 				}
 			} else {
 printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
-				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0)
+				if(conn->cg != NULL && conn->minor != 0 && conn->pid != 0 && conn->state > c_down) { /* the c_down test is here to reduce load */
 					pushprot(conn->cg,conn->minor,conn->connref,1);
+					progidx = spos;
+					timeout(run_now,NULL,HZ/3);
+					return;
+				}
 			}
 		}
 	}
 	in_boot = 0;
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
     	signal (SIGHUP, (sigfunc__t) read_args_run);
-	npos = 0;
+	progidx = 0;
 	do_run_now = 0;
 }
 

@@ -1,16 +1,17 @@
-#include <linux/config.h>
-#ifndef CONFIG_DEBUG_STREAMS
-#define CONFIG_DEBUG_STREAMS
-#endif
-#ifndef CONFIG_DEBUG_ISDN
-#define CONFIG_DEBUG_ISDN
-#endif
-
 #ifndef _LINUX_SYSCOMPAT_H_
 #define _LINUX_SYSCOMPAT_H_
 
+#include "config.h"
 #include <linux/types.h>
+
+#ifdef DO_DEBUGGING
+#define CONFIG_DEBUG_STREAMS
+#define CONFIG_DEBUG_ISDN
+#define CONFIG_MALLOC_NAMES
+#endif
+
 #ifdef __KERNEL__
+
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/sched.h>
@@ -19,6 +20,7 @@
 #include <asm/segment.h>
 
 #ifndef COMPAT_C
+
 #ifdef interruptible_sleep_on
 #undef interruptible_sleep_on
 extern void interruptible_sleep_on(struct wait_queue ** p);
@@ -27,11 +29,44 @@ extern void interruptible_sleep_on(struct wait_queue ** p);
 #undef sleep_on
 extern void sleep_on(struct wait_queue ** p);
 #endif
-#endif
 
-#else
-#include <string.h>
+#endif /* COMPAT_C */
+
+#ifdef DO_DEBUGGING
+#include <linux/malloc.h>
+
+#ifndef COMPAT_C
+
+#ifdef kfree
+#undef kfree
 #endif
+#define kfree(a) deb_kfree((a),__FILE__,__LINE__)
+#ifdef kmalloc
+#undef kmalloc
+#endif
+#define kmalloc(a,b) deb_kmalloc((a),(b),__FILE__,__LINE__)
+#ifdef kfree_s
+#undef kfree_s
+#endif
+#define kfree_s(a,b) deb_kfree((a),__FILE__,__LINE__)
+
+#endif /* COMPAT_C */
+
+void deb_kfree(void *fo, const char *deb_file, unsigned int deb_line);
+void *deb_kmalloc(size_t sz, int prio, const char *deb_file, unsigned int deb_line);
+int deb_kcheck(void *fo, const char *deb_file, unsigned int deb_line);
+#define deb_kfree_s(a,b,c,d) deb_kfree((a),(c),(d))
+#define deb_kcheck_s(a,b,c,d) deb_kcheck((a),(c),(d))
+#define kcheck(a) deb_kcheck((a),__FILE__,__LINE__)
+
+#else /* DO_DEBUGGING */
+
+#define kcheck(x) do { } while(0)
+#define deb_kcheck(x,y,z) do { } while(0)
+
+#endif /* DO_DEBUGGING */
+
+
 #include <linux/wait.h>
 #include <linux/limits.h>
 #include <linux/timer.h>
@@ -40,6 +75,10 @@ extern void sleep_on(struct wait_queue ** p);
 #ifndef MAX_PATH
 #define MAX_PATH PATH_MAX
 #endif
+
+#else /* __KERNEL__ */
+#include <string.h>
+#endif /* KERNEL */
 
 #define IRQ_BH 31
 #define STREAMS_BH 30
@@ -58,11 +97,6 @@ typedef unsigned long ulong_t;
  * spl(XXX) adds XXX to the current interrupt mask.
  * Note that all mask bits mean "enabled"!
  */
-
-#ifdef CONFIG_DEBUG_LATENCY
-#include <asm/system.h>
-struct offtime setter_off[32];
-#endif
 
 extern inline unsigned long get_bh_mask(void)
 {
@@ -90,7 +124,6 @@ extern inline unsigned long get_bh_mask(void)
 )
 
 #define spl(x) splx(get_bh_mask()&~(x))
-#define deb_spl(a,b,x) splx(get_bh_mask()&~(x))
 #define splxcheck() do { } while(0)
 #define spl0() spl(0)
 #define spl1() spl(1<<IRQ_BH)
@@ -103,7 +136,6 @@ extern inline unsigned long get_bh_mask(void)
 #define splnet() spl((1<<NET_BH)|(1<<TIMER_BH))
 #define splimp() spl((1<<NET_BH)|(1<<TIMER_BH)|(1<<SERIAL_BH)|(1<<IRQ_BH))
 #define splhigh() spl((1<<NET_BH)|(1<<TIMER_BH)|(1<<SERIAL_BH)|(1<<IRQ_BH))
-#define deb_splimp(a,b) deb_spl(a,b,(1<<NET_BH)|(1<<TIMER_BH)|(1<<IRQ_BH))
 
 #define IRQ1 1
 #define IRQ2 2
@@ -121,12 +153,6 @@ extern inline unsigned long get_bh_mask(void)
 #define IRQ15 15
 
 
-#define PCATCH 0x80 /* catch the signal instead of returning to the user --
-		       ignored and always assumed set, for now */
-
-#endif /* KERNEL */
-
-#ifdef __KERNEL__
 __BEGIN_DECLS
 
 /* sleep and wakeup.
@@ -186,57 +212,11 @@ void untimeout_old(void (*)(void *),void *);
 
 __END_DECLS
 
-/* Data transfer. fui* are from i-space (PDP-11 relics). */
-#define fubyte(adr) get_fs_byte((adr))
-#define fuibyte(adr) get_fs_byte((adr))
-#define fuword(adr) get_fs_word((adr))
-#define fuiword(adr) get_fs_word((adr))
-#define fulong(adr) get_fs_long((adr))
-#define fuilong(adr) get_fs_long((adr))
-extern inline int subyte(void *adr, int c) {
-	int error = verify_area(VERIFY_READ,adr,1);
-	if(error) return -1;
-	put_fs_byte(c,(char *)adr);
-	return 0;
-}
-#define suibyte(a,b) subyte((a),(b))
 
-extern inline int suword(void *adr, int c) {
-	int error = verify_area(VERIFY_READ,adr,2);
-	if(error) return -1;
-	put_fs_word(c,(unsigned short *)adr);
-	return 0;
-}
-#define suiword(a,b) suword((a),(b))
-
-extern inline int sulong(void *adr, int c) {
-	int error = verify_area(VERIFY_READ,adr,4);
-	if(error) return -1;
-	put_fs_long(c,(int *)adr);
-	return 0;
-}
-#define suilong(a,b) sulong((a),(b))
-	
-/* Errors are negated on purpose. */
-extern inline int copyin(void *from, void *to, int n)
-{
-	int error = verify_area(VERIFY_READ,from,n);
-	if(error) return -error;
-	memcpy_fromfs(to,from,n);
-	return 0;
-}
-extern inline int copyout(void *from, void *to, int n)
-{
-	int error = verify_area(VERIFY_WRITE,to,n);
-	if(error) return -error;
-	memcpy_tofs(to,from,n);
-	return 0;
-}
 /* Should be memmove() or something... */
 static inline void bcopy(void *a, void *b, int c) { memcpy(b,a,c); }
 static inline void bzero(void *a, int b) { memset(a,0,b); }
 static inline int bcmp(void *a, void *b, int c) { return memcmp(a,b,c); }
-#define ovbcopy bcopy
 
 extern inline int imin(int a, int b)
 { return (a < b ? a : b); }
@@ -262,111 +242,13 @@ extern inline unsigned long ulmin(unsigned long a, unsigned long b)
 extern inline unsigned long ulmax(unsigned long a, unsigned long b)
 { return (a > b ? a : b); }
 
-/* U-area defines, for starters. If you need more, add them */
-#ifdef UAREA
-#define u (*current)
-#endif
-#define u_uid fsuid
-#define u_gid fsgid
-#define u_error errno
-
 #define printf printk
-#define log(a,x...) printk(x)
 
-#define curproc current
-#define proc task_struct	/* ugliness... */
-#define p_pid pid		/* add as necessary */
 
-extern inline void psignal(int sig, struct proc *p) {
+extern inline void psignal(int sig, struct task_struct *p) {
 	send_sig(sig,p,1); }
 extern inline void gsignal(int sig, int pg) {
 	kill_pg(pg, sig, 1); }
-
-extern inline void microtime(struct timeval *tv) {
-	void do_gettimeofday(struct timeval *tv);
- 	do_gettimeofday(tv);
-}
-
-extern inline long kvtop(void *addr) { return (long)addr; }
-
-#endif /* __KERNEL__ */
-
-/* The following code is lifted from NetBSD. */
-
-/*
- * Copyright (c) 1993 Christopher G. Demetriou
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software withough specific prior written permission
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * select.h,v 1.1 1993/05/18 18:20:36 cgd Exp
- *
- *	Hacked for Linux.	1.0	-M.U-
- */
-
-/* definiton of info needed to do select on behalf of a device */
-
-struct selinfo {
-	struct wait_queue *queue;
-};
-#ifdef __KERNEL__
-#if 0
-extern inline void selrecord(struct proc *p, struct selinfo *si) {
-	select_wait(&si->queue,current->selwait);
-}
-#else
-#define selrecord(a,b,c,d,e,f,g) WrongNumberOfArgumentsBreak
-#endif
-extern inline void selwakeup(struct selinfo *si) {
-	wake_up_interruptible(&si->queue);
-}
-
-
-struct	prochd {
-	struct	prochd *ph_link;	/* linked list of running processes */
-	struct	prochd *ph_rlink;
-};
-
-extern inline void _insque(struct prochd *element, struct prochd *head)
-{
-	unsigned long s = spl6();
-	element->ph_link = head->ph_link;
-	head->ph_link = element;
-	element->ph_rlink = head;
-	element->ph_link->ph_rlink = element;
-	splx(s);
-}
-#define insque(a,b) _insque((struct prochd *)(a),(struct prochd *)(b))
-
-extern inline void _remque(struct prochd *element)
-{
-	unsigned long s = spl6();
-	element->ph_link->ph_rlink = element->ph_rlink;
-	element->ph_rlink->ph_link = element->ph_link;
-	element->ph_rlink = NULL;
-	splx(s);
-}
-#define remque(a) _remque((struct prochd *)(a))
 
 
 void sysdump(const char *msg, struct pt_regs *regs, unsigned long err);

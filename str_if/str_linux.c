@@ -274,7 +274,7 @@ strl_close(struct device *dev)
 
 	dev->tbusy = 1;
 	dev->start = 0;
-	dev->flags &=~ IFF_UP;
+	/* dev->flags &=~ IFF_UP; */
 
 	if(lp != NULL && lp->q != NULL) {
 		flushq(lp->q,FLUSHDATA);
@@ -433,9 +433,7 @@ str_if_proto (queue_t * q, mblk_t * mp, char isdown)
 }
 
 
-#ifndef UNREGISTER
 void **netfree = NULL;
-#endif
 
 static int
 str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
@@ -446,9 +444,7 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	int err = 0;
 	int nr = 0;
 	int allocated = 1;
-#ifndef UNREGISTER
 	void **freedev;
-#endif
 
 	if (!suser ()){
 		printf ("str_if: not superuser\n");
@@ -460,7 +456,6 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		splx(s);
 		return 0;
 	}
-#ifndef UNREGISTER
 	freedev = netfree;
 	if(freedev != NULL) {
 		netfree = *freedev;
@@ -469,19 +464,17 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 		lp = (struct strl_local *)netdev->priv;
 		memset(lp,0,sizeof(*lp));
 		allocated = 0;
-	} else
-#endif
-	{
+	} else {
 		struct device *nd;
-		netdev = malloc(sizeof(*netdev));
+		netdev = kmalloc(sizeof(*netdev),GFP_ATOMIC);
 		if(netdev == NULL) {
 			splx(s);
 			ERR_RETURN(-ENOMEM);
 		}
 		memset(netdev,0,sizeof(*netdev));
-		lp = malloc(sizeof(*lp));
+		lp = kmalloc(sizeof(*lp),GFP_ATOMIC);
 		if(lp == NULL) {
-			free(netdev);
+			kfree(netdev);
 			splx(s);
 			ERR_RETURN(-ENOMEM);
 		}
@@ -521,7 +514,7 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	WR (q)->q_ptr = q->q_ptr = (caddr_t) netdev;
 
 	if(allocated) {
-		netdev->name = malloc(8);
+		netdev->name = kmalloc(8,GFP_ATOMIC);
 		if (netdev->name == NULL) {
 			err = -ENOMEM;
 		} else {
@@ -532,8 +525,8 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag ERR_DECL)
 	if(err < 0) {
 		q->q_ptr = NULL;
 		if(allocated) {
-			free(netdev);
-			free(lp);
+			kfree(netdev);
+			kfree(lp);
 		}
 		splx(s);
 		ERR_RETURN(err);
@@ -550,30 +543,23 @@ str_if_close (queue_t *q, int dummy)
 	struct device *dev = (struct device *) q->q_ptr;
 	struct strl_local *lp = (struct strl_local *)dev->priv;
 	int s;
-#ifndef UNREGISTER
 	void **freedev;
-#endif
 
 	s = splimp ();
 
+#if LINUX_VERSION_CODE < 66304 /* 1.3.0 -- unregister_netdev does this. */
 	dev_close(dev);
-#ifdef UNREGISTER
-	unregister_netdev(dev);
-	dev->priv = NULL; /* you never know... */
 #endif
 
 	lp->q = NULL;
 	flushq (q, FLUSHALL);
 	flushq (WR (q), FLUSHALL);
-#ifdef UNREGISTER
-	free(lp);
-	free(dev);
-	LESS_USE;
-#else
 	freedev = (void *)dev;
 	freedev--;
 	*freedev = netfree;
 	netfree = freedev;
+#ifdef UNREGISTER
+	LESS_USE;
 #endif
 	splx (s);
 }
@@ -685,7 +671,7 @@ str_if_rput (queue_t * q, mblk_t * mp)
 	case M_ERROR:
 	case M_HANGUP:
 		if(0)printf ("%s hungup\n", dev->name);
-		dev->flags &= ~(IFF_UP&IFF_RUNNING);
+		dev->flags &= ~IFF_RUNNING;
 		putnext (q, mp);
 		break;
 	}
@@ -847,6 +833,17 @@ static int do_init_module(void)
 
 static int do_exit_module(void)
 {
+	void ** freedev = netfree;
+	while((freedev = netfree) != NULL) {
+		struct device *dev;
+		struct strl_local *lp;
+
+		netfree = *freedev; freedev++;
+		dev = (void *)freedev;
+		lp = (struct strl_local *)dev->priv;
+		unregister_netdev(dev);
+		free(lp);
+	}
 	return unregister_strmod(&str_ifinfo);
 }
 #endif

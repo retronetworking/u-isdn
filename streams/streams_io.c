@@ -11,6 +11,7 @@
 #include "f_module.h"
 #undef F_NOCODE
 #endif
+
 #include "kernel.h"
 #include <linux/types.h>
 #include "stream.h"
@@ -550,7 +551,7 @@ streams_read (struct inode *inode, struct file *file, char *buf, int count)
 		case M_SIG:
 		case M_EXSIG:
 		case M_PCSIG:	/* shouldn't happen, but... */
-			psignal (*p_msg->b_rptr, curproc);
+			psignal (*p_msg->b_rptr, current);
 			freemsg (p_msg);
 
 			if(current->signal & ~current->blocked)

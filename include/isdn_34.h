@@ -5,6 +5,8 @@
 #include <sys/ioctl.h>
 #include "config.h"
 
+extern int log_34;
+
 /**
  ** Interface between Level 3 and the Level 4 handler
  **
@@ -89,10 +91,10 @@
 #define IND_OPEN    CHAR2 ('o','p')		/* Port opened. */
 #define IND_INFO	CHAR2 ('-','-')		/* Informational message */
 #define CMD_DOCARD  CHAR2 ('!','C')		/* Set up this card */
-#define IND_CARD	CHAR2 ('C','d')		/* Card coming online. IND_CARD
-										 * arg_card arg_bchan arg_modemask. */
-#define IND_NOCARD	CHAR2 ('C','n')		/* Card going offline. IND_NOCARD
-										 * arg_card. */
+#define IND_CARD	CHAR2 ('C','d')		/* Card added. */
+#define IND_RECARD	CHAR2 ('C','e')		/* Card coming back online. */
+#define IND_OFFCARD	CHAR2 ('C','f')		/* Card seems offline. */
+#define IND_NOCARD	CHAR2 ('C','n')		/* Card deleted. */
 #define IND_TRACE CHAR2('t','r')
 
 /*
@@ -201,5 +203,8 @@
 
 #define LISTARG_CONN CHAR2 ('L','C')
 #define LISTARG_CARD CHAR2 ('L','K')
+
+#define ID_NOCARD	CHAR2('x','c') /* card doesn't come up */
+#define ID_NOREPLY	CHAR2('n','?') /* network doesn't answer */
 
 #endif							/* _ISDN_34 */

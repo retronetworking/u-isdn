@@ -227,8 +227,8 @@ find_conn(void)
 			else
 				continue; /* the connection was taken over... */
 		}
-		if ((minor != 0) && (conn->minor != 0)) {
-			if (conn->minor == minor)
+		if (((minor ? minor : fminor) != 0) && (conn->minor != 0)) {
+			if (conn->minor == (minor ? minor : fminor))
 				break;
 			else
 				continue;
@@ -440,7 +440,7 @@ do_card(void)
 	return 0;
 }
 
-/* IND_NOCARD; an ISDN cable got pulled. */
+/* IND_NOCARD; a card got deconfigured. */
 int
 do_nocard(void)
 {
@@ -481,6 +481,66 @@ do_nocard(void)
 	return -ENOENT;
 }
 
+
+int
+do_offcard(void)
+{
+	int ret;
+
+	if ((ret = m_getstr(&xx, crd, 4)) != 0)
+		return ret;
+
+	conn = malloc(sizeof(*conn));
+	if(conn != NULL) {
+		bzero(conn,sizeof(*conn));
+		conn->seqnum = ++connseq;
+		conn->causeInfo = "card is offline";
+		conn->cause = ID_priv_Print;
+		conn->cardname = str_enter(crd);
+		conn->next = isdn4_conn; isdn4_conn = conn;
+		dropconn(conn);
+	}
+	return 0;
+}
+
+
+/* IND_RECARD; an ISDN cable got reattached. */
+int
+do_recard(void)
+{
+	int ret;
+
+	if ((ret = m_getstr(&xx, crd, 4)) != 0)
+		return ret;
+	conn = malloc(sizeof(*conn));
+	if(conn != NULL) {
+		bzero(conn,sizeof(*conn));
+		conn->seqnum = ++connseq;
+		conn->causeInfo = "card is back online";
+		conn->cause = ID_priv_Print;
+		conn->cardname = str_enter(crd);
+		conn->next = isdn4_conn; isdn4_conn = conn;
+		dropconn(conn);
+	}
+
+	for(conn=isdn4_conn; conn != NULL; conn = conn->next) {
+		if(conn->ignore >= 3)
+			continue;
+		if(!(conn->flags & F_LEASED))
+			continue;
+		if(conn->cg == NULL)
+			continue;
+		if(wildmatch(crd,conn->cg->card) == NULL)
+			continue;
+		if(conn->state != c_off)
+			continue;
+		setconnstate(conn,c_down);
+		try_reconn(conn);
+	}
+	return 0;
+}
+
+
 /* IND_CARDPROTO: request to set the mode of a channel. */
 /* Maps to a call of pushcardprot(). */
 int
@@ -513,6 +573,11 @@ do_cardproto(void)
 			}
 
 			syslog (LOG_ERR, "ISDN NoProtocol1 %s %ld %s", resp, minor, data);
+			if(conn != NULL) {
+				conn->cause = ID_priv_Print;
+				conn->causeInfo = resp;
+				ReportConn(conn);
+			}
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
@@ -548,6 +613,11 @@ do_cardproto(void)
 		} else {
 			dropgrab(cg);
 			syslog (LOG_ERR, "ISDN NoProtocol2 %ld %s", minor, data);
+			if(conn != NULL) {
+				conn->cause = ID_priv_Print;
+				conn->causeInfo = "Error in PushCardProt";
+				ReportConn(conn);
+			}
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
@@ -633,6 +703,8 @@ do_proto(void)
 		}
 		if (pushprot (cg, minor, conn ? conn->connref : 0, ind == IND_PROTO_AGAIN) == 0) {
 			/* Success */
+			if(conn != NULL)
+				conn->sentsetup = 1;
 			dropgrab(cg);
 			return 0;
 		} else {
@@ -669,7 +741,7 @@ do_incoming(void)
 		incomplete = 0;
 		goto inc_err;
 	}
-	cg->flags = F_INCOMING|F_MULTIDIALUP|F_DIALUP|F_PERMANENT|F_NRCOMPLETE|F_LNRCOMPLETE;
+	cg->flags = F_INCOMING|F_DIALFLAGS|F_NRCOMPLETE|F_LNRCOMPLETE;
 	cinf = allocb(len,BPRI_LO);
 	if(cinf == NULL) {
 		resp = "OutOfMemFoo";
@@ -737,7 +809,8 @@ do_incoming(void)
 
 		mz = allocb(40,BPRI_HI); if(mz == NULL) goto cont;
 
-		if(*resp != '+') { /* Throw away the incoming call */
+		if(*resp != '-') {
+			/* Throw away the incoming call */
 			if(log_34 & 2)printf("Dis1 ");
 			m_putid (mz, CMD_OFF);
 			m_putsx (mz, ARG_NODISC);
@@ -851,7 +924,7 @@ do_incoming(void)
 	cg->refs++;
 	/* dropgrab(conn->cg; ** is new anyway */
 	conn->cg = cg;
-	conn->flags = cg->flags;
+	syncflags(conn,0);
 	setconnref(conn,connref);
 	conn->cause = 999999;
 	setconnstate(conn, c_down);
@@ -1035,14 +1108,12 @@ do_disc(void)
 		conn->cg->lnr = NULL;
 		conn->cg->flags &=~ F_LNRCOMPLETE;
 		conn->fminor = 0;
-		if(conn->got_hd) { /* Protocol stack is down also */
+		if(conn->got_hd || (conn->flags & F_LEASED)) { /* Protocol stack is down also */
 			switch(conn->state) {
 			case c_offdown:
 			case c_off:
 			  conn_off:
 				{
-					mblk_t *mb = allocb(30,BPRI_MED);
-
 					if(conn->state >= c_down) {
 						if(conn->cg != NULL)
 							syslog(LOG_ERR,"OFF %s:%s %s",conn->cg->site,conn->cg->protocol,CauseInfo(conn->cause, conn->causeInfo));
@@ -1050,22 +1121,12 @@ do_disc(void)
 							syslog(LOG_ERR,"OFF ??? %s",CauseInfo(conn->cause, conn->causeInfo));
 					}
 					setconnstate(conn,c_off);
-					if(mb != NULL) {
-						m_putid (mb, CMD_PROT);
-						m_putsx (mb, ARG_MINOR);
-						m_puti (mb, minor);
-						m_putdelim (mb);
-						m_putid (mb, PROTO_DISABLE);
-						xlen = mb->b_wptr - mb->b_rptr;
-						DUMPW (mb->b_rptr, xlen);
-						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-						freemsg(mb);
-					}
 				}
 				break;
 			case c_going_up:
-				if(conn->charge > 0 || (++conn->retries > 20 && !(conn->flags & F_FASTREDIAL))
-							|| (conn->retries > 10 && (conn->flags & F_FASTREDIAL)))
+				/* If the connect cost us anything, or if the limit was
+				   reached, punt. */
+				if(conn->charge > 0 || (++conn->retries > ((conn->cg && conn->cg->retries) ? conn->cg->retries : ((conn->flags & F_FASTREDIAL) ? 20 : 10))))
 					goto conn_off;
 				/* else FALL THRU */
 			case c_up:
@@ -1076,38 +1137,7 @@ do_disc(void)
 				else
 #endif
 				hitme:
-				if(has_force) {
-					mblk_t *mb = allocb(30,BPRI_MED);
-
-					if(mb != NULL) {
-						m_putid (mb, CMD_PROT);
-						m_putsx (mb, ARG_MINOR);
-						m_puti (mb, minor);
-						m_putdelim (mb);
-						m_putid (mb, PROTO_DISABLE);
-						xlen = mb->b_wptr - mb->b_rptr;
-						DUMPW (mb->b_rptr, xlen);
-						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-						freemsg(mb);
-					}
-					setconnstate(conn,c_off);
-				} else 
-					setconnstate(conn,c_down);
-				if((conn->flags & F_PERMANENT) && (conn->minor != 0 || minor != 0 || fminor != 0)) {
-					mblk_t *mb = allocb(30,BPRI_MED);
-
-					if(mb != NULL) {
-						m_putid (mb, CMD_PROT);
-						m_putsx (mb, ARG_MINOR);
-						m_puti (mb, conn->minor ? conn->minor : minor ? minor : fminor);
-						m_putdelim (mb);
-						m_putid (mb, PROTO_ENABLE);
-						xlen = mb->b_wptr - mb->b_rptr;
-						DUMPW (mb->b_rptr, xlen);
-						(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-						freemsg(mb);
-					}
-				}
+				setconnstate(conn,has_force ? c_off : c_down);
 				break;
 			case c_down:
 				setconnstate(conn,c_down);
@@ -1138,7 +1168,7 @@ do_disc(void)
 					}
 
 				}					
-				if(conn->charge > 0 || ++conn->retries > 5) 
+				if(conn->charge > 0 || (++conn->retries > ((conn->cg && conn->cg->retries) ? conn->cg->retries : ((conn->flags & F_FASTREDIAL) ? 10 : 5))))
 					goto conn_off; /* Disable, temporarily. */
 				else
 					goto hitme; /* Reenable -- will get another WANT_CONN
@@ -1203,7 +1233,7 @@ do_disc(void)
 	}
 #endif
 #if 1
-	if(conn != NULL && conn->state <= c_going_down && ind == IND_DISC) {
+	if(conn != NULL && conn->sentsetup && conn->state <= c_going_down && ind == IND_DISC) {
 		resp = "NO CARRIER";
 		return 1;
 	}
@@ -1380,8 +1410,7 @@ int
 do_hasconnected(void)
 {
 	if (conn != NULL) {
-		if (conn->cg != NULL)
-			conn->flags = (conn->flags &~ F_MASKFLAGS) | (conn->cg->flags & F_MOVEFLAGS);
+		syncflags(conn,1);
 		setconnstate(conn,c_up);
 	}
 	resp = "CONNECT";
@@ -1533,22 +1562,9 @@ int
 do_wantconnect(void)
 {
 	if (!quitnow && conn != NULL && (conn->state > c_off || (conn->state == c_off && has_force))) {
-		if ((conn->flags & F_PERMANENT) && (conn->state == c_off) && (conn->minor != 0)) {
-			mblk_t *mb = allocb(30,BPRI_MED);
-
-			if(mb != NULL) {
-				m_putid (mb, CMD_PROT);
-				m_putsx (mb, ARG_MINOR);
-				m_puti (mb, conn->minor);
-				m_putdelim (mb);
-				m_putid (mb, PROTO_ENABLE);
-				xlen = mb->b_wptr - mb->b_rptr;
-				DUMPW (mb->b_rptr, xlen);
-				(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-				freemsg(mb);
-			}
-		}
 		if(conn->state < c_going_up) {
+			if(conn->state == c_off)
+				setconnstate(conn,c_down);
 			conn->got_hd = 0;
 			setconnref(conn,0);
 			try_reconn(conn);
@@ -1664,21 +1680,8 @@ do_atcmd(void)
 					}
 					if(conn != NULL) {
 						if(conn->state == c_off) {
-							if ((conn->flags & F_PERMANENT) && (conn->minor != 0)) {
-								mblk_t *mb = allocb(30,BPRI_MED);
-
-								setconnstate(conn, c_down);
-								m_putid (mb, CMD_PROT);
-								m_putsx (mb, ARG_MINOR);
-								m_puti (mb, conn->minor);
-								m_putdelim (mb);
-								m_putid (mb, PROTO_ENABLE);
-								xlen = mb->b_wptr - mb->b_rptr;
-								DUMPW (mb->b_rptr, xlen);
-								(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-								freeb(mb);
-							}
 							conn->retries = conn->retiming = 0;
+							setconnstate(conn,c_down);
 							goto at_again;
 						} else {
 							resp = "BAD STATE";
@@ -1728,19 +1731,6 @@ do_atcmd(void)
 								xlen = mb->b_wptr - mb->b_rptr;
 								DUMPW (mb->b_rptr, xlen);
 								(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-
-								if(dodrop) {
-									m_putid (mb, CMD_PROT);
-									m_putsx (mb, ARG_MINOR);
-									m_puti (mb, minor);
-									m_putdelim (mb);
-									m_putid (mb, PROTO_DISABLE);
-									xlen = mb->b_wptr - mb->b_rptr;
-									DUMPW (mb->b_rptr, xlen);
-									(void) strwrite (xs_mon, (uchar_t *) mb->b_rptr, xlen, 1);
-									mb->b_wptr=mb->b_rptr;
-								}
-
 								freeb(mb);
 							}
 							goto at_again;
@@ -1795,7 +1785,7 @@ do_atcmd(void)
 					conn->minor = minor;
 					conn->next = isdn4_conn; isdn4_conn = conn;
 
-					connreport("#:ref id site protocol class pid state/card cost total flags,remNr;locNr cause\r\n","*",minor);
+					connreport("#:ref id site protocol class pid state/card cost total flags,remNr;locNr cause","*",minor);
 					for(fconn = isdn4_conn; fconn != NULL; fconn = fconn->next)  {
 						if(fconn->ignore >= 3) 
 							continue;
@@ -2156,7 +2146,7 @@ do_getinfo(void)
 		/* What to do? */
 		return -ENXIO;
 	}
-	if(conn-charge != 0 && (conn->charge % 10) == 0)
+	if(conn->charge != 0 && (conn->charge % 10) == 0)
 		syslog(LOG_INFO,"Cost %s:%s %ld",conn->cg->site,conn->cg->protocol,conn->charge);
 	if(cause != 0) {
 		conn->cause = cause;
@@ -2343,6 +2333,8 @@ do_noerror(void)
 	chkall();
 	switch (ind) {
 	case IND_CARD:             ret = do_card();          break;
+	case IND_RECARD:           ret = do_recard();        break;
+	case IND_OFFCARD:          ret = do_offcard();       break;
 	case IND_NOCARD:           ret = do_nocard();        break;
 	case IND_CARDPROTO:        ret = do_cardproto();     break;
 	case IND_PROTO:

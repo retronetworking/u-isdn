@@ -1,0 +1,51 @@
+diff -rub linux-orig/arch/i386/kernel/traps.c linux-1.3/arch/i386/kernel/traps.c
+--- linux-orig/arch/i386/kernel/traps.c	Thu Nov  9 04:02:01 1995
++++ linux-1.3/arch/i386/kernel/traps.c	Thu Nov  9 03:47:33 1995
+@@ -20,6 +20,7 @@
+ #include <linux/config.h>
+ #include <linux/timer.h>
+ #include <linux/mm.h>
++#include <linux/delay.h>
+ 
+ #include <asm/system.h>
+ #include <asm/segment.h>
+@@ -161,7 +162,10 @@
+ 	for(i=0;i<20;i++)
+ 		printk("%02x ",0xff & get_seg_byte(regs->cs,(i+(char *)regs->eip)));
+ 	printk("\n");
+-	do_exit(SIGSEGV);
++	cli();
++	for(i=0;i<5*60000;i++)
++		udelay(1000);
++	hard_reset_now();
+ }
+ 
+ DO_ERROR( 0, SIGFPE,  "divide error", divide_error, current)
+Only in linux-1.3/drivers/char: conmakehash
+Only in linux-1.3/drivers/char: uni_hash.tbl
+diff -rub linux-orig/kernel/panic.c linux-1.3/kernel/panic.c
+--- linux-orig/kernel/panic.c	Sun Jun 18 17:11:38 1995
++++ linux-1.3/kernel/panic.c	Thu Nov  9 04:12:43 1995
+@@ -13,7 +13,7 @@
+ #include <linux/kernel.h>
+ #include <linux/sched.h>
+ 
+-asmlinkage void sys_sync(void);	/* it's really int */
++extern NORET_TYPE void hard_reset_now(void);
+ 
+ NORET_TYPE void panic(const char * fmt, ...)
+ {
+@@ -24,11 +24,8 @@
+ 	vsprintf(buf, fmt, args);
+ 	va_end(args);
+ 	printk(KERN_EMERG "Kernel panic: %s\n",buf);
+-	if (current == task[0])
+-		printk(KERN_EMERG "In swapper task - not syncing\n");
+-	else
+-		sys_sync();
+-	for(;;);
++	*(char *)0 = 0; /* Fall over and die */
++	hard_reset_now(); /* ... hopefully -- hello, GCC */
+ }
+ 
+ /*

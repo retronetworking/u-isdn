@@ -59,7 +59,6 @@ unsigned long bh_active = 0;
 #endif
 
 unsigned long volatile jiffies;
-struct timer_struct timer_table[32];
 unsigned long timer_active;
 #if 0
 struct file_operations streams_fops;
@@ -218,8 +217,10 @@ void freeb (mblk_t * bp)
 	}
 #endif
 	if (!--bp->b_datap->db_ref)  {
+#ifdef CONFIG_DEBUG_STREAMS
 		bp->deb_file = deb_file;
 		bp->deb_line = deb_line;
+#endif
 		free (bp->b_datap);
 	}
 	free (bp);

@@ -379,12 +379,7 @@ struct stroptions {
 /*
  * Turn off interrupt and Streams processing
  */
-#ifdef CONFIG_DEBUG_STREAMS
-#define splstr() deb_splstr(__FILE__,__LINE__)
-extern int deb_splstr(const char *,unsigned int);
-#else
 #define splstr() spl((1<<STREAMS_BH)|(1<<IRQ_BH))
-#endif
 
 /*
  * noenable - prevent queue from running.

@@ -77,9 +77,9 @@ typedef struct _isdn2_card {
 	uchar_t TEI[1];
 #endif
 	uchar_t nr;
-	int timedown:1;
-	int timeup:1;
-	int offline:1;			/* temporarily off -- no cable */
+	unsigned int timedown:2;
+	unsigned int timeup:1;
+	unsigned int offline:1;			/* temporarily off -- no cable */
 } *isdn2_card;
 
 #endif							/* _ISDN_2 */

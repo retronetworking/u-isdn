@@ -238,6 +238,16 @@ static void toggle_on(struct _dumb * dumb)
 	ByteOutISAC(dumb,MASK,0x00);
 }
 
+static void
+dumb_fail_up(struct _dumb * dumb)
+{
+	if(dumb->do_uptimer) {
+		dumb->do_uptimer = 0;
+		DEBUG(info) printf("CARD NOT UP, FAIL\n");
+		isdn2_new_state(&dumb->card,2);
+	}
+}
+
 static int
 dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 {
@@ -248,11 +258,25 @@ dumb_mode (struct _isdn1_card * card, short channel, char mode, char listen)
 	switch(channel) {
 	case 0:
 		DEBUG(info) printf("%sISDN ISAC %s<%d>%s\n",KERN_INFO ,mode?(mode==1?"standby":"up"):"down",mode,listen?" listen":"");
+		if(dumb->do_uptimer) {
+			dumb->do_uptimer = 0;
+#ifdef NEW_TIMEOUT
+			untimeout(dumb->uptimer);
+#else
+			untimeout(dumb_fail_up,dumb);
+#endif
+		}
 		ISAC_mode(dumb,mode,listen);
 		if(mode == M_OFF) {
 			int j;
 			for(j=1;j <= dumb->numHSCX;j++)
 				HSCX_mode(dumb,j,M_OFF,0);
+		} else {
+			dumb->do_uptimer = 1;
+#ifdef NEW_TIMEOUT
+			dumb->uptimer =
+#endif
+				timeout((void *)dumb_fail_up,dumb,10*HZ);
 		}
 		break;
 	default:
@@ -287,7 +311,7 @@ dumb_prot (struct _isdn1_card * card, short channel, mblk_t * mp, int flags)
 	ushort_t id;
 	int err = 0;
 
-	DEBUG(info)printf("%sProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
+	DEBUG(info)printf("%sDumbProt chan %d flags 0%o\n",KERN_DEBUG,channel,flags);
 
 	if(!(flags & ~CHP_FROMSTACK)) {
 		if ((err = m_getid (mp, &id)) != 0)
@@ -976,6 +1000,14 @@ static void IRQ_ISAC(struct _dumb * dumb)
 				if ((CIR == 0x0C) || (CIR == 0x0D)) {
 					DEBUG(info) printf(" up");
 					isdn2_new_state(&dumb->card,1);
+					if(dumb->do_uptimer) {
+						dumb->do_uptimer = 0;
+#ifdef NEW_TIMEOUT
+						untimeout(dumb->uptimer);
+#else
+						untimeout(dumb_fail_up,dumb);
+#endif
+					}
 					dumb->circ = 0;
 				} else if ((CIR == 0x00) || (CIR == 0x0F) || (CIR == 0x07))  {
 					if ((CIR == 0x07) && (dumb->circ & 1)) {
@@ -984,11 +1016,28 @@ static void IRQ_ISAC(struct _dumb * dumb)
 						dumb->circ = 0;
 					}
 					DEBUG(info) printf(" down count %d",dumb->circ);
+					if(dumb->do_uptimer) {
+						dumb->do_uptimer = 0;
+#ifdef NEW_TIMEOUT
+						untimeout(dumb->uptimer);
+#else
+						untimeout(dumb_fail_up,dumb);
+#endif
+					}
 					isdn2_new_state(&dumb->card,0);
 				} else if (CIR == 0x04) {
 					DEBUG(info) printf(" jitter count %d",dumb->circ);
-					if(dumb->circ > 3)
+					if(dumb->circ > 3) {
+						if(dumb->do_uptimer) {
+							dumb->do_uptimer = 0;
+#ifdef NEW_TIMEOUT
+							untimeout(dumb->uptimer);
+#else
+							untimeout(dumb_fail_up,dumb);
+#endif
+						}
 						isdn2_new_state(&dumb->card,2);
+					}
 					dumb->circ++;
 				}
 			}
@@ -1324,8 +1373,6 @@ int NAME(REALNAME,init)(struct cardinfo *inf)
 
 	if((err = Init(dumb)) < 0) {
 		printf("Card not initializable.\n");
-		if(err == 0)
-			err = -EIO;
 		kfree(dumb);
 		return err;
 	}

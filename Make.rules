@@ -9,6 +9,7 @@ unexport PROGRAM
 unexport PROGRAMS
 unexport CC
 unexport CFLAGS
+unexport LDFLAGS
 unexport SOURCES
 unexport HEADERS
 unexport LIB
@@ -20,6 +21,9 @@ unexport WHAT
 unexport REALSOURCE
 unexport DOSRC
 unexport SUBDIRS
+unexport EXTRA_CFLAGS
+unexport EXTRA_LDFLAGS
+unexport EXTRA_LIBS
 
 ifneq ($(strip $(DOCARDS)),)
 KERNEL=1
@@ -74,7 +78,7 @@ ifneq ($(strip $(SUBDIRS)),)
 	$(MAKE) WHAT=$@ subdirs 
 
 subdirs::
-	 set -e; for i in $(SUBDIRS); do $(MAKE) TOPDIR=../$(TOPDIR) -C $$i $(WHAT); done
+	 set -e; for i in $(SUBDIRS); do $(MAKE) -r TOPDIR=../$(TOPDIR) -C $$i $(WHAT); done
 endif
 
 depend:: 
@@ -98,10 +102,10 @@ $(OBJS): $(REALSOURCE)
 	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -DREALNAME=$(basename $@) -D_$(basename $@)_ -c -o $@ $<
 else
 ifeq ($(DOCARDS),1)
-.c.o:
+%.o:	%.c
 	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -DREALNAME=$(basename $@) -D_$(basename $@)_ -c -o $@ $<
 else
-.c.o:
+%.o:	%.c
 	$(CC) $(CFLAGS) $(INCLUDES) $(EXTRA_CFLAGS) -c -o $@ $<
 endif
 endif
@@ -134,13 +138,13 @@ endif
 ifneq ($(strip $(PROGRAM)),)
 programs:: $(PROGRAM)
 $(PROGRAM): $(POBJS) $(filter %.a,$(LIBS) $(EXTRA_LIBS))
-	$(CC) -o $@ $(POBJS) $(EXTRA_LIBS) $(LIBS)
+	$(CC) $(EXTRA_LDFLAGS) $(LDFLAGS) -o $@ $(POBJS) $(EXTRA_LIBS) $(LIBS)
 else
 ifneq ($(strip $(PROGRAMS)),)
 programs:: $(PROGRAMS)
 
 %:	%.o    $(filter %.a,$(LIBS) $(EXTRA_LIBS))
-	$(CC) $(LDFLAGS) -o $@ $< $(EXTRA_LIBS) $(LIBS) 
+	$(CC) $(EXTRA_LDFLAGS) $(LDFLAGS) -o $@ $< $(EXTRA_LIBS) $(LIBS) 
 else
 programs::
 

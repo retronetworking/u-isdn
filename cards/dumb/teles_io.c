@@ -32,7 +32,7 @@ Init(struct _dumb * dumb) {
 		int ioaddr;
 		Byte cfval;
 		switch(dumb->info.ipl) {
-		default: printk("ipl %d unknown: ",dumb->info.ipl); return 0;
+		default: printk("ipl %d unknown: ",dumb->info.ipl); return -EINVAL;
 		case 1: ioaddr = 0xd80; break;
 		case 2: ioaddr = 0xe80; break;
 		case 3: ioaddr = 0xf80; break;
@@ -49,12 +49,12 @@ Init(struct _dumb * dumb) {
 		case 12: cfval = 0x0C; break;
 		case 15: cfval = 0x0E; break;
 		}
-		if(dumb->info.memaddr & ~0xDE000) { printk("info.memaddr %lx not possible: ",dumb->info.memaddr); return 0; }
-		if(~dumb->info.memaddr & 0xC0000) { printk("info.memaddr %lx not possible: ",dumb->info.memaddr); return 0; }
+		if(dumb->info.memaddr & ~0xDE000) { printk("info.memaddr %lx not possible: ",dumb->info.memaddr); return -EINVAL; }
+		if(~dumb->info.memaddr & 0xC0000) { printk("info.memaddr %lx not possible: ",dumb->info.memaddr); return -EINVAL; }
 		cfval |= ((dumb->info.memaddr >> 9) & 0xF0);
-		if(ByteIn(ioaddr+0) != 0x51) { return 0; }
-		if(ByteIn(ioaddr+1) != 0x93) { return 0; }
-		if(ByteIn(ioaddr+2) != 0x1E) { return 0; }
+		if(ByteIn(ioaddr+0) != 0x51) { return -EINVAL; }
+		if(ByteIn(ioaddr+1) != 0x93) { return -EINVAL; }
+		if(ByteIn(ioaddr+2) != 0x1E) { return -EINVAL; }
 
 		timout = jiffies+(HZ/10)+1;
 		ByteOut(ioaddr+4,cfval);

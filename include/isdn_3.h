@@ -32,7 +32,7 @@ typedef struct _isdn3_card {		  /* One per card */
 	uchar_t TEI;				  /* For reference */
 	uchar_t dchans;				  /* Number of D channels per card. */
 	uchar_t bchans;				  /* Number of B channels per D channel. */
-	unsigned is_up:1;
+	unsigned is_up:2;
 } *isdn3_card;
 
 /**

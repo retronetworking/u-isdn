@@ -276,6 +276,11 @@ proto_prot (queue_t * q, mblk_t * mp)
 		setmode(proto, P_LISTEN);
 		mp = NULL;
 		break;
+	case PROTO_UPDATEMODLIST:
+		mp->b_rptr = origmp;
+		mm_reply(proto,q,mp,0);
+		mp = NULL;
+		break;
 	case PROTO_INCOMING:
 	case PROTO_OUTGOING:
 		mp->b_rptr = origmp;

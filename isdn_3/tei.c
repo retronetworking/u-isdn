@@ -2,6 +2,7 @@
 #include "tei.h"
 #include "streamlib.h"
 #include "isdn_23.h"
+#include "isdn_34.h"
 #include "lap.h"
 #include "dump.h"
 #include <sys/errno.h>
@@ -138,7 +139,7 @@ tei_enquiry (isdn3_talk talk)
 		}
 	}
 	if (talk->state & ST_up) {
-		printf("Timer T202 started\n");
+		if(log_34 & 2)printf("Timer T202 started\n");
 		talk->state |= ST_T202;
 		talk->state &=~ ST_want_T202;
 #ifdef NEW_TIMEOUT
@@ -187,7 +188,7 @@ tei_verify (isdn3_talk talk)
 static void
 tei_T201 (isdn3_talk talk)
 {
-	printf ("Timer TEI T201 %ld\n", talk->NR);
+	if(log_34 & 2)printf ("Timer TEI T201 %ld\n", talk->NR);
 	if (talk->state & ST_T201) {
 		talk->state &= ~ST_T201;
 		if (!(talk->state & ST_up)) {
@@ -207,7 +208,7 @@ tei_T201 (isdn3_talk talk)
 static void
 tei_T202 (isdn3_talk talk)
 {
-	printf ("Timer TEI T202 %ld\n", talk->NR);
+	if(log_34 & 2)printf ("Timer TEI T202 %ld\n", talk->NR);
 	if (talk->state & ST_T202) {
 		talk->state &= ~ST_T202;
 		if (!(talk->state & ST_up)) {
@@ -458,7 +459,7 @@ printf("NonFixed TEI\n");
 static int
 tei_sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 {
-	printf("TEI SendCmd Foo ");
+	printf("TEI SendCmd, config problem!\n");
 	return -EINVAL;
 }
 

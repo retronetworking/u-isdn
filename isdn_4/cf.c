@@ -144,21 +144,28 @@ read_file (FILE * ffile, char *errf)
 		case CHAR2 ('P', '_'):
 		case CHAR2 ('P', '\t'):
 				/* P <Art> <Partner> <Key> <Karte> <Mod> <Parameter...> */
-			if (skipsp (&li)) break; c->protocol = li;
-			if (skipsp (&li)) break; c->site = li;
-			if (skipsp (&li)) break; c->cclass = li;
-			if (skipsp (&li)) break; c->card = li;
-			if (skipsp (&li)) break; c->type = li;
-			if (skipsp (&li)) c->args = ""; else c->args = li;
-			do_subclass(c);
-			chkone(c);
-			c->protocol = str_enter(c->protocol);
-			c->site     = str_enter(c->site);
-			c->cclass   = str_enter(c->cclass);
-			c->card     = str_enter(c->card);
-			c->type     = str_enter(c->type);
-			c->args     = str_enter(c->args);
-			app (&cf_P, c);
+			{
+				char *pri;
+				if (skipsp (&li)) break; c->protocol = li;
+				if (skipsp (&li)) break; c->site = li;
+				if (skipsp (&li)) break; c->cclass = li;
+				if (skipsp (&li)) break; c->card = li;
+				if (skipsp (&li)) break; c->type = li;
+				if (skipsp (&li)) c->args = ""; else c->args = li;
+				if((pri = strchr(c->type,',')) != NULL) {
+					*pri++ = '\0';
+					c->num = atoi(pri);
+				}
+				do_subclass(c);
+				chkone(c);
+				c->protocol = str_enter(c->protocol);
+				c->site     = str_enter(c->site);
+				c->cclass   = str_enter(c->cclass);
+				c->card     = str_enter(c->card);
+				c->type     = str_enter(c->type);
+				c->args     = str_enter(c->args);
+				app (&cf_P, c);
+			}
 			continue;
 		case CHAR2 ('M', 'L'):
 			/* ML <Art> <Partner> <Key> <Mod,#> <Modus> <Module...> */
@@ -211,22 +218,29 @@ read_file (FILE * ffile, char *errf)
 		case CHAR2 ('D', ' '):
 		case CHAR2 ('D', '_'):
 		case CHAR2 ('D', '\t'):
-			/* D <Art> <Partner> <Key> <Karte> <Mod> <Nr> */
-			if (skipsp (&li)) break; c->protocol = li;
-			if (skipsp (&li)) break; c->site = li;
-			if (skipsp (&li)) break; c->cclass = li;
-			if (skipsp (&li)) break; c->card = li;
-			if (skipsp (&li)) break; c->type = li;
-			if (!skipsp (&li)) c->arg = li;
-			chkone(c);
-			do_subclass(c);
-			c->protocol = str_enter(c->protocol);
-			c->site     = str_enter(c->site);
-			c->cclass   = str_enter(c->cclass);
-			c->card     = str_enter(c->card);
-			c->type     = str_enter(c->type);
-			c->arg      = str_enter(c->arg);
-			app (&cf_D, c);
+			{
+				char *pri;
+				/* D <Art> <Partner> <Key> <Karte> <Mod> <Nr> */
+				if (skipsp (&li)) break; c->protocol = li;
+				if (skipsp (&li)) break; c->site = li;
+				if (skipsp (&li)) break; c->cclass = li;
+				if (skipsp (&li)) break; c->card = li;
+				if (skipsp (&li)) break; c->type = li;
+				if (!skipsp (&li)) c->arg = li;
+				if((pri = strchr(c->type,',')) != NULL) {
+					*pri++ = '\0';
+					c->num = atoi(pri);
+				}
+				chkone(c);
+				do_subclass(c);
+				c->protocol = str_enter(c->protocol);
+				c->site     = str_enter(c->site);
+				c->cclass   = str_enter(c->cclass);
+				c->card     = str_enter(c->card);
+				c->type     = str_enter(c->type);
+				c->arg      = str_enter(c->arg);
+				app (&cf_D, c);
+			}
 			continue;
 		case CHAR2 ('T', 'M'):
 			/* TM <Key> <String> */

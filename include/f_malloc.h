@@ -4,18 +4,12 @@
 
 #ifdef linux
 #define HAVEMALLOC
+#include "compat.h"
 #include <linux/config.h>
 #include <linux/kernel.h>
 #include <linux/malloc.h>
-#undef malloc
-#undef free
-#ifdef CONFIG_MALLOC_NAMES
-#define malloc(x) deb_kmalloc(__FILE__,__LINE__,(x),GFP_ATOMIC)
-#define free(x) deb_kfree_s(__FILE__,__LINE__,(x),0)
-#else
 #define malloc(x) kmalloc((x),GFP_ATOMIC)
 #define free(x) kfree((x))
-#endif
 #endif
 
 /* other kernels here */
