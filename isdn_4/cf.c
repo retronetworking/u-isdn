@@ -224,7 +224,10 @@ read_file (FILE * ffile, char *errf)
 				if (skipsp (&li)) break; c->cclass = li;
 				if (skipsp (&li)) break; c->card = li;
 				if (skipsp (&li)) break; c->type = li;
-				if (!skipsp (&li)) c->arg = li;
+				if (!skipsp (&li)) {
+					c->arg = li;
+					if(!skipsp(&li)) break;
+				}
 				if((pri = strchr(c->type,',')) != NULL) 
 					c->num = atoi(pri);
 				chkone(c);
@@ -243,6 +246,8 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->cclass = li;
 			if (skipsp (&li)) break; c->arg = li;
 			if (!skipsp (&li)) break;
+			while(isspace(c->arg[strlen(c->arg)-1]))
+				c->arg[strlen(c->arg)-1] = '\0';
 			if (isintime(c->arg) < 0) break;
 			chkone(c);
 			do_subclass(c);
@@ -255,7 +260,11 @@ read_file (FILE * ffile, char *errf)
 			if (skipsp (&li)) break; c->cclass = li;
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->arg = li;
-			if (skipsp (&li)) c->args = ""; else c->args = li;
+			if (skipsp (&li)) c->args = ""; else {
+				c->args = li;
+				while(isspace(c->args[strlen(c->args)-1]))
+					c->args[strlen(c->args)-1] = '\0';
+			}
 			chkone(c);
 			do_subclass(c);
 			c->cclass   = str_enter(c->cclass);
@@ -268,7 +277,11 @@ read_file (FILE * ffile, char *errf)
 			/* DP <Karte> <Nummernpräfixe-Dialout> <Nummernpräfixe-Dialin> */
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->arg = li;
-			if (!skipsp (&li)) c->args = li; else c->args = c->arg;
+			if (skipsp (&li)) c->args = c->arg; else {
+				c->args = li;
+				while(isspace(c->args[strlen(c->args)-1]))
+					c->args[strlen(c->args)-1] = '\0';
+			}
 			if(c->args[0] == '\0') c->args = c->arg;
 			chkone(c);
 			do_subclass(c);

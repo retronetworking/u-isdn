@@ -423,7 +423,7 @@ sendstate (isdn2_card card, uchar_t ch, uchar_t SAPI, uchar_t ind, short add)
 	if (isdn2_debug & 0x40)
 		printf ("%ssendstate %d %x:%x\n",KERN_DEBUG, card->nr, ind, add);
 	if (ind == MDL_ERROR_IND) {
-		if(add & (ERR_C | ERR_D | ERR_G /* | ERR_H */ )) {
+		if(add & (ERR_C | ERR_D | ERR_G /* | ERR_H */ | ERR_I )) {
 			printf("%s\nISDN Fatal Error, TEI cleared\n",KERN_DEBUG);
 			card->TEI[ch] = TEI_BROADCAST;
 		}

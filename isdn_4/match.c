@@ -650,6 +650,8 @@ if(0)printf("%s.%s.!.",cg->site,cg->card); /* I hate debugging. */
 					struct isdncard *ca;
 
 					for(ca = isdn4_card; ca != NULL; ca = ca->next) {
+						if(ca->is_down)
+							continue;
 						if(!strcmp(cg->card, ca->name)) {
 							nrbchan = ca->nrbchan;
 							break;
@@ -823,6 +825,8 @@ findit (conngrab *foo, int ignbusy)
 		if(!(cg->flags & F_INCOMING)) 
 			cardidx++;
 
+		if(c->is_down)
+			continue;
 		cg->mask = 1; /* XXX TODO: enhance for multiple interfaces */
 		dropgrab(cgc);
 		cgc = newgrab(cg);

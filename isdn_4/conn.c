@@ -470,8 +470,12 @@ try_reconn(struct conninfo *conn)
 		cg->lnr = NULL; cg->lnrsuf = NULL;
 		cg->card = conn->cardname ? conn->cardname : "*";
 		cg->cclass = conn->classname ? conn->classname : "*";
-		cg->flags &=~(F_MASKFLAGS|F_INCOMING|F_OUTCOMPLETE|F_LNRCOMPLETE);
+		cg->flags &=~(F_INCOMING|F_OUTCOMPLETE|F_LNRCOMPLETE);
 		cg->flags |= F_OUTGOING;
+
+		/* If more than one bit is set, this is true. */
+		if((cg->flags & F_MASKFLAGS) & ((cg->flags & F_MASKFLAGS) - 1))
+			cg->flags &= ~F_MASKFLAGS;
 		if(cg->par_out != NULL)
 			freemsg(cg->par_out);
 		if((cg->par_out = allocb(256,BPRI_LO)) == NULL) {

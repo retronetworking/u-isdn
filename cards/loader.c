@@ -27,6 +27,8 @@ static int do_init_module(void)
 		printf("You must name this card: insmod xxx.o name=$(cardname Foo0)\n");
 		return -EINVAL;
 	}
+	if(irq == 2)
+		irq = 9;
 	inf.irq = irq;
 	inf.ipl = ipl;
 	inf.ioaddr = io;
