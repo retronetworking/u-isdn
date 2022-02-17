@@ -1,3 +1,37 @@
+Update 2022-02-17
+=================
+
+Fast 27 Jahre später.
+
+Offenbar habe ich inzwischen wenigstens gelernt, meinen
+Code bessser zu dokumentieren.
+
+Ich stelle dieses Werk hiermit, soweit möglich, unter die GPLv2 oder
+später.
+
+"Soweit möglich" ist ernst zu nehmen. Insbesondere die Herkunft des
+"streams"-Verzeichnis ist … äh … sagen wir mal so: wer sich mit der
+Historie von Unix auskennt, weiß, wieso das ein Problem war.
+
+Angesichts des Alters des Codes (der mit modernen Compilern schlicht
+unverwendbar ist und mit aktuellen Linuxversionen noch viel weniger
+zusammenarbeitet als damals) und der Tatsache, dass es den Inhaber des
+besagten Copyrights nicht mehr gibt (mehr oder weniger), dürfte es
+ausreichend unwahrscheinlich sein, dass sich irgendjemand jetzt noch
+darüber aufregt.
+
+Wenn jemand den "Brad K. Clements" kennt, der 1990 den Code geschrieben
+hat, der in isdn/str_if/str_in.c gelandet ist … dann würde ich ihn gerne
+fragen, ob er das "all rights reserved" immer noch ernst meint.
+
+Ein FAQ von Harald Milz zu diesem Code ist auf
+https://ftp.heise.de/ix/Historisches/Linux/docs/U-ISDN-FAQ.ps.gz
+verfügbar und unter diesem Namen mit im Archiv.
+
+
+Alter Krempelkram folgt
+=======================
+
 DOKU zum ISDN-Paket. R 8.      // TEXT ohne Tabs //
 Basiert auf Linuxkernel 2.0.8.
 

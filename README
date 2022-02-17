@@ -1,3 +1,51 @@
+U-ISDN
+======
+
+Once upon a time, I hacked an ISDN interface into Linux.
+
+It supported networking, multiple "passive" ISDN cards (i.e. those without
+a CPU of their own), some active cards, TTYs, private virtual circuits,
+both German and European signalling standards, and some other bits and
+pieces.
+
+We ran an actual ISP business with that code.
+
+That's the good part.
+
+The bad part is that this code is an unholy mess. At the time, Linux
+networking was "mostly" working; see the numerous kernel patches that are
+in this archive. In fact, for the first versions of this code (now happily
+resting in the digital nirvana), Linux networking was so abysmally bad that
+I hacked the BSD networking code into it and used that instead.
+
+Yes, seriously. No, I don't have that code any more. Or rather, it is on a
+bunch of slowly-disintegrating Streamer cartridges in my basement, and if
+you have working hardware that can actually read these things we might come
+to an agreement. (I don't, as the capstan of the tape drives was made of
+synthetic rubber … which has disintegrated by now.)
+
+Also, when I started to cobble all of this together I was a student and
+didn't actually care all that much about copyright and whatnot. As a
+result, this archive contains some pieces that strictly speaking should not
+be redistributed.
+
+On the other hand, the company (which I'll not name here) that held said
+copyrights doesn't exist any more, more or less, and even if somebody did
+care about stone-age C code that doesn't even compile any more (unless your
+compiler is 20+ years old … and so are your kernel headers …) most likely
+they'd have a hard time proving that they really do hold the rights to that
+code.
+
+Thus, I'll leave the decision of whether to read any of the code contained
+herein, try to use it, and/or delete it in abject horror, to the esteemed
+reader.
+
+Matthias Urlichs
+<matthias@urlichs.de>
+2022-02-16
+
+-----------------------------------------------------------------------
+
 [ This is a German version. An English version is in the works. ]
 
 Die Anleitung und der ganze Kram findet sich in der Datei DOKU, oder
