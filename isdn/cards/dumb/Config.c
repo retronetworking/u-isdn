@@ -28,6 +28,12 @@ struct _dumb dumbdata[] =  {
 	{ { }, 0,0x250, 7, 0,2, CHAR4('n','c','p','1'),
 	  DEBUG_hscx|DEBUG_hscxout|DEBUG_info, },
 #endif
+#ifdef _ncp16_
+	{ { }, 0,0x350,12, 0,2, CHAR4('N','c','p','0'),
+	  DEBUG_hscx|DEBUG_hscxout|DEBUG_info, },
+	{ { }, 0,0x250,15, 0,2, CHAR4('N','c','p','1'),
+	  DEBUG_hscx|DEBUG_hscxout|DEBUG_info, },
+#endif
 #ifdef _bsc_
 	{ { }, 0,0x3E0, 5, 5,2, CHAR4('B','S','C','0'),
 	  DEBUG_isac|DEBUG_hscx|DEBUG_hscxout|DEBUG_info, },

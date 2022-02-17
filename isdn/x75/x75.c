@@ -70,10 +70,10 @@ struct x75_ {
 	ushort_t concat;
 	ushort_t offset;
 	ushort_t radr_cmd, radr_meld, xadr_cmd, xadr_meld;
-	int swapped:1;				  /* Marker that we're receiving. */
-	int wide:1;					  /* addresses */
-	int didSend:1;
-	int didSendNew:1;			  /* Remember whether we were sending anything
+	unsigned swapped:1;				  /* Marker that we're receiving. */
+	unsigned wide:1;					  /* addresses */
+	unsigned didSend:1;
+	unsigned didSendNew:1;			  /* Remember whether we were sending anything
 								   * recently. If so, the incoming packet is
 								   * assumed to be a response. This is
 								   * necessary when command and response have
@@ -434,8 +434,6 @@ x75_proto (queue_t * q, mblk_t * mp, char down)
 				putbqf (q, mp);
 				return;
 			}
-			if (x_75->flags & X75_CONN)
-				goto err;
 			while (mp != NULL && m_getsx (mp, &id) == 0) {
 				switch (id) {
 				default:
@@ -459,21 +457,31 @@ x75_proto (queue_t * q, mblk_t * mp, char down)
 					x_75->x75.poll = 0;
 					break;
 				case X75_WIDEADDR:
+					if ((x_75->flags & X75_CONN) && (x_75->wide != 1))
+						goto err;
 					x_75->wide = 1;
 					break;
 				case X75_NOTWIDEADDR:
+					if ((x_75->flags & X75_CONN) && (x_75->wide != 0))
+						goto err;
 					x_75->wide = 0;
 					break;
 				case X75_WIDE:
+					if ((x_75->flags & X75_CONN) && (x_75->x75.wide != 1))
+						goto err;
 					x_75->x75.wide = 1;
 					break;
 				case X75_NOTWIDE:
+					if ((x_75->flags & X75_CONN) && (x_75->x75.wide != 0))
+						goto err;
 					x_75->x75.wide = 0;
 					break;
 				case X75_K:
 					if (m_geti (mp, &z) != 0)
 						goto err;
 					if (z < 1 || z >= (x_75->x75.wide ? 128 : 8))
+						goto err;
+					if ((x_75->flags & X75_CONN) && (x_75->x75.k != z))
 						goto err;
 					x_75->x75.k = z;
 					break;
@@ -513,6 +521,16 @@ x75_proto (queue_t * q, mblk_t * mp, char down)
 						goto err;
 					if (m_getx (mp, &y) != 0)
 						goto err;
+					if ((x_75->flags & X75_CONN)) {
+						if(x_75->swapped) {
+							if(x_75->xadr_cmd != y || x_75->radr_meld != y) goto err;
+							if(x_75->radr_cmd != x || x_75->xadr_meld != x) goto err;
+						} else {
+							if(x_75->xadr_cmd != x || x_75->radr_meld != x) goto err;
+							if(x_75->radr_cmd != y || x_75->xadr_meld != y) goto err;
+						}
+						goto err;
+					}
 					if (x < 1 || x >= 256)
 						goto err;
 					if (y < 1 || y >= 256)
@@ -531,6 +549,8 @@ x75_proto (queue_t * q, mblk_t * mp, char down)
 					if (m_getx (mp, &x) != 0)
 						goto err;
 					if ( /* x < 0 || */ x > 15)
+						goto err;
+					if ((x_75->flags & X75_CONN) && (x_75->connmode != x))
 						goto err;
 					x_75->connmode = x;
 				}

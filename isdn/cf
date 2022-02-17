@@ -7,13 +7,14 @@
 # Sample answering machine.
 # It answers on EAZ 2 (1TR6) bzw. MSN ...2 (Euro).
 
-R phone * * * <username> RM catfon
+R phone * * * <username> RM.3 catfone
+## This number           ---^  is the delay before the answerer answers.
+## Warning: You have to adapt the catfone script to your requirements.
 
 P phone * * * RXi :sv 0102 :il :vB 9090A3 EFFF9F :lr /2
 P phone * * * RXi :sv 0101 :il :vB 9090A3 EFFF9F :lr /2
 
-ML phone * * * -,0 transalaw alaw
-## This zero  ---^  is the delay before the answerer answers.
+ML phone * * * - transalaw alaw
 
 
 # Sample remote login.

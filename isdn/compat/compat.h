@@ -78,9 +78,6 @@ extern inline unsigned long get_bh_mask(void)
 		sti();									\
 	else										\
 		cli();									\
-	if((bh_mask ^ (i)) & (1<<NET_BH)) {			\
-		printk(" %s:%d ",__FILE__,__LINE__);	\
-	}											\
 	bh_mask = i;								\
 	oldmask;									\
 }												\

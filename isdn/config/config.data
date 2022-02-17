@@ -22,7 +22,7 @@ LOCKNAME	/var/spool/uucp/LCK..%s
 ##
 
 ## Name of the "KERNEL" flag in system include files (KERNEL, _KERNEL, INKERNEL)
-## Be aware that -DKERNEL is used by the ISDN libraries.
+## Be aware that -DKERNEL is used by the ISDN libraries -- don't turn it off.
 #### =()<KERNEL		@<KERNEL>@>()=
 KERNEL		-DKERNEL -D__KERNEL__ -DMODULE -DCONFIG_MODVERSIONS
 ## Byte order. Motorola 4321, Intel 1234.
@@ -32,6 +32,12 @@ BYTEORDER	1234
 ## Card drivers to install. Subdirectories of SRC/cards.
 #### =()<CARDS	@<CARDS>@>()=
 CARDS		dumb
+#### =()<DUMBCARDS	@<DUMBCARDS>@>()=
+DUMBCARDS		teles
+### teles avm bsc ncp ncp16
+##  Teles is good for Creatix cards, too.
+## Also edit cards/dumb/Config.c.
+## All drivers other than Teles don't work yet.
 ##
 ## Defines for master program (L2 test version)
 #### =()<CARDDEFS	@<CARDDEFS>@>()=
@@ -72,6 +78,10 @@ CFLAGS			-O2 -Wall
 ##  Flags for the "cc -o" line
 #### =()<LDFLAGS			@<LDFLAGS>@>()=
 LDFLAGS		-v
+##
+##  Calling ld directly?
+#### =()<LD			@<LD>@>()=
+LD		ld
 ##
 ##  If you need to link in other libraries, add them here
 #### =()<LIBS		@<LIBS>@>()=
@@ -148,10 +158,10 @@ ADDERROR	DONT
 #### =()<DEBUGGING	@<DEBUGGING>@>()=
 DEBUGGING	DO
 #### =()<CONF_DEBUG	@<CONF_DEBUG>@>()=
-CONF_MOD2	0x30
+CONF_MOD2	0x00
 ## 0x00, 0x33
 #### =()<CONF_DEBUG	@<CONF_DEBUG>@>()=
-CONF_DEBUG	0x5016
+CONF_DEBUG	0x5006
 ## 0x5006, 0xf3df
 
 

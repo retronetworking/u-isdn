@@ -15,6 +15,7 @@ inline static Byte InHSCX(struct _dumb * dumb, unsigned char hscx, char offset) 
 	ByteOut(dumb->ioaddr+1,offset+((hscx&1)?0x80:0xC0));
 	return ByteIn(dumb->ioaddr+2);
 }
+
 inline static void OutHSCX(struct _dumb * dumb, unsigned char hscx, char offset, Byte what) {
 	ByteOut(dumb->ioaddr+1,offset+((hscx&1)?0x80:0xC0));
 	ByteOut(dumb->ioaddr+2,what);
@@ -50,8 +51,9 @@ static int Init(struct _dumb * dumb) {
 	case 7: iflag = 2; break;
 	case 2: iflag = 6; break;
 	case 9: iflag = 6; break;
-	case 4: iflag = 1; break;
-	case 6: iflag = 5; break;
+	case 10:iflag = 1; break;
+	case 12:iflag = 5; break;
+	case 15:iflag = 3; break;
 	case 0: iflag = 7; break;
 	default:
 		printf (" impossible irq %d ",dumb->irq);
@@ -79,13 +81,15 @@ static void InitISAC(struct _dumb * dumb)
 
 static void InitHSCX_(struct _dumb * dumb, unsigned char hscx)
 {
+	ByteOutHSCX(dumb,hscx,CCR0, 0x80);
+	ByteOutHSCX(dumb,hscx,CCR1, 0x85);
+	ByteOutHSCX(dumb,hscx,CCR2, 0x30);
+	ByteOutHSCX(dumb,hscx,CCR3, 0x00);
 	ByteOutHSCX(dumb,hscx,TSAX, Slot(dumb,hscx));
 	ByteOutHSCX(dumb,hscx,TSAR, Slot(dumb,hscx));
 	ByteOutHSCX(dumb,hscx,XCCR, 7);
 	ByteOutHSCX(dumb,hscx,RCCR, 7);
 	ByteOutHSCX(dumb,hscx,MODE, 0x06);
-	ByteOutHSCX(dumb,hscx,CCR1, 0x85); /* 0x85 */
-	ByteOutHSCX(dumb,hscx,CCR2, 0x32); /* 0x38 */
 	ByteOutHSCX(dumb,hscx,XAD1, 0x01);
 	ByteOutHSCX(dumb,hscx,XAD2, 0x03);
 	ByteOutHSCX(dumb,hscx,RAL1, 0x03);
@@ -95,7 +99,8 @@ static void InitHSCX_(struct _dumb * dumb, unsigned char hscx)
 #if 0
 	ByteOutHSCX(dumb,hscx,TIMR, 0x70);
 #endif
-	ByteOutHSCX(dumb,hscx,MASK, 0x00);
+	ByteOutHSCX(dumb,hscx,IMR0, 0x00);
+	ByteOutHSCX(dumb,hscx,IMR1, 0x00);
 }
 
 static int ISAC_mode(struct _dumb * dumb, Byte mode, Byte listen)
@@ -168,7 +173,7 @@ static int HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte li
         dumb->chan[hscx].m_out = dumb->chan[hscx].m_out_run = NULL;
     }
 
-	ByteOutHSCX(dumb,hscx,CCR2, 0x32);
+	ByteOutHSCX(dumb,hscx,CCR2, 0x30);
 	ByteOutHSCX(dumb,hscx,TSAX, Slot(dumb,hscx));
 	ByteOutHSCX(dumb,hscx,TSAR, Slot(dumb,hscx));
 	ByteOutHSCX(dumb,hscx,XCCR, 7);
@@ -178,7 +183,8 @@ static int HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte li
 	switch(mode) {
 	case M_OFF:
 	case M_STANDBY:
-		ByteOutHSCX(dumb,hscx,MASK, 0x00);
+		ByteOutHSCX(dumb,hscx,IMR0, 0xFF);
+		ByteOutHSCX(dumb,hscx,IMR1, 0xFF);
 		ByteOutHSCX(dumb,hscx,MODE, 0x96);
 		ByteOutHSCX(dumb,hscx,XAD1, 0xFF);
 		ByteOutHSCX(dumb,hscx,XAD2, 0xFF);
@@ -194,13 +200,14 @@ static int HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte li
 	case M_TRANSPARENT:
 		ByteOutHSCX(dumb,hscx,MODE, 0xE6);
 		ByteOutHSCX(dumb,hscx,CMDR, 0x41);
-		ByteOutHSCX(dumb,hscx,MASK, 0x00);
+		ByteOutHSCX(dumb,hscx,IMR0, 0x00);
+		ByteOutHSCX(dumb,hscx,IMR1, 0x00);
 		dumb->chan[hscx].mode = mode;
 		dumb->chan[hscx].locked = 0;
 		dumb->chan[hscx].listen = listen;
 		break;
 	case M_HDLC_7H:
-		ByteOutHSCX(dumb,hscx,CCR2, 0x02);
+		ByteOutHSCX(dumb,hscx,CCR2, 0x00);
 		ByteOutHSCX(dumb,hscx,TSAX, Slot(dumb,hscx)+1);
 		ByteOutHSCX(dumb,hscx,TSAR, Slot(dumb,hscx)+1);
 		/* FALL THRU */
@@ -211,7 +218,6 @@ static int HSCX_mode(struct _dumb * dumb, unsigned char hscx, Byte mode, Byte li
 	case M_HDLC:
 		ByteOutHSCX(dumb,hscx,MODE, 0x8E);
 		ByteOutHSCX(dumb,hscx,CMDR, 0x41);
-		ByteOutHSCX(dumb,hscx,MASK, 0x00);
 		dumb->chan[hscx].mode = mode;
 		dumb->chan[hscx].locked = 0;
 		dumb->chan[hscx].listen = listen;

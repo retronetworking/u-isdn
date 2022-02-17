@@ -299,7 +299,7 @@ isdn3_killconn (isdn3_conn conn, char force)
 #ifdef __CHECKER__
 			bzero(hdr,sizeof(*hdr));
 #endif
-			hdr->key = HDR_CLOSE;
+			hdr->key = HDR_CLOSE|HDR_NOERROR;
 			hdr->hdr_close.minor = conn->minor;
 			hdr->hdr_close.error = 0;
 			if (isdn3_sendhdr (mb) != 0)
@@ -1053,6 +1053,10 @@ printf("ErX l\n");
 		break;
 	case AS_PROTO:
 		hdr->key = HDR_PROTOCMD;
+		goto cont_proto;
+	case AS_PROTO_NOERR:
+		hdr->key = HDR_PROTOCMD|HDR_NOERROR;
+	  cont_proto:
 		hdr->hdr_protocmd.minor = minor;
 		hdr->hdr_protocmd.len = dsize (data);
 		break;
@@ -1204,7 +1208,7 @@ isdn3_chstate (isdn3_talk talk, uchar_t ind, short add, char what)
 		hdr->hdr_openprot.broadcast = talk->hndl->broadcast;
 		break;
 	case CH_CLOSEPROT:
-		hdr->key = HDR_CLOSEPROT;
+		hdr->key = HDR_CLOSEPROT|HDR_NOERROR;
 		hdr->hdr_closeprot.card = talk->card->nr;
 		hdr->hdr_closeprot.SAPI = talk->hndl->SAPI;
 		hdr->hdr_closeprot.ind = ind;
@@ -1270,6 +1274,7 @@ scan_at (SUBDEV fminor, mblk_t * mx)
 	char noconn = 0;
 	char nodisc = 0;
 	char do_talk = 0;
+	char no_error = 0;
 
 	ushort_t theID, id;
 	int err = 0;
@@ -1286,6 +1291,17 @@ scan_at (SUBDEV fminor, mblk_t * mx)
 	 * after this point, please.
 	 */
 	origmx = mx->b_rptr;
+	while(mx->b_rptr < mx->b_wptr) {
+		switch(*mx->b_rptr) {
+		case PREF_NOERR:
+			no_error = 1;
+			mx->b_rptr++;
+			break;
+		default:
+			goto contpref;
+		}
+	}
+  contpref:
 	if ((err = m_getid (mx, &theID)) != 0)
 		goto err_out;
 	oldpos = mx->b_rptr;
@@ -1808,6 +1824,8 @@ printf("ErX k\n");
 			bzero(hdr,sizeof(*hdr));
 #endif
 			hdr->key = HDR_PROTOCMD;
+			if(no_error)
+				hdr->key |= HDR_NOERROR;
 			hdr->hdr_protocmd.card = card->nr;
 			hdr->hdr_protocmd.channel = chan;
 			hdr->hdr_protocmd.minor = 0;
@@ -1843,6 +1861,8 @@ printf("ErX k\n");
 			bzero(hdr,sizeof(*hdr));
 #endif
 			hdr->key = HDR_CLOSE;
+			if(no_error)
+				hdr->key |= HDR_NOERROR;
 			hdr->hdr_close.minor = minor ? minor : fminor;
 			hdr->hdr_close.error = err;
 			if ((err = isdn3_sendhdr (mb)) != 0) {
@@ -2025,6 +2045,8 @@ printf("ErX k\n");
 				bzero(hdr,sizeof(*hdr));
 #endif
 				hdr->key = HDR_DETACH;
+				if(no_error)
+					hdr->key |= HDR_NOERROR;
 				hdr->hdr_detach.minor = fminor;
 				hdr->hdr_detach.error = 0xFF;
 				hdr->hdr_detach.perm = 1;
@@ -2523,7 +2545,8 @@ isdn3_rsrv (queue_t * q)
 
 	while ((mp = getq (q)) != NULL) {
 		switch (mp->b_datap->db_type) {
-		CASE_DATA {
+		CASE_DATA
+			{
 				struct _isdn23_hdr hdr;
 				if (mp->b_wptr - mp->b_rptr < sizeof (struct _isdn23_hdr)) {
 					printf ("isdn3_rsrv: small msg recv\n");
@@ -2532,7 +2555,7 @@ isdn3_rsrv (queue_t * q)
 				hdr = *((isdn23_hdr) mp->b_rptr)++;
 				mp = pullupm (mp, 1);
 
-				switch (hdr.key) {
+				switch (hdr.key & ~HDR_FLAGS) {
 				case HDR_ATCMD:
 					{
 						mblk_t *mx;
@@ -2571,7 +2594,7 @@ isdn3_rsrv (queue_t * q)
 									goto sdrop;
 								isdn3_setup_conn (conn, EST_INTERRUPT);
 								break;
-#if 0
+	#if 0
 							case PROTO_LISTEN:
 								if ((minorflags[conn->minor] & MINOR_STATE_MASK) == MINOR_LISTEN_SENT)
 									goto sdrop;
@@ -2584,7 +2607,7 @@ isdn3_rsrv (queue_t * q)
 								minorflags[conn->minor] &= ~MINOR_STATE_MASK;
 								minorflags[conn->minor] |= MINOR_CONN_SENT;
 								break;
-#endif
+	#endif
 							CHK }
 						CHK }
 						if ((mx = allocb (32, BPRI_MED)) == NULL)
@@ -2619,7 +2642,7 @@ isdn3_rsrv (queue_t * q)
 						}
 						putnext (isdn3_q, mx);
 						break;
-					  sdrop:
+						sdrop:
 						freemsg (mp);
 						mp = NULL;
 					CHK }
@@ -2679,7 +2702,7 @@ isdn3_rsrv (queue_t * q)
 				case HDR_RAWDATA:
 					log_printmsg (NULL, "RAWDATA", mp, KERN_INFO);
 					break;
-#ifdef DO_BOOT
+	#ifdef DO_BOOT
 				case HDR_BOOT:
 					{
 						mblk_t *mx;
@@ -2690,7 +2713,7 @@ isdn3_rsrv (queue_t * q)
 						putnext (isdn3_q, mx);
 					CHK }
 					break;
-#endif
+	#endif
 				case HDR_OPEN:
 					{
 						isdn3_conn conn;
@@ -2714,10 +2737,10 @@ isdn3_rsrv (queue_t * q)
 							m_putx (mx, hdr.hdr_open.flags);
 							m_putsx (mx, ARG_UID);
 							m_puti (mx, hdr.hdr_open.uid);
-#if 0
+	#if 0
 							m_putsx (mx, ARG_GID);
 							m_puti (mx, hdr.hdr_open.gid);
-#endif
+	#endif
 							putnext (q, mx);
 						CHK }
 						minorflags[hdr.hdr_open.minor] &= ~MINOR_WILL_OPEN;
@@ -2897,7 +2920,7 @@ isdn3_rsrv (queue_t * q)
 						if (hdr.hdr_notify.SAPI == SAPI_INVALID) {
 							for (talk = card->talk; talk != NULL; talk = talk->next)
 								(*talk->hndl->chstate) (talk, hdr.hdr_notify.ind, hdr.hdr_notify.add);
-#if 0
+	#if 0
 							switch (hdr.hdr_notify.ind) {
 							case PH_ACTIVATE_IND:
 							case PH_ACTIVATE_CONF:
@@ -2907,7 +2930,7 @@ isdn3_rsrv (queue_t * q)
 							case PH_DISCONNECT_IND:
 								break;
 							CHK }
-#endif
+	#endif
 						CHK } else {
 							if ((hndl = isdn3_findhndl (hdr.hdr_notify.SAPI)) == NULL)
 								break;
@@ -2921,8 +2944,59 @@ isdn3_rsrv (queue_t * q)
 					break;
 				case HDR_INVAL:
 					{
+						mblk_t *mx;
 						printf ("Inval Err %d: ", hdr.hdr_inval.error);
 						log_printmsg (NULL, "Inval", mp, KERN_DEBUG);
+						if ((mp != NULL) && (mx = allocb (32, BPRI_MED)) != 0) {
+							mblk_t *mq;
+							if(hdr.hdr_inval.error != 0) {
+								m_putid (mx, IND_ERR);
+								m_putsx (mx, ARG_ERRNO);
+								m_puti (mx, hdr.hdr_inval.error);
+							} else {
+								m_putid (mx, IND_NOERR);
+							}
+
+							mq = pullupm (mp, sizeof(hdr));
+							if(mq != NULL) {
+								mp = mq;
+								hdr = *((isdn23_hdr) mp->b_rptr)++;
+								m_putsx(mx,ARG_ERRHDR);
+								m_puti(mx,hdr.key);
+
+								switch(hdr.key) {
+								case HDR_ATCMD:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_atcmd.minor);
+									break;
+								case HDR_PROTOCMD:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_protocmd.minor);
+									break;
+								case HDR_XDATA:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_xdata.minor);
+									break;
+								case HDR_OPEN:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_open.minor);
+									break;
+								case HDR_CLOSE:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_close.minor);
+									break;
+								case HDR_ATTACH:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_attach.minor);
+									break;
+								case HDR_DETACH:
+									m_putsx(mx,ARG_MINOR);
+									m_puti(mx,hdr.hdr_detach.minor);
+									break;
+								}
+							}
+							putnext (q, mx);
+						}
 					CHK }
 					break;
 				default:
@@ -2936,7 +3010,7 @@ isdn3_rsrv (queue_t * q)
 			putnext (q, mp);
 			continue;
 		CHK }
-	CHK }
+	}
 	return;
 CHK }
 

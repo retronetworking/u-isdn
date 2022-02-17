@@ -480,7 +480,7 @@ static char *state2str(CState state) {
 	case c_off: return "off";
 	case c_down: return "down";
 	case c_offdown: return ">off";
-	case c_forceoff: return "-";
+	case c_forceoff: return "OFF";
 	case c_going_up: return ">up";
 	case c_going_down: return ">down";
 	default: return "unknown";
@@ -557,7 +557,35 @@ typedef struct conninfo {
 #define F_DIALUP        020000
 #define F_IGNORELIMIT2  040000
 #define F_OUTCOMPLETE  0100000
+#define F_SETINITIAL   0200000
+#define F_SETLATER     0400000
 
+
+char *HdrName (int hdr)
+{
+	switch(hdr) {
+	default: {
+	}
+	case -1: return "-";
+	case HDR_ATCMD: return "AT Cmd";
+	case HDR_DATA: return "Data";
+	case HDR_XDATA: return "XData";
+	case HDR_UIDATA: return "UI Data";
+	case HDR_RAWDATA: return "Raw Data";
+	case HDR_OPEN: return "Open";
+	case HDR_CLOSE: return "Close";
+	case HDR_ATTACH: return "Attach";
+	case HDR_DETACH: return "Detach";
+	case HDR_CARD: return "Card";
+	case HDR_NOCARD: return "No Card";
+	case HDR_OPENPROT: return "Open Protocol";
+	case HDR_CLOSEPROT: return "Close Protocol";
+	case HDR_NOTIFY: return "Notify";
+	case HDR_INVAL: return "Invalid";
+	case HDR_TEI: return "TEI";
+	case HDR_PROTOCMD: return "Proto Cmd";
+	}
+}
 
 char *FlagInfo(int flag)
 {
@@ -580,6 +608,8 @@ char *FlagInfo(int flag)
 	if (flag & F_DIALUP)       strcat(fbuf, ":dD");
 	if (flag & F_IGNORELIMIT2) strcat(fbuf, ":iL");
 	if (flag & F_OUTCOMPLETE)  strcat(fbuf, ":oc");
+	if (flag & F_SETINITIAL)   strcat(fbuf, ":si");
+	if (flag & F_SETLATER)     strcat(fbuf, ":sl");
 
 	if(fbuf[0]=='\0')
 		strcpy(fbuf,"-");
@@ -651,6 +681,7 @@ void time_reconn(struct conninfo *conn);
 void try_reconn(struct conninfo *);
 void retime(struct conninfo *conn);
 void run_now(void *nix);
+int do_run_now = 0;
 int has_progs(void);
 void do_quitnow(void *nix);
 
@@ -734,24 +765,28 @@ void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CS
 {
 	chkone(conn);
 	printf("%s:%d: State %d: %s",deb_file,deb_line,conn->minor,state2str(conn->state));
-	printf(" -> %s\n",state2str(state));
-	if(state < c_going_up && conn->state >= c_going_up) {
+	if(conn->state != state)
+		printf(" -> %s\n",state2str(state));
+	else
+		printf("\n");
+	if(conn->timer_reconn && (state == c_offdown || (state >= c_going_up
+		&& conn->state < c_going_up))) {
+		conn->timer_reconn = 0;
+		untimeout(time_reconn,conn);
+	} else if(!conn->timer_reconn && state < c_going_up && conn->state >= c_going_up) {
 		conn->timer_reconn = 1;
 		if(conn->flags & F_FASTREDIAL)
 			timeout(time_reconn,conn,HZ);
 		else
 			timeout(time_reconn,conn,5*HZ);
-	} else if(state >= c_going_up && conn->state < c_going_up) {
-		conn->timer_reconn = 0;
-		untimeout(time_reconn,conn);
 	}
 	if(conn->state <= c_down)
-		conn->connref = 0;
+		setconnref(conn,0);
 	if(state == c_up)
 		conn->cause = 0;
 	else if(state == c_going_up)
 		conn->cause = 999999;
-	if(conn->state < c_going_down && state > c_going_down) {
+	if((conn->state < c_going_down && state > c_going_down) || state <= c_off) {
 		if(conn->charge > 0) {
 			if(conn->cg != NULL)
 				syslog(LOG_WARNING,"COST %s:%s %d",conn->cg->site,conn->cg->protocol,conn->charge);
@@ -762,7 +797,8 @@ void Xsetconnstate(const char *deb_file, unsigned int deb_line,conninfo conn, CS
 		conn->charge = 0;
 	}
 	conn->state=state;
-	ReportConn(conn);
+	if(conn->ignore < 2)
+		ReportConn(conn);
 	if(state <= c_down)
 		conn->connref = 0;
 	if(conn->ignore)
@@ -1308,6 +1344,7 @@ typedef struct _cf {
 	char *arg;
 	char *args;
 	int num, num2;
+	char got_err;
 } *cf;
 
 cf cf_P = NULL;
@@ -1697,6 +1734,7 @@ void
 read_args_run(void *nix)
 {
 	read_args(NULL);
+	do_run_now++;
 	run_now(NULL);
 }
 
@@ -1795,37 +1833,37 @@ const char *CauseInfo(int cause, char *pri)
 }
 
 void
-dropconn (struct conninfo *conn);
+Xdropconn (struct conninfo *conn, int deb_line);
+#define dropconn(x) Xdropconn((x),__LINE__)
 
-void rdropconn (struct conninfo *conn) { conn->ignore=2; dropconn(conn); }
+void rdropconn (struct conninfo *conn, int deb_line) {
+	conn->ignore=2; dropconn(conn); }
 
 void
-dropconn (struct conninfo *conn)
+Xdropconn (struct conninfo *conn, int deb_line)
 {
 	chkone(conn);
 	if(conn->locked) {
-		printf ("DropConn LOCK %d/%d/%ld\n", conn->minor, conn->fminor, conn->connref);
+		printf ("DropConn %d: LOCK %d/%d/%ld\n", deb_line, conn->minor, conn->fminor, conn->connref);
 		return;
 	}
-	printf ("DropConn %d/%d/%ld\n", conn->minor, conn->fminor, conn->connref);
-	if(conn->timer_reconn) {
-		conn->timer_reconn = 0;
-		untimeout(time_reconn,conn);
-	}
-	if(conn->retime) {
-		conn->retime = 0;
-		untimeout(retime,conn);
-	}
+	printf ("DropConn %d: %d/%d/%ld\n", deb_line, conn->minor, conn->fminor, conn->connref);
 	if(!conn->ignore) {
 		conn->ignore=1;
+		setconnstate(conn,c_forceoff);
+#if 0
 		if(conn->state > c_off)
 			setconnstate(conn, c_off);
 		else
 			ReportConn(conn);
+#endif
 		timeout(rdropconn,conn,HZ*60*5);
 		return;
-	} else if(conn->ignore == 1)
+	} else if(conn->ignore == 1) {
+		setconnstate(conn,c_forceoff);
 		return;
+	} else
+		setconnstate(conn,c_forceoff);
 	if (theconn == conn)
 		theconn = conn->next;
 	else {
@@ -1863,7 +1901,6 @@ deadkid (void)
 
 	while((pid = wait4 (-1,&val,WNOHANG,NULL)) > 0) {
 		printf ("\n* PID %d died, %x\n", pid, val);
-		has_dead = 1;
 
 		chkall();
 		for (conn = theconn; conn != NULL; conn = conn ? conn->next : NULL) {
@@ -1871,6 +1908,8 @@ deadkid (void)
 				continue;
 			if (conn->pid == pid) {
 				conn->pid = 0;
+				if(conn->flags & F_PERMANENT)
+					has_dead = 1;
 				if (conn->minor == 0)
 					dropconn (conn);
 				else
@@ -1905,7 +1944,8 @@ deadkid (void)
 		}
 	}
 	if(has_dead) {
-		untimeout(run_now,NULL);
+		in_boot=1;
+		do_run_now++;
 		timeout(run_now,NULL,3*HZ);
 	}
 	signal (SIGCHLD, (sigfunc__t) deadkid);
@@ -1915,13 +1955,18 @@ deadkid (void)
 int
 matchflag(long flags, char *ts)
 {
-	char inc,outg,leas,prep,dial;
+	char inc,outg,leas,prep,dial,ini,aft;
 
+	ini = (strchr(ts,'u') != NULL);
+	aft = (strchr(ts,'a') != NULL);
 	inc = (strchr(ts,'i') != NULL);
 	outg= (strchr(ts,'o') != NULL);
 	leas= (strchr(ts,'f') != NULL);
 	prep= (strchr(ts,'p') != NULL);
 	dial= (strchr(ts,'d') != NULL);
+
+	if(flags & F_SETINITIAL) { if (aft && !ini) return 0; }
+	if(flags & F_SETLATER)   { if (!aft && ini) return 0; }
 
 	if(flags & F_OUTGOING) { if (inc && !outg) return 0; }
 	if(flags & F_INCOMING) { if (!inc && outg) return 0; }
@@ -2339,9 +2384,9 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 					cg->nrsuf = match_nr(cg->nr,d->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
 					if(0)printf("Match %s,%s,%s -> %s\n",cg->nr,d->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, cg->nrsuf);
 					if(cg->nrsuf == NULL) {
-						if(*errstr > '4') {
+						if(*errstr > '8') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
-							errstr = "4NrRemMatch";
+							errstr = "8NrRemMatch";
 						}
 						continue;
 					}
@@ -2349,9 +2394,9 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 					cg->nr = build_nr(d->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0);
 					if(0)printf("Build %s,%s,%s,%d -> %s\n",d->arg,dl->arg,((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, 0, cg->nr);
 					if(cg->nr == NULL) {
-						if(*errstr > '4') {
+						if(*errstr > '8') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
-							errstr="4RemNrMatch";
+							errstr="8RemNrMatch";
 						}
 						continue;
 					}
@@ -2363,7 +2408,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 					cg->lnrsuf = match_nr(cg->lnr,dl->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg);
 					if(0)printf("MatchL %s,%s,%s -> %s\n",cg->lnr,dl->arg, ((cg->flags&F_INCOMING) && (dp->args != NULL)) ? dp->args : dp->arg, cg->lnrsuf);
 					if(cg->lnrsuf == NULL) {
-						if(*errstr > '4') {
+						if(*errstr > '3') {
 							dropgrab(errcg); errcg = cg; cg->refs++;
 							errstr = "4NrLocMatch";
 						}
@@ -2396,7 +2441,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 			dropgrab(*foo); *foo = errcg;
 		}
 		if(errstr != NULL)
-			printf("%s; ",errstr);
+			printf("A>%s; ",errstr);
 		return errstr;
 
 	gotit:
@@ -2420,14 +2465,15 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 				}
 			}
 			if(cl != NULL) {
-				if(0)syslog(LOG_INFO,"Scan for %s:%d:%d %s:%s:%s %s",cg->card,cl->num,nrbchan,cg->site,cg->protocol,cg->cclass,cg->nr ? cg->nr : "-");
+printf("Limit for %s:%d:%d %s:%s:%s %s\n",cg->card,cl->num,nrbchan,cg->site,cg->protocol,cg->cclass,cg->nr ? cg->nr : "-");
 				for(conn = theconn; conn != NULL; conn = conn->next) {
-					if(conn->ignore)
+					if(conn->ignore || !conn->cg)
 						continue;
 					if(wildmatch(conn->cg->site,cg->site) &&
 							wildmatch(conn->cg->protocol,cg->protocol))
 						continue;
 					if((conn->state >= c_going_up) && wildmatch(conn->cg->card, cg->card)) {
+printf("Share line with %s:%d:%d %s:%s:%s %s\n",conn->cg->card,cl->num,nrbchan,conn->cg->site,conn->cg->protocol,conn->cg->cclass,conn->cg->nr ? conn->cg->nr : "-");
 						nrconn ++;
 						if(!(conn->flags & F_IGNORELIMIT))
 							naconn++;
@@ -2452,7 +2498,7 @@ if(0)printf("%s.%s.!.",cg->site,cg->card);
 		*foo = errcg;
 	}
 	if(errstr != NULL)
-		printf("%s; ",errstr);
+		printf("B>%s; ",errstr);
 	return errstr;
 }
 
@@ -2523,6 +2569,7 @@ findit (conngrab *foo)
 					continue;
 				return NULL;
 			}
+			errstrx = "0CARDMATCH";
 		}
 		if(*errstrx < *errstr) {
 			errstr = errstrx;
@@ -2637,6 +2684,10 @@ pushprot (conngrab cg, int minor, char update)
 	}
 	if (prot == NULL)
 		return ENOENT;
+	if(update) 
+		cg->flags = (cg->flags & ~F_SETINITIAL) | F_SETLATER;
+	else
+		cg->flags = (cg->flags & ~F_SETLATER) | F_SETINITIAL;
 	if (minor != 0) {
 		char *sp1, *sp2;
 		char *sx;
@@ -2661,7 +2712,7 @@ pushprot (conngrab cg, int minor, char update)
 		sx = (char *)malloc (strlen (prot->args) + 5 + strlen (PROTO_NAME));
 		if (sx == NULL)
 			return ENOMEM;
-		sprintf (sx, "%s %s", prot->args, PROTO_NAME);
+		sprintf (sx, " %s %s", prot->args, PROTO_NAME);
 		sp1 = sx;
 		while (*sp1 != '\0' && !isspace (*sp1))
 			sp1++;
@@ -3364,7 +3415,7 @@ runprog (cf cfr, struct conninfo *conn, conngrab *foo)
 				(*arg)++;
 			alarm(0);
 			execv (ap, arg);
-			syslog (LOG_ERR, "Could not execute %s: %m", *arg);
+			syslog (LOG_ERR, "Could not execute %s for %s/%s: %m", *arg,cg->site,cg->protocol);
 			if (cfr != NULL && cg != NULL)
 				write (pip[1], "EXEC", 4);
 			_exit (2);
@@ -3424,7 +3475,7 @@ runprog (cf cfr, struct conninfo *conn, conngrab *foo)
 #endif
 		close (pip[0]);
 	}
-	syslog (LOG_INFO, "exec %x:%x %d %s", dev, dev2, pid, cfr->args);
+	syslog (LOG_INFO, "exec %x:%x %d %s/%s %s", dev, dev2, pid, cg->site,cg->protocol, cfr->args);
 	printf ("* PID %d\n", pid);
 
 	if (conn != NULL) {
@@ -3521,6 +3572,7 @@ runprog (cf cfr, struct conninfo *conn, conngrab *foo)
 				} else {
 					int err = pushprot (conn->cg, conn->minor, 0);
 					if(err != 0) {
+printf("NoProtoEnable NotPushprot\n");
 						m_putid (&yy, CMD_CLOSE);
 						m_putsx (&yy, ARG_MINOR);
 						m_puti (&yy, conn->minor);
@@ -3544,6 +3596,7 @@ runprog (cf cfr, struct conninfo *conn, conngrab *foo)
 						DUMPW (yy.b_rptr, xlen);
 						(void) strwrite (xs_mon, (uchar_t *) yy.b_rptr, &xlen, 1);
 					}
+else printf("NoProtoEnable NotPermanent\n");
 					cg->card = str_enter("*"); /* cosmetic */
 					ReportConn(conn); /* even more cosmetic... */
 				}
@@ -3629,6 +3682,8 @@ void try_reconn(struct conninfo *conn)
 		cg->cclass = str_enter("*");;
 		cg->flags &=~(F_INCOMING|F_OUTCOMPLETE|F_NRCOMPLETE|F_LNRCOMPLETE);
 		cg->flags |= F_OUTGOING;
+		if((cg->flags & (F_PERMANENT|F_LEASED)) == F_PERMANENT)
+			cg->flags |= F_DIALUP;
 		if(cg->par_out != NULL)
 			freemsg(cg->par_out);
 		if((cg->par_out = allocb(256,BPRI_LO)) == NULL) {
@@ -3719,6 +3774,9 @@ do_info (streamchar * data, int len)
 	ushort_t cause = 0;
 	int xlen;
 	int has_force = 0;
+	int bchan = -1;
+	int hdrval = -1;
+	char no_error=0;
 
 	*(ulong_t *) crd = 0;
 	crd[4] = '\0';
@@ -3800,20 +3858,28 @@ do_info (streamchar * data, int len)
 				goto err;
 			}
 			break;
-		case ARG_FMINOR: { long fmi;
-			if (m_geti (&xx, &fmi) != 0) {
-				printf (" XErr 3\n");
-				goto err;
+		case ARG_ERRHDR:
+			if (m_geti (&xx, &hdrval) != 0) {
+				printf (" XErr 34\n");
+				if(0)goto err;
 			}
-			if (fminor != 0 && fminor != fmi) {
-				resp = "ILLEGAL FMINOR";
-				goto print;
-			}
-			fminor = fmi;
-			if (fminor < 0 || fminor >= NMINOR) {
-				printf (" XErr 4b\n");
-				goto err;
-			}
+			break;
+		case ARG_FMINOR:
+			{
+				long fmi;
+				if (m_geti (&xx, &fmi) != 0) {
+					printf (" XErr 3\n");
+					goto err;
+				}
+				if (fminor != 0 && fminor != fmi) {
+					resp = "ILLEGAL FMINOR";
+					goto print;
+				}
+				fminor = fmi;
+				if (fminor < 0 || fminor >= NMINOR) {
+					printf (" XErr 4b\n");
+					goto err;
+				}
 			} break;
 		case ARG_CALLREF:
 			if (m_geti (&xx, &callref) != 0) {
@@ -3824,6 +3890,12 @@ do_info (streamchar * data, int len)
 		case ARG_CONNREF:
 			if (m_geti (&xx, &connref) != 0) {
 				printf (" XErr 5\n");
+				goto err;
+			}
+			break;
+		case ARG_CHANNEL:
+			if (m_geti (&xx, &bchan) != 0) {
+				printf (" XErr 9a\n");
 				goto err;
 			}
 			break;
@@ -3843,6 +3915,12 @@ do_info (streamchar * data, int len)
 			if(conn->ignore)
 				continue;
 			if(0)printf ("%d/%d/%ld ", conn->minor, conn->fminor, conn->connref);
+			if ((connref != 0) && (conn->connref != 0)) {
+				if (conn->connref == connref)
+					break;
+				else
+					continue; /* the connection was taken over... */
+			}
 			if ((minor != 0) && (conn->minor != 0)) {
 				if (conn->minor == minor)
 					break;
@@ -3852,10 +3930,6 @@ do_info (streamchar * data, int len)
 			if ((fminor != 0) && (conn->fminor != 0)) {
 				if (conn->fminor == fminor)
 					xconn = conn;
-			}
-			if ((connref != 0) && (conn->connref != 0)) {
-				if (conn->connref == connref)
-					break;
 			}
 #if 0
 			if (*(ulong_t *) crd != 0 && conn->cg->card != 0 && conn->cg->card != *(ulong_t *) crd)
@@ -3975,7 +4049,7 @@ do_info (streamchar * data, int len)
 				(void) strwritev (xs_mon, io,len, 1);
 				break;
 			}
-		untimeout(run_now,NULL);
+		do_run_now++;
 		timeout(run_now,NULL,3*HZ);
 		} break;
 	case IND_NOCARD:
@@ -4197,6 +4271,7 @@ printf("Dis11 ");
 			{
 				char *sit = NULL,*pro = NULL,*car = NULL,*cla = NULL; /* GCC */
 				for (cfr = cf_R; cfr != NULL; cfr = cfr->next) {
+					if(cfr->got_err) continue;
 					if (!matchflag(cg->flags,cfr->type)) continue;
 					if ((sit = wildmatch (cg->site, cfr->site)) == NULL) continue;
 					if ((pro = wildmatch (cg->protocol, cfr->protocol)) == NULL) continue;
@@ -4299,6 +4374,19 @@ printf("Dis2 ");
 					if((conn = startconn(cg,fminor,connref,NULL)) != conn)
 						resp = "ClashRestart Failed";
 #endif
+					conn = malloc(sizeof(*conn));
+					if(conn != NULL) {
+						bzero(conn,sizeof(*conn));
+						conn->seqnum = ++connseq;
+						conn->cause = ID_priv_Print;
+						conn->causeInfo = "Drop Outgoing";
+						cg->refs++;
+						/* dropgrab(conn->cg; ** is new anyway */
+						conn->cg = cg;
+						conn->next = theconn;
+						theconn = conn;
+						dropconn(conn);
+					}
 				}
 				goto cont;
 			} else if(conn != NULL)
@@ -4341,8 +4429,12 @@ printf("Dis3 ");
 					m_putsx (&xx, ARG_CONNREF);
 					m_puti (&xx, connref);
 				}
+
+				/* BUSY-if-no-channel is very ugly but unavoidable when
+				   sharing the bus with brain-damaged devices (there are
+				   many out there */
 				m_putsx (&xx, ARG_CAUSE);
-				if(!strcmp(resp,"0BUSY"))
+				if((bchan < 0) || !strcmp(resp,"0BUSY"))
 					m_putsx2 (&xx, ID_N1_UserBusy);
 				else
 					m_putsx2 (&xx, ID_N1_CallRejected);
@@ -4990,7 +5082,7 @@ printf("Dis6 ");
 							goto print;
 						}
 						read_args(NULL);
-						untimeout(run_now,NULL);
+						do_run_now++;
     					run_now(NULL);
 						break;
 					case 'q':
@@ -5435,7 +5527,9 @@ printf("Dis6 ");
 			goto err;
 		goto redo;
 	case IND_ERR:
-printf("GotAnError: Minor %d, connref %d\n",minor,connref);
+printf("GotAnError: Minor %d, connref %d, hdr %s\n",minor,connref,HdrName(hdrval));
+		if(hdrval == HDR_CLOSE) /* Ignore? */
+			break;
 		if(conn == NULL && connref != 0) {
 			for(conn = theconn; conn != NULL; conn = conn->next) {
 				if(conn->connref == connref)
@@ -5443,6 +5537,43 @@ printf("GotAnError: Minor %d, connref %d\n",minor,connref);
 			}
 		}
 		if(conn != NULL) {
+			if(conn->cg != NULL) {
+				cf cfr;
+
+				for (cfr = cf_R; cfr != NULL; cfr = cfr->next) {
+					if (!matchflag(conn->cg->flags,cfr->type)) continue;
+					if (wildmatch (conn->cg->site, cfr->site) == NULL) continue;
+					if (wildmatch (conn->cg->protocol, cfr->protocol) == NULL) continue;
+					if (wildmatch (conn->cg->card, cfr->card) == NULL) continue;
+					if (classmatch (conn->cg->cclass, cfr->cclass) == NULL) continue;
+					break;
+				}
+				if(cfr != NULL) {
+					struct conninfo *xconn;
+					if(cfr->got_err)
+						goto conti;
+					cfr->got_err = 1;
+
+					xconn = malloc(sizeof(*xconn));
+					if(xconn != NULL) {
+						bzero(xconn,sizeof(*xconn));
+						xconn->seqnum = ++connseq;
+						xconn->cause = ID_priv_Print;
+						xconn->causeInfo = "Program Error";
+						conn->cg->refs++;
+						/* dropgrab(conn->cg; ** is new anyway */
+						xconn->cg = conn->cg;
+						xconn->next = theconn;
+						theconn = xconn;
+						dropconn(xconn);
+					}
+				}
+			}
+			xx.b_rptr = xx.b_wptr = ans;
+			db.db_base = ans;
+			db.db_lim = ans + sizeof (ans);
+
+			*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_OFF);
 			m_putsx(&xx,ARG_FORCE);
 			if(minor > 0) {
@@ -5459,8 +5590,9 @@ printf("GotAnError: Minor %d, connref %d\n",minor,connref);
 			}
 
 			xlen = xx.b_wptr - xx.b_rptr;
-			DUMPW (ans, xlen);
+			DUMPW (xx.b_rptr, xlen);
 			(void) strwrite (xs_mon, ans, &xlen, 1);
+
 		}
 		if((minor ? minor : fminor) != 0) {
 			char dats[30];
@@ -5468,6 +5600,7 @@ printf("GotAnError: Minor %d, connref %d\n",minor,connref);
 			db.db_base = dats;
 			db.db_lim = dats + sizeof(dats);
 
+			*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_CLOSE);
 			m_putsx (&xx, ARG_MINOR);
 			m_puti (&xx, (minor ? minor : fminor));
@@ -5483,6 +5616,8 @@ printf("GotAnError: Minor %d, connref %d\n",minor,connref);
 			}
 
 		}
+	  conti:
+	  	no_error=1;
 		resp = "ERROR";
 		goto print;
 	case ID_N1_FAC_ACK:
@@ -5516,10 +5651,13 @@ printf("GotAnError: Minor %d, connref %d\n",minor,connref);
 		chkall();
 		if (fminor == 0)
 			fminor = minor;
-		if (resp != NULL && fminor > 0) {
+		if (((fminor != minor) || !no_error) && resp != NULL && fminor > 0) {
 			xx.b_rptr = xx.b_wptr = ans;
 			db.db_base = ans;
 			db.db_lim = ans + sizeof (ans);
+
+			if(no_error)
+				*xx.b_wptr++ = PREF_NOERR;
 			m_putid (&xx, CMD_PROT);
 			m_putsx (&xx, ARG_FMINOR);
 			m_puti (&xx, fminor);
@@ -5821,9 +5959,13 @@ void
 run_now(void *nix)
 {
 	cf what;
-	int npos = (int)nix;
+	static int npos = 0;
 	int spos = 0;
 
+	if(do_run_now > 1) {
+		do_run_now--;
+		return;
+	}
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
 		signal (SIGHUP, SIG_DFL);
 	if(quitnow)
@@ -5834,7 +5976,12 @@ run_now(void *nix)
 printf("Skip #%d; ",spos);
 			continue;
 		}
+		npos++;
 printf("Do #%d...",spos);
+		if(what->got_err) {
+printf("StoredErr; ",spos);
+			continue;
+		}
 		if(strchr(what->type,'B') != NULL || strchr(what->type,'p') != NULL) {
 			struct conninfo *conn;
 
@@ -5882,9 +6029,12 @@ printf("exist %s:%s\n",conn->cg->site,conn->cg->protocol);
 			}
 		}
 	}
+printf("\nBoot Finished\n");
 	in_boot = 0;
 	if(signal(SIGHUP,SIG_IGN) != SIG_IGN)
-    		signal (SIGHUP, (sigfunc__t) read_args_run);
+    	signal (SIGHUP, (sigfunc__t) read_args_run);
+	npos = 0;
+	do_run_now = 0;
 }
 
 int
@@ -5938,7 +6088,7 @@ kill_progs(struct conninfo *xconn)
 		}
 	}
 	if(!quitnow) {
-		untimeout(run_now,NULL);
+		do_run_now++;
 		timeout(run_now,NULL,5*HZ);
 	}
 }
@@ -5978,7 +6128,7 @@ main (int argc, char *argv[])
 	else
 		progname++;
 
-	while ((x = getopt (argc, argv, "iItlLf:x:dw"))!= EOF) {
+	while ((x = getopt (argc, argv, "iItf:x:dlLwWqQ"))!= EOF) {
 		switch (x) {
 		case 'l':
 			pushlog |= 1;
@@ -5988,6 +6138,15 @@ main (int argc, char *argv[])
 			break;
 		case 'w':
 			pushlog |= 4;
+			break;
+		case 'W':
+			pushlog |= 8;
+			break;
+		case 'q':
+			pushlog |= 16;
+			break;
+		case 'Q':
+			pushlog |= 32;
 			break;
 		case 'd':
 			debug = 1;
@@ -6139,34 +6298,33 @@ main (int argc, char *argv[])
 			if (errno != ENOTTY)
 				xquit ("SetStrOpt", "");
 
-		if (pushlog) {
-			if (pushlog & 4)
-				if (ioctl (fd_mon, I_PUSH, "logh") < 0)
-					if (errno != ENOTTY)
-						xquit ("Push", "strlog 1");
-			if (pushlog & 1)
-				if (ioctl (fd_mon, I_PUSH, "strlog") < 0)
-					if (errno != ENOTTY)
-						xquit ("Push", "strlog 1");
-			if (pushlog & 2)
-				if (ioctl (fd_mon, I_PUSH, "qinfo") < 0)
-					if (errno != ENOTTY)
-						xquit ("Push", "qinfo 1");
-		}
+		if (pushlog & 2)
+			if (ioctl (fd_mon, I_PUSH, "strlog") < 0)
+				if (errno != ENOTTY)
+					xquit ("Push", "strlog 1");
+		if (pushlog & 8)
+			if (ioctl (fd_mon, I_PUSH, "logh") < 0)
+				if (errno != ENOTTY)
+					xquit ("Push", "strlog 1");
+		if (pushlog & 32)
+			if (ioctl (fd_mon, I_PUSH, "qinfo") < 0)
+				if (errno != ENOTTY)
+					xquit ("Push", "strlog 1");
 #if LEVEL < 4
 		if (xnkernel) {
 			if (ioctl (fd_mon, I_PUSH, "isdn_3") < 0) {
 				syslog (LOG_ERR, "No kernel ISDN module: %m");
 				xnkernel = 0;
 			} else {
-				if (pushlog) {
-					if (pushlog & 1)
-						if (ioctl (fd_mon, I_PUSH, "strlog") < 0)
-							xquit ("Push", "strlog 1");
-					if (pushlog & 2)
-						if (ioctl (fd_mon, I_PUSH, "qinfo") < 0)
-							xquit ("Push", "qinfo 1");
-				}
+				if (pushlog & 1)
+					if (ioctl (fd_mon, I_PUSH, "strlog") < 0)
+						xquit ("Push", "strlog 1");
+				if (pushlog & 4)
+					if (ioctl (fd_mon, I_PUSH, "logh") < 0)
+						xquit ("Push", "strlog 1");
+				if (pushlog & 16)
+					if (ioctl (fd_mon, I_PUSH, "qinfo") < 0)
+						xquit ("Push", "strlog 1");
 			}
 		}
 #endif
@@ -6199,8 +6357,12 @@ main (int argc, char *argv[])
 		register_strmod (&loghinfo);
 #if LEVEL < 4
 		if (!xnkernel || testonly) {
+			if (pushlog & 1)
+				strioctl (xs_mon, I_PUSH, (long) "log");
 			if (pushlog & 4)
 				strioctl (xs_mon, I_PUSH, (long) "logh");
+			if (pushlog & 16)
+				strioctl (xs_mon, I_PUSH, (long) "qinfo");
 			strioctl (xs_mon, I_PUSH, (long) "isdn_3");
 		}
 #endif

@@ -385,8 +385,13 @@ char kernel_version[] = UTS_RELEASE;
 
 int init_module(void)
 {
-	rename_module_symbol("_do_i_sleep_on","_interruptible_sleep_on");
-	rename_module_symbol("_do_sleep_on","_sleep_on");
+#ifdef __ELF__
+#define U
+#else
+#define U "_"
+#endif
+	rename_module_symbol(U "do_i_sleep_on",U "interruptible_sleep_on");
+	rename_module_symbol(U "do_sleep_on",U "sleep_on");
 	return 0;
 }
 

@@ -435,7 +435,7 @@ str_if_open (queue_t * q, dev_t dev, int flag, int sflag
 	netdev->addr_len = 0;
 	netdev->type = ARPHRD_SLIP;
 	netdev->type_trans = strl_type_trans;
-	netdev->mtu = 576;
+	netdev->mtu = 1500;
 	netdev->family = AF_INET;
 	netdev->pa_alen = sizeof(unsigned long);
 

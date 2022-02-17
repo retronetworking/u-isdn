@@ -250,7 +250,8 @@ int isdn3_send (isdn3_talk talk, char what, mblk_t * data);
 int isdn3_send_conn (SUBDEV minor, char what, mblk_t * data);
 
 #define AS_PROTO 3				  /* Protocol setup */
-#define AS_XDATA 4				  /* Data to be sent up to a device. When
+#define AS_PROTO_NOERR 4		  /* Protocol setup, don't report errors */
+#define AS_XDATA 5				  /* Data to be sent up to a device. When
 								   * talking across the D channel. */
 
 /*

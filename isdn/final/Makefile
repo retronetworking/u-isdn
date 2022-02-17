@@ -28,10 +28,12 @@ install.sys:
 	if test ! -f /etc/isdn.conf; then cp ../cf.tcp /etc/isdn.conf ; else true ; fi
 
 install.bin:
+	DIR=${DESTDIR}/bin-$$(uname -r) ; \
+	if test -d $$DIR ; then true; else mkdir -p $$DIR; fi ; \
 	for i in `/bin/ls ../bin` ; do 				\
-		test -f ${DESTDIR}/bin/$$i && \
-			mv -f ${DESTDIR}/bin/$$i ${DESTDIR}/bin/$$i.old	; \
-		cp ../bin/$$i ${DESTDIR}/bin/$$i ;  \
+		test -f $$DIR/$$i && \
+			mv -f $$DIR/$$i $$DIR/$$i.old	; \
+		cp ../bin/$$i $$DIR/$$i ;  \
 	done
 
 # "install" does _not_ depend on all, because all calls install indirectly

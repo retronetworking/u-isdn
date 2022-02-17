@@ -10,24 +10,30 @@ CC	= gcc
 DEFS    = -I../../streams -I../../compat -fomit-frame-pointer -funroll-loops -DKERNEL -D__KERNEL__ -DMODULE -DCONFIG_MODVERSIONS -I../../include 
 ##  =()<CFLAGS	= @<CFLAGS>@ $(DEFS)>()=
 CFLAGS	= -O2 -Wall  $(DEFS)
+##  =()<LD	= @<LD>@>()=
+LD	= ld
+##  =()<DUMBCARDS	= @<DUMBCARDS>@>()=
+DUMBCARDS	= ncp16
 
 ##  =()<SYS	= @<SYS>@>()=
 SYS	= linux
 
-SOURCES	= avm_io.c bsc_io.c teles_io.c ncp_io.c shell.c 
+SOURCES	= avm_io.c bsc_io.c teles_io.c ncp_io.c ncp16_io.c shell.c 
 
-OBJ	= Xteles.o Xbsc.o Xavm.o Cavm.o Cbsc.o Cteles.o Xncp.o Cncp.o
-ALL = teles.o avm.o bsc.o ncp.o
+OBJ	= Xteles.o Xbsc.o Xavm.o Cavm.o Cbsc.o Cteles.o Xncp.o Xncp16.o Cncp.o Cncp16.o
+ALL = teles.o avm.o bsc.o ncp.o ncp16.o
 
-all:	teles.o
+all:	$(foreach c,${DUMBCARDS},$c.o)
 
-load:	all
-	insmod teles.o
+load:	$(foreach c,${DUMBCARDS},ins-$c)
+	
 
 Cavm.o:	Config.c
 	$(CC) $(CFLAGS) -D_avm_ -o Cavm.o -c Config.c
 Cbsc.o:	Config.c
 	$(CC) $(CFLAGS) -D_bsc_ -o Cbsc.o -c Config.c
+Cncp16.o:	Config.c
+	$(CC) $(CFLAGS) -D_ncp16_ -o Cncp16.o -c Config.c
 Cncp.o:	Config.c
 	$(CC) $(CFLAGS) -D_ncp_ -o Cncp.o -c Config.c
 Cteles.o:	Config.c
@@ -37,19 +43,34 @@ Xavm.o:	shell.c avm_io.c
 	$(CC) $(CFLAGS) -D_avm_ -o Xavm.o -c shell.c
 Xbsc.o:	shell.c bsc_io.c
 	$(CC) $(CFLAGS) -D_bsc_ -o Xbsc.o -c shell.c
+Xncp16.o:	shell.c ncp16_io.c
+	$(CC) $(CFLAGS) -D_ncp16_ -DWIDE -o Xncp16.o -c shell.c
 Xncp.o:	shell.c ncp_io.c
 	$(CC) $(CFLAGS) -D_ncp_ -o Xncp.o -c shell.c
 Xteles.o:	shell.c teles_io.c
 	$(CC) $(CFLAGS) -D_teles_ -o Xteles.o -c shell.c
 
 avm.o:	Xavm.o Cavm.o
-	ld -r -o avm.o Xavm.o Cavm.o
+	$(LD) -r -o avm.o Xavm.o Cavm.o
 bsc.o:	Xbsc.o Cbsc.o
-	ld -r -o bsc.o Xbsc.o Cbsc.o
+	$(LD) -r -o bsc.o Xbsc.o Cbsc.o
+ncp16.o:	Xncp16.o Cncp16.o
+	$(LD) -r -o ncp16.o Xncp16.o Cncp16.o
 ncp.o:	Xncp.o Cncp.o
-	ld -r -o ncp.o Xncp.o Cncp.o
+	$(LD) -r -o ncp.o Xncp.o Cncp.o
 teles.o:	Xteles.o Cteles.o
-	ld -r -o teles.o Xteles.o Cteles.o
+	$(LD) -r -o teles.o Xteles.o Cteles.o
+
+ins-avm: avm.o
+	insmod avm.o
+ins-bsc: bsc.o
+	insmod bsc.o
+ins-teles: teles.o
+	insmod teles.o
+ins-ncp: ncp.o
+	insmod ncp.o
+ins-ncp16: ncp16.o
+	insmod ncp16.o
 
 lib:
 

@@ -38,7 +38,9 @@ typedef int (*C_ch_mode) (struct _isdn1_card * card, short channel, char mode,
  * talking to "smart" ISDN cards. Fake cards grab the data and send it to the
  * driver program.
  */
-typedef int (*C_ch_prot) (struct _isdn1_card * card, short channel, mblk_t * proto);
+typedef int (*C_ch_prot) (struct _isdn1_card * card, short channel, mblk_t * proto, int flags);
+#define CHP_BACKCHAN 01 /* Back channel from the stack to the card */
+#define CHP_MODLIST 02 /* includes a module list */
 
 /*
  * Check if buffer space is available
@@ -62,6 +64,7 @@ struct _isdn1_card {
 								   * drivers must not touch this. */
 	struct _isdn_chan *chan;		  /* Pointer to array. First is the D channel. */
 	ulong_t modes;				  /* Modes available on this card. */
+#define CHM_INTELLIGENT 01 /* If this bit is set, the card is clever and modes>>1 has the ID of the high-level driver. */
 
 	C_ch_mode ch_mode;
 	C_ch_prot ch_prot;
@@ -112,5 +115,10 @@ extern int isdn2_recv (struct _isdn1_card *card, short channel, mblk_t * data);
  * channel, or >0 for the appropriate B channel.
  */
 extern int isdn2_backenable (struct _isdn1_card *card, short channel);
+
+/*
+ * Callback for mode setup.
+ */
+extern int isdn2_chprot (struct _isdn1_card * card, short channel, mblk_t * proto, int flags);
 
 #endif							/* _ISDN_12 */

@@ -2077,8 +2077,12 @@ h_reply (queue_t * q, isdn23_hdr hdr, uchar_t err)
 	isdn23_hdr hd;
 	mblk_t *mb;
 
+#if 0
 	if (err == 0)
 		return 0;
+#endif
+	if(hdr->key & HDR_NOERROR)
+		return;
 
 	if (isdn2_debug & 0x100)
 		printf ("h_reply %p %p %d\n", q, hdr, err);
@@ -2253,9 +2257,9 @@ isdn2_wsrv (queue_t *q)
 								break;
 							}
 							if(isdn2_debug & 0x100)
-								printf("Dispatch %d\n",hdr.key);
+								printf("Dispatch %x\n",hdr.key);
 
-							switch (hdr.key) {
+							switch (hdr.key & ~HDR_FLAGS) {
 							default:
 								if (isdn2_debug & 0x100)
 									printf ("unknown key %d\n", hdr.key);
@@ -2311,7 +2315,7 @@ isdn2_wsrv (queue_t *q)
 										if (hdr.hdr_protocmd.channel >= crd->card->nr_chans) {
 											printf (" -- bad channel\n");
 											h_reply (q, &hdr, EINVAL);
-										} else if ((err = (*crd->card->ch_prot) (crd->card, hdr.hdr_protocmd.channel, mp)) != 0) {
+										} else if ((err = (*crd->card->ch_prot) (crd->card, hdr.hdr_protocmd.channel, mp,0)) != 0) {
 											printf (" -- Err SetMode\n");
 											h_reply (q, &hdr, err);
 										} else

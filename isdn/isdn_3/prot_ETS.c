@@ -51,7 +51,7 @@
 #define VAL_ET_T303 ( 10 *HZ)	  /* was 4. L1 startup, TEI, L2 startup ... */
 #define VAL_ET_T304 ( 30 *HZ)
 #define VAL_ET_T305 ( 30 *HZ)
-#define VAL_ET_T308 ( 4 *HZ)
+#define VAL_ET_T308 ( 8 *HZ)	/* was 4. Hmmm... */
 #ifdef HAS_RECOVERY
 #define VAL_ET_T309 ( 90 *HZ)
 #endif
@@ -346,85 +346,121 @@ report_addfac (mblk_t * mb, uchar_t * data, ushort_t len)
 	QD_INIT (data, len) return;
 	QD {
 	  QD_CASE (0, PT_E0_facility):
-		if (qd_len == 0)
+		if (qd_len == 0) {
+printf("FacL 1 is %d\n",qd_len);
 			break;
-		if((*qd_data & 0x1F) != 0x11)
+		}
+		if((*qd_data & 0x1F) != 0x11) {
+printf("Fac 2 is %x\n",*qd_data);
 			break;
+		}
 		while(qd_len > 0 && !(*qd_data & 0x80)) {
 			qd_data++; qd_len--;
 		} 
-		if(qd_len < 2)
+		if(qd_len < 2) {
+printf("FacL 2 is %d\n",qd_len);
 			break;
+		}
 		qd_data++; qd_len--;
-		if((*qd_data & 0xE0) != 0xA0)
+		if((*qd_data & 0xE0) != 0xA0) {
+printf("Fac 3 is %x\n",*qd_data);
 			break;
-		qd_len--;
-		switch(*qd_data++ & 0x1F) {
+		}
+		switch(*qd_data & 0x1F) {
 		case 1: /* invoke */
 			{
 				unsigned char nlen, ilen;
 				int ident;
 
-				if(qd_len < 1)
+				qd_data++; qd_len--;
+				if(qd_len < 1) {
+printf("FacL 4 is %d\n",qd_len);
 					break;
-				if(*qd_data & 0x80) /* length format */
+				}
+				if(*qd_data & 0x80) { /* length format */
+printf("Fac 4 is %x\n",*qd_data);
 					break;
+				}
 				nlen = *qd_data++; qd_len--;
-				if(qd_len < nlen)
+				if(qd_len < nlen) {
+printf("FacL 5 is %d %d\n",qd_len,nlen);
 					return;
+				}
 				qd_len -= nlen;
 
-				if(nlen < 2)
+				if(nlen < 2) {
+printf("FacL 6 is %d\n",nlen);
 					return;
-				if(*qd_data != 0x02)
+				}
+				if(*qd_data != 0x02) {
+printf("Fac 5 is %x\n",*qd_data);
 					return;
+				}
 				qd_data++; nlen--;
-				if(*qd_data & 0x80) /* length format */
+				if(*qd_data & 0x80) { /* length format */
+printf("Fac 6 is %x\n",*qd_data);
 					break;
+				}
 				ilen = *qd_data++; nlen--;
-				if(ilen > nlen || ilen == 0)
+				if(ilen > nlen || ilen == 0) {
+printf("FacL 6a is %d %d\n",ilen,nlen);
 					return;
+				}
 				nlen -= ilen;
 				ident = 0;
 				while(ilen > 0) {
-					ident = (ident << 8) | *qd_data++;
+					ident = (ident << 8) | (*qd_data++ & 0xFF);
 					ilen--;
 				}
-				if(ident != 0x7F7D)
+#if 0
+				if(ident != 0x7F7D) {
+printf("Fac 7 is %x\n",ident);
 					return;
+				}
+#endif
 
-				if(nlen < 2)
+				if(nlen < 2) {
+printf("FacL 7 is %d\n",nlen);
 					return;
+				}
 				if(*qd_data != 0x02)
 					return;
 				qd_data++; nlen--;
 				ilen = *qd_data++; nlen--;
-				if(ilen > nlen || ilen == 0)
+				if(ilen > nlen || ilen == 0) {
+printf("FacL 8 is %d %d\n",ilen,nlen);
 					return;
+				}
 				nlen -= ilen;
 				ident = 0;
 				while(ilen > 0) {
-					ident = (ident << 8) | *qd_data++;
+					ident = (ident << 8) | (*qd_data++ & 0xFF);
 					ilen--;
 				}
-				if(ident != 0x24)
+				if(ident != 0x24) {
+printf("Fac 8 is %x\n",ident);
 					return;
+				}
 
-#define FOO1(a,b) \
+#define FOO1(s,a,b) \
 				while(nlen > 1) {					\
 					int ilen = qd_data[1];			\
-					if(nlen < ilen+2)				\
+					if(nlen < ilen+2) {				\
+printf("FooL" ##s " is %d,%d\n",nlen,ilen); 		\
 						return;						\
+					}								\
 					nlen -= ilen+2;					\
-					if(*qd_data == (a)) {			\
+					if((*qd_data & 0xFF) == (a)) {	\
 						int nlen = ilen;			\
 						qd_data += 2;				\
 						b;							\
-					} else							\
+					} else {						\
+printf("Foo " ##s " is %x\n",*qd_data & 0xFF); 		\
 						qd_data += ilen+2;			\
+					}								\
 				}
 
-				FOO1(0x30,FOO1(0x30,FOO1(0xA1,FOO1(0x30,FOO1(0x02,({
+				FOO1("A",0x30,FOO1("B",0x30,FOO1("C",0xA1,FOO1("D",0x30,FOO1("E",0x02,({
 					ident = 0;
 					while(ilen > 0) {
 						ident = (ident<<8) | *qd_data++;
@@ -438,10 +474,13 @@ report_addfac (mblk_t * mb, uchar_t * data, ushort_t len)
 			}
 			break;
 		case 2: /* return result */
+printf("Fac 1 is %x\n",*qd_data);
 			break;
 		case 3: /* return error */
+printf("Fac 1 is %x\n",*qd_data);
 			break;
 		default:
+printf("Fac 1 is %x\n",*qd_data);
 			break;
 		}
 	}
@@ -982,7 +1021,8 @@ ET_T303 (isdn3_conn conn)
 	conn->timerflags &= ~RUN_ET_T303;
 	switch (conn->state) {
 	case 1:
-		pr_setstate (conn, 0);
+		phone_sendback(conn, MT_ET_REL, NULL);
+		pr_setstate (conn, 99);
 		break;
 	}
 	et_checkterm (conn, NULL, 0);
@@ -1544,6 +1584,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				break;
 			case MT_ET_REL_COM:
 				break;
@@ -1684,6 +1725,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				break;
 			case MT_ET_REL:
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 99);
 				break;
 			case MT_ET_DISC:
@@ -1762,6 +1804,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_REL:
 				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_DISC:
@@ -1785,8 +1828,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				report_ET_user_info (conn, data, len);
 				break;
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			default:
@@ -1807,8 +1850,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				pr_setstate (conn, 10);
 				break;
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_DISC:
@@ -1835,8 +1878,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				pr_setstate (conn, 10);
 				break;
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_DISC:
@@ -1870,8 +1913,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_DISC:
@@ -1879,6 +1922,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				report_ET_terminate (conn, data, len);
 			common_17_REL:
 				phone_sendback (conn, MT_ET_REL, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 19);
 				break;
 			case MT_ET_SUSP_ACK:
@@ -1899,14 +1943,14 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_SETUP:
 				break;
 			case MT_ET_DISC:
-				/* send REL up */
 				/* Release B chan */
+				report_ET_terminate (conn, data, len);
 				phone_sendback (conn, MT_ET_REL, NULL);
 				pr_setstate (conn, 19);
 				break;
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			default:
@@ -1918,8 +1962,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_SETUP:
 				break;
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			default:
@@ -1931,6 +1975,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 			case MT_ET_SETUP:
 				break;
 			case MT_ET_REL:
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 99);
 				break;
 			default:
@@ -1941,8 +1986,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 		case 20:
 			switch (msgtype) {
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_REG_ACK:
@@ -1959,6 +2004,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				goto common_20_REL_COM;
 			common_20_REL_COM:
 				phone_sendback (conn, MT_ET_REL, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 19);
 				break;
 			default:
@@ -1968,8 +2014,8 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 		case 21:
 			switch (msgtype) {
 			case MT_ET_REL:
-				/* send REL up */
 				phone_sendback (conn, MT_ET_REL_COM, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 0);
 				break;
 			case MT_ET_CANC_ACK:
@@ -1986,6 +2032,7 @@ printf (" ET: Recv %x in state %d\n", msgtype, conn->state);
 				goto common_21_REL_COM;
 			common_21_REL_COM:
 				phone_sendback (conn, MT_ET_REL, NULL);
+				report_ET_terminate (conn, data, len);
 				pr_setstate (conn, 19);
 				break;
 			default:
@@ -2754,7 +2801,7 @@ sendcmd (isdn3_conn conn, ushort_t id, mblk_t * data)
 				pr_setstate(conn,99);
 				if(mb != NULL)
 					freemsg(mb);
-			} else if (send_ET_disc (conn, 1 + forceit, mb) != 0 && mb != NULL)
+			} else if (send_ET_disc (conn, forceit << 1, mb) != 0 && mb != NULL)
 				freemsg (mb);
 
 			isdn3_setup_conn (conn, EST_DISCONNECT);

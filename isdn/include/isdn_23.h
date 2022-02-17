@@ -214,4 +214,7 @@ typedef struct _isdn23_hdr {
 #define HDR_BOOT      18
 #endif
 
+#define HDR_FLAGS 0x80
+#define HDR_NOERROR 0x80
+
 #endif							/* _ISDN_23 */

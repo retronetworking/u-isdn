@@ -22,6 +22,8 @@
  * with types with appropriate arguments.
  */
 
+#define PREF_NOERR '='	/* Prefix to disable error replies */
+
 #define CMD_FAKEOPEN CHAR2('f','o')		/* Indicate that a /dev/isdn device has
 										 * been opened. This is used to avoid a
 										 * possible race condition */
@@ -63,6 +65,7 @@
 #define IND_PROTO_AGAIN  CHAR2 ('i','a')/* Set up a protocol stack. */
 #define IND_CARDPROTO  CHAR2 ('i','c')/* Set up a protocol stack. */
 #define IND_ERR    CHAR2 ('e','r')/* Command error. */
+#define IND_NOERR    CHAR2 ('o','k')/* Command error. */
 #define IND_INCOMING CHAR2 ('i','n')	/* Incoming call. */
 #define IND_CONN   CHAR2 ('c','o')/* Connected. */
 #define IND_CONN_ACK CHAR2('C','A')
@@ -137,8 +140,8 @@
 #define ARG_MODE     CHAR2 ('m','o')	/* uchar Mode to switch B channel to. */
 #define ARG_MODEMASK CHAR2 ('m','m')	/* ulong Mask of supported modes */
 #define ARG_SUPPRESS CHAR2 ('s','n')	/* Suppress calling number */
-#define ARG_PROTOCOL CHAR2 ('p','r')	/* uchar L3 protocol, as identified by
-										 * the SAPI. */
+#define ARG_PROTOCOL CHAR2 ('p','r')	/* uchar L3 protocol */
+#define ARG_ERRHDR   CHAR2 ('e','H')    /* reported error type */
 #define ARG_SPV		 CHAR2 ('p','v')	/* semipermanent */
 #define ARG_FORCETALK CHAR2 ('F','t')	/* force talker */
 #define ARG_SUBPROT  CHAR2 ('s','p')	/* long Subprotocol to use. For SAPI 0:

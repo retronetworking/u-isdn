@@ -37,6 +37,9 @@ clean:
 	# @sh ../iftrue.sh "-d $(SYS)" "cd $(SYS); make clean"
 
 depend:		Makefile $(SOURCES)
+	rm -f syscompat.h linux
+	ln -s compat.h syscompat.h
+	ln -s . linux
 	$(CC) -M $(DEFS) $(SOURCES) > .depend
 
 load: all

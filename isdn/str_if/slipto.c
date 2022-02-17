@@ -269,17 +269,16 @@ enable (void)
 			quit();
 		}
 
-		if (mask == 0)
-			mask = htonl(0xFFFFFFFE);
-
-		ifr.ifr_addr.sa_family = AF_INET;
+		if (mask != 0) {
+			ifr.ifr_addr.sa_family = AF_INET;
 #ifdef SOCK_HAS_LEN
-		ifr.ifr_addr.sa_len = sizeof(struct sockaddr_in);
+			ifr.ifr_addr.sa_len = sizeof(struct sockaddr_in);
 #endif
-		((struct sockaddr_in *) & ifr.ifr_netmask)->sin_addr.s_addr = mask;
-		if (ioctl(s, SIOCSIFNETMASK, &ifr) < 0) {
-			syslog (LOG_ERR, "ioctl(SIOCSIFNETMASK): %m");
-			quit();
+			((struct sockaddr_in *) & ifr.ifr_netmask)->sin_addr.s_addr = mask;
+			if (ioctl(s, SIOCSIFNETMASK, &ifr) < 0) {
+				syslog (LOG_ERR, "ioctl(SIOCSIFNETMASK): %m");
+				quit();
+			}
 		}
 	}
 	{
@@ -322,20 +321,20 @@ enable (void)
 #endif
 		((struct sockaddr_in *) & ifr.ifra_dstaddr)->sin_addr.s_addr = du;
 
-		if (mask == 0)
-			mask = htonl(0xFFFFFFFE);
+		if (mask != 0) {
 
-		/* ifr.ifra_mask.sa_family = AF_INET; */
+			/* ifr.ifra_mask.sa_family = AF_INET; */
 #ifdef SOCK_HAS_LEN
-		ifr.ifra_mask.sa_len = sizeof(struct sockaddr_in);
+			ifr.ifra_mask.sa_len = sizeof(struct sockaddr_in);
 #endif
-		((struct sockaddr_in *) & ifr.ifra_mask)->sin_addr.s_addr = mask;
-
-		if (ioctl (s, SIOCAIFADDR, (caddr_t) & ifr) < 0) {
-			syslog (LOG_ERR, "ioctl(SIOCAIFADDR %d.%d.%d.%d %d.%d.%d.%d): %m",
-				((uchar_t *)&ich)[0], ((uchar_t *)&ich)[1], ((uchar_t *)&ich)[2], ((uchar_t *)&ich)[3],
-				((uchar_t *)&du )[0], ((uchar_t *)&du )[1], ((uchar_t *)&du)[2], ((uchar_t *)&du )[3]);
-			xquit ("Dead");
+			((struct sockaddr_in *) & ifr.ifra_mask)->sin_addr.s_addr = mask;
+	
+			if (ioctl (s, SIOCAIFADDR, (caddr_t) & ifr) < 0) {
+				syslog (LOG_ERR, "ioctl(SIOCAIFADDR %d.%d.%d.%d %d.%d.%d.%d): %m",
+					((uchar_t *)&ich)[0], ((uchar_t *)&ich)[1], ((uchar_t *)&ich)[2], ((uchar_t *)&ich)[3],
+					((uchar_t *)&du )[0], ((uchar_t *)&du )[1], ((uchar_t *)&du)[2], ((uchar_t *)&du )[3]);
+				xquit ("Dead");
+			}
 		}
 	}
 #endif
@@ -423,8 +422,8 @@ main (int argc, char *argv[])
 	extern int optind;
 	char *progname = *argv;
 	int pid = getpid ();
-	int dodial = 0, domon = 0, dovanj = 0, dolog = 0, dologmodem = 0,
-	docount = 0, doqinfo = 0;
+	int dodial = 0, domon = 0, dovanj = 0, dofakeh = 0, dolog = 0, dologmodem = 0,
+	docount = 0, doqinfo = 0, noslip = 0;
 	int speed = 0;
 
 #ifdef AUX
@@ -444,9 +443,11 @@ main (int argc, char *argv[])
 	signal (SIGCHLD, SIG_IGN);
 	signal (SIGTTOU, SIG_IGN);
 
-	while ((s = getopt (argc, argv, "dr:R:lMm:vLop:s:"
-			)) != EOF)
+	while ((s = getopt (argc, argv, "dr:R:lMm:vfLop:s:S")) != EOF)
 		switch (s) {
+		case 'S':
+			noslip = 1;
+			break;
 		case 's':
 			speed = atoi(optarg);
 			break;
@@ -461,6 +462,9 @@ main (int argc, char *argv[])
 			break;
 		case 'M':
 			domon = 1;
+			break;
+		case 'f':
+			dofakeh = 1;
 			break;
 		case 'v':
 			dovanj = 1;
@@ -519,11 +523,7 @@ main (int argc, char *argv[])
 #ifdef UIOCMODEM
 			ioctl(devfd,UIOCMODEM,0);
 #endif
-			if (ioctl (devfd, TCGETS, &ts) != 0) {
-				syslog (LOG_ERR,"%s TCGETS: %m",dev);
-				exit (1);
-			}
-			{
+			if (ioctl (devfd, TCGETS, &ts) == 0) {
 				int i;
 				long ocflag = ts.c_cflag;
 				for(i = 0; i < NCCS; i++)
@@ -540,10 +540,10 @@ main (int argc, char *argv[])
 					cfsetispeed(&ts,speed);
 					cfsetospeed(&ts,speed);
 				}
-			}
-			if (ioctl (devfd, TCSETSF, &ts) != 0) {
-				syslog (LOG_ERR,"%s TCSETSF: %m",dev);
-				exit (1);
+				if (ioctl (devfd, TCSETSF, &ts) != 0) {
+					syslog (LOG_ERR,"%s TCSETSF: %m",dev);
+					exit (1);
+				}
 			}
 		}
 		if (dodial) {
@@ -575,8 +575,10 @@ main (int argc, char *argv[])
 				syslog (LOG_ERR,"strlog %m");
 				exit (1);
 			}
-		if (ioctl (devfd, I_PUSH, "slip") != 0) {
-			if(0)syslog (LOG_ERR,"slip: %m");
+		if(!noslip) {
+			if (ioctl (devfd, I_PUSH, "slip") != 0) {
+				if(0)syslog (LOG_ERR,"slip: %m");
+			}
 		}
 	}
 	if(dolog) {
@@ -589,6 +591,12 @@ main (int argc, char *argv[])
 		--dolog;
 		if (ioctl (devfd, I_PUSH, "strlog") != 0) {
 			syslog (LOG_ERR,"strlog: %m");
+			exit (1);
+		}
+	}
+	if (dofakeh) {
+		if (ioctl (devfd, I_PUSH, "fakeh") != 0) {
+			syslog (LOG_ERR,"fakeh: %m");
 			exit (1);
 		}
 	}

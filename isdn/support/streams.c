@@ -42,13 +42,13 @@ inline void deb_kfree_s(const char *deb_file,unsigned int deb_line,void * x,size
 #error "Kernel ???"
 #endif
 
-#include "../streams/streams_sys.c"
-
 #ifdef linux
 unsigned long intr_count = 0;
 unsigned long bh_mask = 0;
 unsigned long bh_active = 0;
 #endif
+
+#include "../streams/streams_sys.c"
 
 #ifdef CONFIG_DEBUG_STREAMS
 

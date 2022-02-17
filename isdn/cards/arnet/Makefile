@@ -9,29 +9,20 @@ CC	= gcc
 DEFS    = -I../streams -I../compat -I/usr/src/linux-orig/include -fomit-frame-pointer -DKERNEL -D__KERNEL__ -DMODULE -DCONFIG_MODVERSIONS -I../include 
 ##  =()<CFLAGS	= @<CFLAGS>@ $(DEFS)>()=
 CFLAGS	= -O2 -Wall  $(DEFS)
-##  =()<LD	= @<LD>@>()=
-LD	= ld
+##  =()<RANLIB	= @<RANLIB>@>()=
+RANLIB	= ranlib
 
 ##  =()<SYS	= @<SYS>@>()=
 SYS	= linux
 
-SOURCES	= van_j.c compress.c
+SOURCES	= arnet.c
 
-OBJ	= van_j.o compress.o
-ALL = vanj.o
+OBJ	= arnet.o
 
-all:	$(OBJ)	$(ALL)
-
-lib:
-
-vanj.o:	$(OBJ)
-	$(LD) -r -o $@ $(OBJ)
+all:		$(OBJ)
 
 install: all
 	@sh ../iftrue.sh "-d $(SYS)" "cd $(SYS); make"
-
-update: all
-	@sh ../iftrue.sh "-d $(SYS)" "cd $(SYS); make update"
 
 clean:
 	rm -f $(OBJ) $(ALL)
@@ -44,7 +35,7 @@ depend:		Makefile $(SOURCES)
 	$(CC) -M $(DEFS) $(SOURCES) > .depend
 
 load:	all
-	insmod vanj.o
+	insmod arnet.o
 
 ifeq (.depend,$(wildcard .depend))
 include .depend

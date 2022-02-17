@@ -182,7 +182,9 @@ dump_hdr (isdn23_hdr hdr, const char *what, uchar_t * data)
 	if(what != NULL)
 		printf (" %s: ", what);
 
-	switch (hdr->key) {
+	if(hdr->key & HDR_NOERROR)
+		printf("NoErr:");
+	switch (hdr->key & ~HDR_FLAGS) {
 	default:
 #ifdef KERNEL
 		printf("??? Unknown header ID %d\n",hdr->key);

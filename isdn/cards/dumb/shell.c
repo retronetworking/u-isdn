@@ -112,6 +112,34 @@ typedef struct _isac {
 	} __rw;
 } *__isac;
 
+#ifdef WIDE
+typedef struct _hscx {
+	union {
+		struct {
+			volatile Byte fifo[HSCX_R_FIFO_SIZE];
+/* 00 */	volatile Byte STAR,RSTA,MODE,TIMR;
+/* 04 */	volatile Byte XAD1,XAD2,__f1,_f2;
+/* 08 */	volatile Byte RAL1,RHCR,RBCL,RBCH;
+/* 0C */	volatile Byte CCR0,CCR1,CCR2,CCR3;
+/* 10 */	volatile Byte __f3,__f4,__f5,__f6;
+/* 14 */	volatile Byte VSTR,__f7,PRE ,__f8;
+/* 18 */	volatile Byte GISR,IPC ,ISR0,ISR1;
+/* 1C */	volatile Byte PVR ,PIS ,PCR ,__f9;
+		} __r;
+		struct {
+			volatile Byte fifo[HSCX_W_FIFO_SIZE];
+/* 00 */	volatile Byte CMDR,__f0,MODE,TIMR;
+/* 04 */	volatile Byte XAD1,XAD2,RAH1,RAH2;
+/* 08 */	volatile Byte RAL1,RAL2,XBCL,XBCH;
+/* 0C */	volatile Byte CCR0,CCR1,CCR2,CCR3;
+/* 10 */	volatile Byte TSAX,TSAR,XCCR,RCCR;
+/* 14 */	volatile Byte BGR ,RLCR,PRE ,__f8;
+/* 18 */	volatile Byte IVA ,IPC ,IMR0,IMR1;
+/* 1C */	volatile Byte PVR ,PIM ,PCR ,__f9;
+		} __w;
+	} __rw;
+} *__hscx;
+#else
 typedef struct _hscx {
 	union {
 		struct {
@@ -131,6 +159,7 @@ typedef struct _hscx {
 		} __w;
 	} __rw;
 } *__hscx;
+#endif
 
 #define ByteInISAC(_dumb,_what) InISAC((_dumb),offsetof(struct _isac,r._what))
 #define ByteOutISAC(_dumb,_what,_data) OutISAC((_dumb),offsetof(struct _isac,w._what), (_data))
@@ -154,6 +183,11 @@ typedef struct _hscx {
 #ifdef _bsc_
 #define CARDTYPE bsc
 #include "bsc_io.c"
+#endif
+
+#ifdef _ncp16_
+#define CARDTYPE ncp16
+#include "ncp16_io.c"
 #endif
 
 #ifdef _ncp_
@@ -182,15 +216,27 @@ static void toggle_off(struct _dumb * dumb)
 {
 	int i;
 	ByteOutISAC(dumb,MASK,0xFF);
-	for(i=1;i <= dumb->numHSCX; i++)
+	for(i=1;i <= dumb->numHSCX; i++) {
+#ifdef WIDE
+		ByteOutHSCX(dumb,i,IMR0,0xFF);
+		ByteOutHSCX(dumb,i,IMR1,0xFF);
+#else
 		ByteOutHSCX(dumb,i,MASK,0xFF);
+#endif
+	}
 	
 }
 static void toggle_on(struct _dumb * dumb)
 {
 	int i;
-	for(i=1;i <= dumb->numHSCX; i++)
+	for(i=1;i <= dumb->numHSCX; i++) {
+#ifdef WIDE
+		ByteOutHSCX(dumb,i,IMR0,0x00);
+		ByteOutHSCX(dumb,i,IMR1,0x00);
+#else
 		ByteOutHSCX(dumb,i,MASK,0x00);
+#endif
+	}
 	ByteOutISAC(dumb,MASK,0x00);
 }
 
@@ -477,7 +523,13 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 				}
 			} while((numb < HSCX_W_FIFO_SIZE) && (sendb != NULL));
 #if 1
-			if(ByteInHSCX(dumb,hscx,EXIR)&0x40) {
+			if(
+#ifdef WIDE
+					ByteInHSCX(dumb,hscx,ISR1)&0x10
+#else
+					ByteInHSCX(dumb,hscx,EXIR)&0x40
+#endif
+						) { /* XDU */
 				DEBUG(info) printf(KERN_DEBUG "Underrun HSCX %d.%d\n",dumb-dumbdata,hscx);
 				ByteOutHSCX(dumb,hscx,CMDR,0x01);
 				bufp->m_out_run = bufp->m_out;
@@ -536,7 +588,7 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 		}
 #if 0
-	} while (ByteInHSCX(dumb,hscx,STAR) & 0x40);
+	} while (ByteInHSCX(dumb,hscx,STAR) & 0x40); /* XFW */
 #endif
 	DEBUG(hscxout) printf("\n");
   exhopp:;
@@ -546,19 +598,42 @@ static void HSCX_kick(struct _dumb * dumb, u_char hscx)
 #ifdef __GNUC__
 /* inline */
 #endif
-static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, Byte Reason, Byte hasEX)
+static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, 
+#ifdef WIDE
+						Byte isr0, Byte isr1
+#else
+						Byte Reason, Byte hasEX
+#endif
+							)
 {
 	hdlc_buf bufp = &dumb->chan[hscx];
 
+#ifdef WIDE
+	DEBUG(hscx) { printf(KERN_DEBUG "%c%d.%d %02x:%02x\n",(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',dumb-dumbdata,hscx, isr0,isr1); }
+#else
 	DEBUG(hscx) { printf(KERN_DEBUG "%c%d.%d %02x\n",(dumb->polled<0)?'X':(dumb->polled>0)?'P':'I',dumb-dumbdata,hscx, Reason); }
-	if (hasEX) {
+	if (hasEX)
+#endif
+	{
+#ifndef WIDE
 		Byte EXIR = ByteInHSCX(dumb,hscx,EXIR);
 		DEBUG(hscx) { printf(". %x", EXIR); }
-		if (EXIR & 0x80) { /* XMR */
+#endif
+		if (
+#ifdef WIDE
+				isr1 & 0x02
+#else
+				EXIR & 0x80
+#endif
+					) { /* XMR */
 			DEBUG(info) { printf(KERN_DEBUG "Msg Repeat HSCX %d.%d\n",dumb-dumbdata,hscx); }
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 			if (ByteInHSCX(dumb,hscx,STAR) & 0x40) { /* XFW */
+#ifdef WIDE
+				isr1 |= 0x01; /* also set XPR */
+#else
 				Reason |= 0x10; /* also set XPR bit */
+#endif
 			} else {
 				ByteOutHSCX(dumb,hscx,CMDR, 0x01); /* XRES -- cause XPR */
 			}
@@ -566,17 +641,31 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, Byte Reason, Byte hasEX)
 			if((bufp->m_out_run = bufp->m_out) != NULL) 
 				bufp->p_out = bufp->m_out->b_rptr;
 		}
-		if (EXIR & 0x40) { /* XDU */
+		if (
+#ifdef WIDE
+				isr1 & 0x10
+#else
+				EXIR & 0x40
+#endif
+					) { /* XDU */
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 			if (bufp->mode >= M_HDLC)  {
 				DEBUG(info) {
 					printf(KERN_DEBUG "Xmit Underrun HSCX %d.%d\n",dumb-dumbdata,hscx); }
 #if NEW_XMIT
 				ByteOutHSCX(dumb,hscx,CMDR, 0x01); /* XRES */
-				Reason |= 0x10;
+#ifdef WIDE
+				isr1 |= 0x01; /* set XPR */
+#else
+				Reason |= 0x10; /* set XPR bit */
+#endif
 #else /* old */
 				if (ByteInHSCX(dumb,hscx,STAR) & 0x40) { /* XFW */
+#ifdef WIDE
+					isr1 |= 0x01; /* set XPR */
+#else
 					Reason |= 0x10; /* set XPR bit */
+#endif
 				} else {
 					ByteOutHSCX(dumb,hscx,CMDR, 0x01); /* XRES -- cause XPR */
 				}
@@ -585,25 +674,27 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, Byte Reason, Byte hasEX)
 				if ((bufp->m_out_run = bufp->m_out) != NULL)
 					bufp->p_out = bufp->m_out->b_rptr;
 			} else {
+#ifdef WIDE
+				isr1 |= 0x01; /* set XPR */
+#else
 				Reason |= 0x10; /* set XPR bit */
+#endif
 			}
 		}
-		DEBUG(hscx)if (EXIR & 0x20) { /* PCE */
+#ifdef WIDE
+		DEBUG(hscx)if (isr0 & 0x08) { /* PLLA */
+			DEBUG(info) { printf(KERN_WARNING "ISDN .PLLA\n"); }
+		}
+		DEBUG(hscx)if (isr0 & 0x20) { /* RSC */
+			DEBUG(info) { printf(KERN_WARNING "ISDN .RSC\n"); }
+		}
+		DEBUG(hscx)if (isr0 & 0x10) { /* PCE */
 			DEBUG(info) { printf(KERN_WARNING "ISDN .PCE\n"); }
 		}
-		if (EXIR & 0x10) { /* RFO */
-			DEBUG(info) { printf(KERN_DEBUG "Recv overflow HSCX %d.%d\n",dumb-dumbdata,hscx); }
-			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
-			if(Reason & 0xC0) {
-				ByteOutHSCX(dumb,hscx,CMDR, 0xC0); /* RMC|RHR */
-				Reason &=~ 0xC0;
-			} else
-				ByteOutHSCX(dumb,hscx,CMDR, 0x80); /* RMC */
-			if(bufp->m_in != NULL) {
-				freemsg(bufp->m_in);
-				bufp->m_in = bufp->m_in_run = NULL;
-			}
+		DEBUG(hscx)if (isr0 & 0x40) { /* RFS */
+			DEBUG(info) { printf(KERN_WARNING "ISDN .RFS\n"); }
 		}
+#else
 		DEBUG(hscx)if (EXIR & 0x08) { /* CSC */
 			DEBUG(info) { printf(KERN_WARNING "ISDN .CSC\n"); }
 		}
@@ -611,9 +702,48 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, Byte Reason, Byte hasEX)
 			DEBUG(info) { printf(KERN_WARNING "ISDN .RFS\n"); }
 		}
 		/* 0x02 and 0x01 are empty */
+		DEBUG(hscx)if (EXIR & 0x20) { /* PCE */
+			DEBUG(info) { printf(KERN_WARNING "ISDN .PCE\n"); }
+		}
+#endif
+		if (
+#ifdef WIDE
+				isr0 & 0x02
+#else
+				EXIR & 0x10
+#endif
+					) { /* RFO */
+			DEBUG(info) { printf(KERN_DEBUG "Recv overflow HSCX %d.%d\n",dumb-dumbdata,hscx); }
+			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
+			if(
+#ifdef WIDE
+					isr0 & 0x81
+#else
+					Reason & 0xC0
+#endif
+						) { /* RME|RPF */
+				ByteOutHSCX(dumb,hscx,CMDR, 0xC0); /* RMC|RHR */
+#ifdef WIDE
+				isr0 &=~ 0x81;
+#else
+				Reason &=~ 0xC0;
+#endif
+			} else
+				ByteOutHSCX(dumb,hscx,CMDR, 0x80); /* RMC */
+			if(bufp->m_in != NULL) {
+				freemsg(bufp->m_in);
+				bufp->m_in = bufp->m_in_run = NULL;
+			}
+		}
 	}
 
-	if (Reason & 0x80) { /* RME */
+	if (
+#ifdef WIDE
+			isr0 & 0x80
+#else
+			Reason & 0x80
+#endif
+				) { /* RME */
 		Byte RSTA = ByteInHSCX(dumb,hscx,RSTA);
 		if ((RSTA & 0xF0) == 0xA0) {
 			uchar_t *recvp;
@@ -682,7 +812,13 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, Byte Reason, Byte hasEX)
 			CEC(ByteInHSCX(dumb,hscx,STAR) & 0x04);
 			ByteOutHSCX(dumb,hscx,CMDR, 0xC0); /* RMC|RHR */
 		}
-	} else if (Reason & 0x40) { /* RPF */
+	} else if (
+#ifdef WIDE
+			isr0 & 0x01
+#else
+			Reason & 0x40
+#endif
+				) { /* RPF */
 		uchar_t *recvp;
 		mblk_t *recvb;
 
@@ -738,20 +874,35 @@ static void IRQ_HSCX_(struct _dumb * dumb, u_char hscx, Byte Reason, Byte hasEX)
 			}
 		}
 	}
-	
+#ifdef WIDE
+	DEBUG(hscx)if (isr1 & 0x08) { /* TIN */
+		DEBUG(info) { printf(KERN_WARNING "ISDN .TIN\n"); }
+	}
+	DEBUG(hscx)if (isr1 & 0x20) { /* AOLP */
+		DEBUG(info) { printf(KERN_WARNING "ISDN .AOLP\n"); }
+	}
+#else
 	DEBUG(hscx)if (Reason & 0x20) { /* RSC */
 		DEBUG(info) { printf(KERN_WARNING "ISDN .RSC\n"); }
-	}
-	if ((Reason & 0x10) || (ByteInHSCX(dumb,hscx,STAR) & 0x40)) { /* XPR */
-		HSCX_kick(dumb,hscx);
 	}
 	DEBUG(hscx)if (Reason & 0x08) { /* TIN */
 		DEBUG(info) { printf(KERN_WARNING "ISDN .TIN\n"); }
 	}
+#endif
+
+	if ((
+#ifdef WIDE
+			isr1 & 0x01
+#else
+			Reason & 0x10
+#endif
+			) || (ByteInHSCX(dumb,hscx,STAR) & 0x40)) { /* XPR */
+		HSCX_kick(dumb,hscx);
+	}
 }
 
 #ifdef __GNUC__
-/* inline */
+inline
 #endif
 static void IRQ_ISAC(struct _dumb * dumb)
 {
@@ -984,18 +1135,33 @@ static void IRQ_ISAC(struct _dumb * dumb)
 
 
 #ifdef __GNUC__
-/* inline */
+inline
 #endif
 static void IRQ_HSCX(struct _dumb * dumb)
 {
 	int i;
 	for(i=1;i <= dumb->numHSCX; i += 2) {
+#ifdef WIDE
+		Byte isr = ByteInHSCX(dumb,i,GISR);
+
+		if(isr & 0x0C) {
+			Byte isr0 = ByteInHSCX(dumb,i,ISR0);
+			Byte isr1 = ByteInHSCX(dumb,i,ISR1);
+			IRQ_HSCX_(dumb,i, isr0,isr1);
+		}
+		if(isr & 0x03) {
+			Byte isr0 = ByteInHSCX(dumb,i+1,ISR0);
+			Byte isr1 = ByteInHSCX(dumb,i+1,ISR1);
+			IRQ_HSCX_(dumb,i+1, isr0,isr1);
+		}
+#else
 		Byte Reason = ByteInHSCX(dumb,i+1,ISTA);
 	
 		if (Reason & 0x06)
 			IRQ_HSCX_(dumb,i, ByteInHSCX(dumb,i,ISTA), Reason & 0x02);
 		if (Reason & 0xF9) 
 			IRQ_HSCX_(dumb,i+1, Reason, Reason & 0x01);
+#endif
 	}
 }
 
@@ -1193,8 +1359,14 @@ void NAME(CARDTYPE,halt)(void)
 			untimeout(dumbtimer,dumb);
 #endif
 			ByteOutISAC(dumb,MASK,0xFF);
-			for(j=1; j<=dumb->numHSCX;j++)
+			for(j=1; j<=dumb->numHSCX;j++) {
+#ifdef WIDE
+				ByteOutHSCX(dumb,j,IMR0,0xFF);
+				ByteOutHSCX(dumb,j,IMR1,0xFF);
+#else
 				ByteOutHSCX(dumb,j,MASK,0xFF);
+#endif
+			}
 			if(dumb->irq > 0)
 				free_irq(dumb->irq);
 			isdn2_unregister(&dumb->card);

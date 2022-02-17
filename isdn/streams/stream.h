@@ -7,13 +7,15 @@
 #include <linux/stropts.h>
 #ifdef __KERNEL__
 #include <linux/fs.h>
-#endif
 #include <linux/major.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 
 #define MAX_STRDEV MAX_CHRDEV /* don't change */
 #define MAX_STRMOD MAX_CHRDEV /* change if necessary */
+#else
+#define MAX_STRMOD 32
+#endif
 
 #undef STREAMS_TTY	/* Not yet */
 
@@ -532,8 +534,8 @@ extern int fmodcnt;
 
 #ifdef __KERNEL__
 extern struct file_operations streams_fops;
-#endif
 extern struct streamtab *fstr_sw[MAX_STRDEV];
+#endif
 
 extern int strmsgsz;			/* maximum stream message size */
 extern int nstrpush;			/* maximum # of pushed modules */

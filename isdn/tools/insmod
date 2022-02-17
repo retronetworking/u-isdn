@@ -1,13 +1,15 @@
 #!/bin/bash
+#
+## Diese Version von "insmod" fügt ein Modul nicht in diesen, sondern in
+## den nächsten Kernel ein...
 
 FILE=$1
 
-set $(getversion)
-VERS=$1
-VERSION=$2
-dir=/boot/modules/$VERSION
-echo $FILE >>$dir/ISDN_MODULES
-rm -f $dir/$FILE
-cp $FILE $dir/$FILE &
+VERSION=$(getversion)
+dir=/lib/modules/$VERSION
+touch $dir/../modules.isdn.all
+echo $FILE >>$dir/../modules.isdn.all
+rm -f $dir/isdn/$FILE
+cp $FILE $dir/isdn/$FILE &
 
 exit 0

@@ -25,10 +25,13 @@ Dann nochmal make.isdn aufrufen.
 Die gebauten Module können automatisch beim Booten geladen werden mit
 folgendem Skript irgendwo in der Bootsequenz:
 
->  ( cd /boot/modules/$(uname -r); echo -n "ISDN for kernel $(uname -r): "
->    while read a ; do echo -n $a "" ; insmod $a ; done < ISDN_MODULES
+>  ( cd /lib/modules/$(uname -r); echo -n "ISDN for kernel $(uname -r): "
+>    while read a ; do echo -n $a "" ; insmod $a ; done < ../modules.isdn
 >    echo ""
 >  )
+
+Vorher: In /lib/modules/KERNELVERSION: modules.isdn.all nach modules.isdn
+        kopieren und nicht benötigte Module aus dieser Datei rauswerfen.
 
 EOF
 touch .toldem
@@ -39,17 +42,15 @@ if test -f make.isdn.local ; then
 . make.isdn.local $*
 fi
 
-set $(isdn/tools/getversion)
-VERS=$1
-VERSION=$2
+VERSION=$(isdn/tools/getversion)
 
 if test "$(whoami)" = "root" ; then
-dir=/boot/modules/$VERSION
+dir=/lib/modules/$VERSION/isdn
 if test ! -d $dir ; then mkdir -p $dir ; fi
-cp /dev/null $dir/ISDN_MODULES
+cp /dev/null $dir/modules.isdn.all
 if test ! -f .depend ; then make depend && touch .depend ; fi
-PATH=$(pwd)/isdn/tools:$PATH make load
-make -C isdn iprog
+	PATH=$(pwd)/isdn/tools:$PATH make load
+	make -C isdn iprog
 else
 	if test ! -f .depend ; then make depend && touch .depend ; fi
 	make all

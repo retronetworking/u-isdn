@@ -325,6 +325,69 @@ beobachten lassen.) Zum Glück haben sich ein paar "normale" Betriebsarten
 herauskristallisiert, an die sich die meisten Systeme halten.
 
 
+Noch ein Einschub: TCP-IP-Routing
+=================================
+
+So ein TCP/IP-Draht über ISDN mag ja ganz nett sein, aber irgendwie müssen
+andere wissen, wie sie vom lokalen Netz zum IP-Rechner zur Gegenstelle
+können. Und umgekehrt.
+
+Das ganze Thema ist zu kompliziert, um es hier abzuhandeln. Man lese ein
+gutes Buch über den Kram, zB Stevens. 
+
+Wichtige Spezialfälle:
+- Das Große Internet ist auf der anderen Seite der ISDN-Leitung.
+  slipto mit -d starten und auf den ganzen anderen Rechnern im lokalen Netz 
+  eine Defaultroute zum ISDN-Rechner eintragen. ACHTUNG! ALLE LOKALEN
+  RECHNER BRAUCHEN OFFIZIELL ZUGETEILTE IP-NUMMERN. Das Weiterleiten von
+  Nummernbereichen nach RFC 1597 muß unterbunden werden (IP-Firewall in den
+  Kernel einbauen); andere unzulässige Netznummern müssen durch einen
+  zweiten Gatewayrechner mit zwei Ethernetkarten o.ä., auf dem _keine_
+  Route eingetragen ist, die auf den ISDN-Rechner zeigt, abgeschottet
+  werden.
+
+- Ein System, das eigentlich Teil des lokalen Netzes wäre, sitzt am anderen
+  Ende der Leitung. Am einfachsten ist hier Proxy-ARP; der benötigte Befehl
+  beim Booten lautet "arp -s IP_der_entfernten_Kiste Ether_des_ISDN_-
+  _Rechners pub". Die Ethernetadresse spuckt "ifconfig eth0" aus.
+
+- Ein Netz mit stupidem ISDN-Router, der ein Transfernetz sehen will, ist
+  auf der anderen Seite. Einfachste Methode: Vom lokalen Netzbereich wird
+  ein 4-Adressen-Bereich abgezwackt und als Transfernetz mißbraucht. Sei
+  die lokale Adresse 129.130.131.x, so wird zum Beispiel der Bereich x =
+  [224..227] verwendet (die beiden untersten Bits der unteren Kante des
+  Adressbereichs, hier 224, müssen(!!!) 00 sein). Die nächste Adresse
+  (hier: 225) wird die lokale Adresse (am besten eintragen via
+  dummy-Interface: "ifconfig dummy0 129.130.131.225; route add -host
+  129.130.131.225 dev lo" -- in der Konfigdatei wird die normale
+  Ethernetadresse des Rechners als lokale Adresse verwendet). Danach (hier
+  ..226) kommt die entfernte Adresse (eintragen via Proxy-ARP).
+
+  Auf der Gegenstelle wird dann das Transfernetz mit einer Netmask von
+  255.255.255.252 konfiguriert, die ..225 wird dort die entfernte
+  Adresse und die Defaultroute an der Gegenstelle zeigt darauf.
+  (Außerdem muß manchmal eine Route für das Netz, hier 129.130.131.0,
+  eingetragen werden.)
+
+  Diese Methode verschwendet 75% des Adressbereichs (die Nummern ..224,
+  ..225 und ..227 werden nie in Erscheinung treten) und einer der Rechner
+  auf der Gegenseite verwendet dummerweise eine Nummer aus dem lokalen
+  Netz, für die ein funktionierender Nameserver-Eintrag gepflegt werden
+  muß, hat aber den Vorteil, daß sie funktioniert.
+
+  Es fällt außerdem auf, daß die lokale Adresse und Konfiguration des
+  ISDN-Links nichts, aber auch gar nichts, mit dem zu tun hat, was die
+  Gegenseite von uns denkt. Das ist auch total egal. Das einzige, auf das
+  es ankommt, ist, daß die jeweils lokalen Adressen auch als lokal
+  angesehen werden und _nicht_ irgendwie wieder zur Gegenseite geroutet
+  werden. Pingpongpakete haben auf einer ISDN-Leitung nichts verloren!
+  (Und auch nirgends anders.)
+
+  Es fällt außerdem auf, daß ich nichts von routed und ähnlichen Programmen
+  gesagt habe. Das ist Absicht. Konfiguriert eure Routen lieber statisch,
+  das ist gesünder...
+
+
 Die Konfigurationsdatei
 =======================
 
@@ -344,8 +407,10 @@ Alle Zeilentypen:
       allen anderen Zeichen.
 <Mod> sind einzelne Buchstaben, der der betreffenden Zeile eine Sonder-
       behandlung verpassen.
-<Parameter...> ist eine Folge von Null oder mehr Parameter-Wert-Angaben.
+<Parameter...> ist eine Folge von einem oder mehr Parameter-Wert-Angaben.
                (Manche Parameter haben keine Wertangabe.)
+			   Merke: Zeilen ohne Parameter sind im allgemeinen nicht sinnvoll
+			   und führen (momentan noch) zu Fehlverhalten des Treibers.
 
 
 P-Zeile ("Protokoll")
@@ -460,6 +525,9 @@ p für Verbindungsaufbau nach Bedarf
 ,#  Verzögerung bei Verbindungsende, in Sekunden, für sauberes
     Herunterfahren des B-Kanalprotokolls.
 
+Die Modulliste ist nach dem Start eines Programms festgelegt und wird durch
+AT/R nicht veraendert.
+
 
 MP-Zeile ("Modulparameter")
 --------
@@ -482,6 +550,8 @@ o für abgehende Verbindungen
 f für Festverbindungen
 d für Wählverbindungen
 p für Verbindungsaufbau nach Bedarf
+u für Parameter, die nur beim Programmstart gesetzt werden (x75-Kram zB)
+a für Parameter, die bei Neueinlesen der Konfigdaten gesetzt werden
 
 
 D-Zeile ("Dial")
@@ -567,10 +637,10 @@ R-Zeile ("Run")
 -------
 
 Form:
-R <Art> <Partner> <Key> <Benutzer> <Mod> <Programm> <Argumentliste...>
+R <Art> <Partner> <Key> <Karte> <Benutzer> <Mod> <Programm> <Argumentliste...>
 
 Beispiel:
-R login * * root IDUST /bin/login
+R login * * * root IDUST /bin/login
 
 Hiermit wird ein Programm (plus Parameter) angegeben, das bei ankommenden
 oder abgehenden Gesprächen aufgerufen wird. Ein Dialout zu einem System
@@ -905,12 +975,15 @@ Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
 -l       zusätzlich count-Modul.
 -l       zusätzlich strlog-Modul.
 -M       Standleitungsbetrieb; setzt IP-Monitor-Modul ein.
+-S       Standleitungs/Dialupbetrieb auf synchroner Leitung: verwende kein
+         "slip"-Modul.
 -m mtu   setzt die MTU auf den angegebenen Wert. (Die MRU ist auf 4000 Bytes
          begrenzt.)
 -o       Standleitungsbetrieb; schickt ATA zur Leitung und wartet auf CONNECT.
 -p dev   Standleitungs- oder Dialupbetrieb; öffnet Device "dev". (/dev/tty
          für stdin/out)
 -v       schaltet Van-Jacobsen-Headerkompression ein.
+-f       schaltet Cisco-HDLC-Header ein.
 -R ip    die IP-Nummer "ip" wird zur Gegenseite geroutet. (route -host)
 -r ip    Das IP-Netz "ip" wird zur Gegenseite geroutet. (route -net)
 -r ip:nm Das IP-Netz "ip" wird mit der Netmask "nm" zur Gegenseite geroutet.

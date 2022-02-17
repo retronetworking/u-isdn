@@ -4,7 +4,7 @@
 ../alaw/Makefile
 ../compat/Makefile
 ../streams/Makefile
-../cards/leonardo/Makefile
+;; ../cards/leonardo/Makefile
 ;; ../ppp_if/Makefile
 ../cards/Makefile
 ../cards/dumb/Makefile

@@ -70,10 +70,10 @@ typedef struct _x75 {
 	ushort_t debug;				  /* debugging flags */
 	short debugnr;				  /* to distinguish between debuggers */
 	short errors;				  /* *10 if resetup, die if >100, -1 on data */
-	int wide:1;					  /* use 7-bit sequence numbers */
-	int poll:1;					  /* Aggressively poll if RNR */
-	int ignoresabm:1;			  /* don't reset on SABM/SABME */
-	int broadcast:1;			  /* Never establish a connection */
+	unsigned wide:1;					  /* use 7-bit sequence numbers */
+	unsigned poll:1;					  /* Aggressively poll if RNR */
+	unsigned ignoresabm:1;			  /* don't reset on SABM/SABME */
+	unsigned broadcast:1;			  /* Never establish a connection */
 
 	/* Callbacks */
 	void *ref;

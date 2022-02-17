@@ -2,8 +2,8 @@
 cd /usr/local/isdn
 
 (
-	cd /boot/modules/$(uname -r)
-	while read a ; do insmod $a ; done < ISDN_MODULES
+	cd /lib/modules/$(uname -r)
+	while read a ; do insmod $a ; done < ../modules.isdn
 )
 
 # bin/monitor -b >>/var/log/acct/ip &
