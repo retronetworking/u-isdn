@@ -1,0 +1,20 @@
+Euro-ISDN
+Hauptprogramm gewaltig aufraeumen
+Protokollstack vom Hauptmodul aus aufbauen
+Anklinken anderer Treiber (intelligente ISDN-Karten, serielle Schnittstellen)
+Mehr Features fuer 1TR6
+v110-Treiber aufraeumen, testen
+alaw-Treiber um Tonerkennung erweitern
+proto-Treiber um Signalisierung erweitern
+DOKU verbessern (jaja...)
+
+Bekannte Fehler:
+Gelegentlich vergisst das System, eine L3-Connection freizugeben
+Das Handling von knappen Streams-Datenbloecken ist verbesserungsbeduerftig.
+
+Moegliche Probleme:
+L3 wurde noch nicht im Kernel getestet
+Ein Anwenderprogramm darf keinesfalls das Proto-Streamsmodul abklemmen.
+Zuweisen eines eigenen Befehlskanals bei aufgerufenen Programmen ist
+ ungetestet.
+

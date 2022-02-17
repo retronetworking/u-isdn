@@ -1,0 +1,10 @@
+#!/bin/sh
+cd /usr/local/isdn
+
+(
+	cd /boot/modules/$(uname -r)
+	while read a ; do insmod $a ; done < ISDN_MODULES
+)
+
+# bin/monitor -b >>/var/log/acct/ip &
+bin/master /etc/isdn.conf

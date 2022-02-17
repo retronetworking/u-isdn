@@ -1,0 +1,103 @@
+### Sample configuration files.
+### Everything in angle brackets is to be replaced with more sensible values!
+##  Flags ":sv <whatever>" are specific to the German 1TR6 protocol.
+##  Flags ":vB <whatever>" are specific to Euro-ISDN.
+
+
+# Sample answering machine.
+# It answers on EAZ 2 (1TR6) bzw. MSN ...2 (Euro).
+
+R phone * * * <username> RM catfon
+
+P phone * * * RXi :sv 0102 :il :vB 9090A3 EFFF9F :lr /2
+P phone * * * RXi :sv 0101 :il :vB 9090A3 EFFF9F :lr /2
+
+ML phone * * * -,0 transalaw alaw
+## This zero  ---^  is the delay before the answerer answers.
+
+
+# Sample remote login.
+# Logins from "somebody" are only accepted if their number ends in 8.
+
+R login * * * root TSRUDi /bin/login
+
+P login somebody * * R :nr .8
+P login * * * MFX :lr /1 :vB 8890 :sv 0700
+
+MP login * * * - x75 :nk 6 
+MP login * * * - proto :sg 0 :ca 2 :bk 0
+ML login * * * -,3 frame x75
+
+
+# Sample CEPT session, new standard. Untested.
+
+P cept cept * * RFX :vB 8890 :vL 9090A9D1E7 :vH 91D2 :sv 0F00
+MP cept * * * - x75 :nk 1 
+MP cept * * * - proto :sg 0 :ca 2 :bk 0
+ML cept * * * -,0 frame x75
+D cept cept * * o -01910
+
+# Sample CEPT session, old standard. Untested.
+
+P btx btx * * RFX :vB 8890 :vL 9090A9D1EA :sv 0500
+MP btx * * * - x75 :nk 1 
+MP btx * * * - proto :sg 0 :ca 2 :bk 0
+ML btx * * * -,0 frame x75
+D btx btx * * o -01910
+
+
+# Sample dialup TCP/IP connection.
+# It is automatically openend whenever you want to transmit packets,
+# and it's closed when no more packets are transmitted after a timeout.
+
+R tcp somebody * * root 1RUp slipto -r <remote_network> <local_IP> <remote_IP>
+# Use -R for host routes. Use -r network:netmask for subnets or supernets.
+# Use -d for the default route.
+
+P tcp somebody * * R :nr .1
+P tcp * * * MFX :lr /2 :vB 8890 :sv 0700
+ML tcp somebody * * -,3 frame timer reconn str_if 
+
+MP tcp somebody * * - timer :tr 60 :tw 60 :ti 360 :to 360 :tI :lo
+MP tcp * * * - proto :sg 1 :ca 1 :bk 0
+
+
+# Remote phone numbers.
+# The "unknown" entry is used when no number is transmitted.
+
+D * somebody A * - +49=911-234567.
+
+D * x-de-nbg X * i +49=911-*
+D * x-de Y * i +49=*
+D * x-intl Z * i +*
+D * unknown U * i +*
+
+
+# Local numbers.
+#DL Tel0 +49=911-959913/[1-3] :pr 0 :sp 8 :pr 63
+DL Tel0 +49=911-919402/ :pr 0 :sp 65 :pr 63
+## :pr 65     -- leased lines ONLY.
+## :pr 0      -- the normal circuit-mode D channel protocol
+##    :sp 65  -- German 1TR6
+##    :sp 8   -- European DSS-1
+## :pr 63     -- TEI assignment; always necessary on dialup lines.
+#                Use _after_ :pr 0.
+#
+# Dialout prefixes.
+# Use the second line if you're using a PBX which doesn't prefix external
+# numbers with the PBX' dialout prefix.
+DP * +00=0- 
+#DP * +00=0- +000=00-0
+
+
+# Card modes. Don't change the numbers, the driver knows about them.
+CM ???? 2 transalaw
+CM ???? 3 transv110
+CM ???? 4 trans
+CM ???? 10 frame
+
+
+# Limit how many B channel connections may be opened.
+# Override the limit with :il in the P line.
+CL * 2
+

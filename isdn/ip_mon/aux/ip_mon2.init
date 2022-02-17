@@ -1,0 +1,25 @@
+:
+# Build the dialup devices based upon minor number passed in via autoconfig.
+#
+PATH=/bin:/usr/bin:/etc:/usr/etc
+name=ip_mon
+
+#
+#       Parse "-k kernelfile" flag
+#
+
+KERNEL="/unix"
+if [ "$1" = "-k" ]; then
+    shift
+    KERNEL=$1
+    shift
+fi;
+
+if [ "$1" = "-M" ]
+then
+    cd /dev
+    /bin/rm -f $name
+    /etc/mknod $name c $2 0
+    chmod 600 $name
+fi
+

@@ -1,0 +1,35 @@
+Unregistrierung von ttys funktioniert nicht richtig (1.1.83).
+
+Notwendig.
+
+diff -rub /pub/src/linux/kernel/linux-1.1/drivers/char/tty_io.c ./drivers/char/tty_io.c
+--- /pub/src/linux/kernel/linux-1.1/drivers/char/tty_io.c	Fri Jan 20 00:11:09 1995
++++ ./drivers/char/tty_io.c	Fri Jan 20 11:18:04 1995
+@@ -1661,7 +1661,7 @@
+ 	int	retval;
+ 	struct tty_driver *p;
+ 	int	found = 0;
+-	int	major_inuse = 0;
++	char *othername = NULL;
+ 	
+ 	if (*driver->refcount)
+ 		return -EBUSY;
+@@ -1670,14 +1670,15 @@
+ 		if (p == driver)
+ 			found++;
+ 		else if (p->major == driver->major)
+-			major_inuse++;
++			othername = p->name;
+ 	}
+ 
+-	if (!major_inuse) {
++	if (othername == NULL) {
+ 		retval = unregister_chrdev(driver->major, driver->name);
+ 		if (retval)
+ 			return retval;
+-	}
++	} else
++		register_chrdev(driver->major, othername, &tty_fops);
+ 
+ 	if (driver->prev)
+ 		driver->prev->next = driver->next;

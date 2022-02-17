@@ -1,0 +1,51 @@
+
+#
+cd /dev
+rm -rf leo leo[0-9] Leo[0-9]
+I=0
+II=128
+KERNEL=/unix
+
+while test -n "$1"
+do
+	case $1 in
+	-k)	shift
+		KERNEL=$1
+		;;
+	-M)	shift
+		M=$1;
+		mknod leo c 12 $M
+		chown root leo
+		chgrp root leo
+		chmod 666 leo
+		;;
+
+	-S)	shift
+		mknod leo$I c $M $I
+		mknod Leo$I c $M $II
+		chown root leo$I Leo$I
+		chgrp root leo$I Leo$I
+		chmod 666  leo$I Leo$I
+
+		I=`expr $I + 1`
+		II=`expr $II + 1`
+		;;
+	*)	;;
+	esac
+	shift
+done
+
+echo Setting parameters for Leonardo in kernel $KERNEL for $I boards
+
+N5=`expr $I \* 5`
+N10=`expr $I \* 10`
+N20=`expr $I \* 20`
+
+kconfig -n $KERNEL << EOT
+    NBLK4096 += $N5
+    NBLK2048 += $N5
+    NBLK1024 += $N10
+    NBLK512  += $N20
+    NBLK256  += $N20
+EOT
+

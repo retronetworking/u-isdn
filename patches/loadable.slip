@@ -1,0 +1,18 @@
+Patches zum Nachladbar-Machen des Standard-SLIP-Treibers mit
+VanJ-Headerkompression.
+Dieses Modul wird für ISDN nicht benötigt!
+
+Optional aber sinnvoll.
+
+diff -rub --unidir /pub/src/linux/kernel/linux/drivers/net/slip.h ./drivers/net/slip.h
+--- /pub/src/linux/kernel/linux/drivers/net/slip.h	Mon Jan  9 06:35:23 1995
++++ ./drivers/net/slip.h	Fri Mar  3 05:32:12 1995
+@@ -20,7 +20,7 @@
+ 
+ #include <linux/config.h>
+ 
+-#if defined(CONFIG_INET) && defined(CONFIG_SLIP_COMPRESSED)
++#if defined(CONFIG_INET) && (defined(CONFIG_SLIP_COMPRESSED) || defined(MODULE))
+ # define SL_INCLUDE_CSLIP
+ #endif
+ 

@@ -1,0 +1,1837 @@
+Der beliebte (ahem) kmalloc-Debugging-Patch...
+Optional.
+
+diff -rub --unidir /pub/src/linux/kernel/linux/arch/i386/config.in ./arch/i386/config.in
+--- /pub/src/linux/kernel/linux/arch/i386/config.in	Tue Mar  7 15:25:26 1995
++++ ./arch/i386/config.in	Sun Mar 12 17:06:11 1995
+@@ -264,4 +265,11 @@
+ fi
+ if [ "$CONFIG_SCSI" = "y" ]; then
+ bool 'Verbose scsi error reporting (kernel size +=12K)' CONFIG_SCSI_CONSTANTS y
++fi
++bool 'Kernel malloc debugger' CONFIG_DEBUG_MALLOC n
++if [ "$CONFIG_DEBUG_MALLOC" = "y" ]; then
++bool 'Clear memory' CONFIG_MALLOC_CLEAR n
++bool 'Log names' CONFIG_MALLOC_NAMES y
++bool 'Memory statistics' CONFIG_MALLOC_STATS y
++bool 'Log malloc calls' CONFIG_MALLOC_TRACE y
+ fi
+diff -rub --unidir /pub/src/linux/kernel/linux/fs/proc/array.c ./fs/proc/array.c
+--- /pub/src/linux/kernel/linux/fs/proc/array.c	Thu Feb 23 12:31:41 1995
++++ ./fs/proc/array.c	Sun Mar 12 17:07:54 1995
+@@ -51,7 +51,7 @@
+ #define LOAD_INT(x) ((x) >> FSHIFT)
+ #define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
+ 
+-#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_STATS
+ int get_malloc(char * buffer);
+ #endif
+ 
+@@ -776,7 +776,7 @@
+ 		case PROC_VERSION:
+ 			return get_version(page);
+ 
+-#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_STATS
+ 		case PROC_MALLOC:
+ 			return get_malloc(page);
+ #endif
+diff -rub --unidir /pub/src/linux/kernel/linux/fs/proc/root.c ./fs/proc/root.c
+--- /pub/src/linux/kernel/linux/fs/proc/root.c	Wed Jan 11 07:55:07 1995
++++ ./fs/proc/root.c	Sun Mar 12 17:08:20 1995
+@@ -65,7 +65,7 @@
+ 	{ PROC_CPUINFO,		7, "cpuinfo" },
+ 	{ PROC_SELF,		4, "self" },	/* will change inode # */
+ 	{ PROC_NET,		3, "net" },
+-#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_STATS
+ 	{ PROC_MALLOC,		6, "malloc" },
+ #endif
+ 	{ PROC_KCORE,		5, "kcore" },
+diff -rub --unidir /pub/src/linux/kernel/linux/include/linux/malloc.h ./include/linux/malloc.h
+--- /pub/src/linux/kernel/linux/include/linux/malloc.h	Mon Jan 23 22:04:10 1995
++++ ./include/linux/malloc.h	Sun Mar 12 17:10:23 1995
+@@ -4,27 +4,31 @@
+ #include <linux/config.h>
+ #include <linux/mm.h>
+ 
+-#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_NAMES
+ #define kmalloc(a,b) deb_kmalloc(__FILE__,__LINE__,a,b)
+ #define kfree_s(a,b) deb_kfree_s(__FILE__,__LINE__,a,b)
+ 
+-void *deb_kmalloc(const char *deb_file, unsigned short deb_line,unsigned int size, int priority);
+-void deb_kfree_s (const char *deb_file, unsigned short deb_line,void * obj, int size);
+-void deb_kcheck_s(const char *deb_file, unsigned short deb_line,void * obj, int size);
++void *deb_kmalloc(const char *deb_file, unsigned int deb_line,unsigned int size, int priority);
++void deb_kfree_s (const char *deb_file, unsigned int deb_line,void * obj, int size);
++int deb_kcheck_s(const char *deb_file, unsigned int deb_line,void * obj, int size);
+ 
+ #define kfree(a) deb_kfree_s(__FILE__,__LINE__, a,0)
+ #define kcheck(a) deb_kcheck_s(__FILE__,__LINE__, a,0)
+ #define kcheck_s(a,b) deb_kcheck_s(__FILE__,__LINE__, a,b)
+ 
+-#else /* !debug */
++#else /* debug without names, or no debug */
+ 
+ void * kmalloc(unsigned int size, int priority);
+ void kfree_s(void * obj, int size);
+ 
+-#define kcheck_s(a,b) 0
+-
+ #define kfree(x) kfree_s((x), 0)
+ #define kcheck(x) kcheck_s((x), 0)
++
++#ifdef CONFIG_DEBUG_MALLOC
++int deb_kcheck_s(void * obj, int size);
++#else
++#define kcheck_s(a,b) 0
++#endif
+ 
+ #endif
+ 
+diff -rub --unidir /pub/src/linux/kernel/linux/include/linux/proc_fs.h ./include/linux/proc_fs.h
+--- /pub/src/linux/kernel/linux/include/linux/proc_fs.h	Sun Feb 12 20:11:02 1995
++++ ./include/linux/proc_fs.h	Sun Mar 12 17:07:19 1995
+@@ -18,7 +18,7 @@
+ 	PROC_PCI,
+ 	PROC_SELF,	/* will change inode # */
+ 	PROC_NET,
+-#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_STATS
+ 	PROC_MALLOC,
+ #endif
+ 	PROC_KCORE,
+diff -rub --unidir /pub/src/linux/kernel/linux/include/linux/skbuff.h ./include/linux/skbuff.h
+--- /pub/src/linux/kernel/linux/include/linux/skbuff.h	Tue Jan 24 14:27:55 1995
++++ ./include/linux/skbuff.h	Sun Mar 12 17:05:09 1995
+@@ -102,7 +102,6 @@
+ #if 0
+ extern void			print_skb(struct sk_buff *);
+ #endif
+-extern void			kfree_skb(struct sk_buff *skb, int rw);
+ extern void			skb_queue_head_init(struct sk_buff_head *list);
+ extern void			skb_queue_head(struct sk_buff_head *list,struct sk_buff *buf);
+ extern void			skb_queue_tail(struct sk_buff_head *list,struct sk_buff *buf);
+@@ -111,13 +110,33 @@
+ extern void			skb_append(struct sk_buff *old,struct sk_buff *newsk);
+ extern void			skb_unlink(struct sk_buff *buf);
+ extern struct sk_buff *		skb_peek_copy(struct sk_buff_head *list);
++#ifdef CONFIG_DEBUG_MALLOC
++extern struct sk_buff *		deb_alloc_skb(const char *deb_file, unsigned int deb_line, unsigned int size, int priority);
++extern void			deb_kfree_skb(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, int rw);
++extern void			deb_kfree_skbmem(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, unsigned size);
++extern void			deb_dev_kfree_skb(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, int mode);
++extern struct sk_buff *		deb_skb_clone(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, int priority);
++extern void			deb_skb_device_lock(const char *deb_file, unsigned int deb_line, struct sk_buff *skb);
++extern void			deb_skb_device_unlock(const char *deb_file, unsigned int deb_line, struct sk_buff *skb);
++extern int			deb_skb_device_locked(const char *deb_file, unsigned int deb_line, struct sk_buff *skb);
++#define alloc_skb(a,b) 		 deb_alloc_skb(__FILE__,__LINE__,(a),(b))
++#define kfree_skb(a,b) 		 deb_kfree_skb(__FILE__,__LINE__,(a),(b))
++#define kfree_skbmem(a,b) 	 deb_kfree_skbmem(__FILE__,__LINE__,(a),(b))
++#define dev_kfree_skb(a,b) 	 deb_dev_kfree_skb(__FILE__,__LINE__,(a),(b))
++#define skb_clone(a,b)		 deb_skb_clone(__FILE__,__LINE__,(a),(b))
++#define skb_device_lock(a)	 deb_skb_device_lock(__FILE__,__LINE__,(a))
++#define skb_device_unlock(a)	 deb_skb_device_unlock(__FILE__,__LINE__,(a))
++#define skb_device_locked(a)	 deb_skb_device_locked(__FILE__,__LINE__,(a))
++#else
++extern void			kfree_skb(struct sk_buff *skb, int rw);
+ extern struct sk_buff *		alloc_skb(unsigned int size, int priority);
+ extern void			kfree_skbmem(struct sk_buff *skb, unsigned size);
++extern void			dev_kfree_skb(struct sk_buff *skb, int mode);
+ extern struct sk_buff *		skb_clone(struct sk_buff *skb, int priority);
+ extern void			skb_device_lock(struct sk_buff *skb);
+ extern void			skb_device_unlock(struct sk_buff *skb);
+-extern void			dev_kfree_skb(struct sk_buff *skb, int mode);
+ extern int			skb_device_locked(struct sk_buff *skb);
++#endif
+ /*
+  *	Peek an sk_buff. Unlike most other operations you _MUST_
+  *	be careful with this one. A peek leaves the buffer on the
+diff -rub --unidir /pub/src/linux/kernel/linux/mm/kmalloc.c ./mm/kmalloc.c
+--- /pub/src/linux/kernel/linux/mm/kmalloc.c	Mon Feb 20 07:49:05 1995
++++ ./mm/kmalloc.c	Sun Mar 26 22:43:45 1995
+@@ -12,10 +12,73 @@
+  * pages. So for 'page' throughout, read 'area'.
+  */
+ 
++/*
++ * Changes by Matthias Urlichs  -M.U-
++ *  Added support for CONFIG_DEBUG_MALLOC.
++ *  Added a doubly-linked list.
++ *  Added separate reporting of statistics.
++ *  Added KERN_* flags to printk calls.
++ *  Added support for (future) tracing of kernel page allocation.
++ */
++
++/*
++ * Definitions:
++ * CONFIG_DEBUG_MALLOC		Basic tests, check for overrun
++ * CONFIG_DEBUG_MALLOCTEST	Checks the whole malloc arena at every kmalloc and kfree call.
++ * CONFIG_MALLOC_CLEAR		Clear memory, check for usage of unused mem
++ * CONFIG_MALLOC_STATS		Collect and report allocation statistics
++ * CONFIG_MALLOC_TRACE		Keep list of full blocks,
++ *				report all allocated blocks
++ */
++
++#undef  CONFIG_DEBUG_MALLOCTEST
++ 
++#include <linux/config.h>
++#include <linux/malloc.h>
+ #include <linux/mm.h>
+ #include <asm/system.h>
+ #include <linux/delay.h>
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++#include <linux/errno.h>
++#include <linux/string.h>
++#endif /* CONFIG_DEBUG_MALLOC */
++#define deb_page_info(x) ""
++
++static void stacktrace (char * str, void *foo, int bar)
++{
++#define VMALLOC_OFFSET (8*1024*1024)
++#define MODULE_RANGE (8*1024*1024)
++#define get_seg_long(seg,addr) ({ \
++register unsigned long __res; \
++__asm__("push %%fs;mov %%ax,%%fs;movl %%fs:%2,%%eax;pop %%fs" \
++	:"=a" (__res):"0" (seg),"m" (*(addr))); \
++__res;})
++
++    long *stack = (long *)&str;
++    int i = 1;
++    long module_start, module_end;
++    extern char start_kernel, etext;
++
++    printk(KERN_EMERG "%s! Call Trace: ",str ? str : "");
++    module_start = ((high_memory + VMALLOC_OFFSET) & ~(VMALLOC_OFFSET-1));
++    module_end = module_start + MODULE_RANGE;
++    while (((long) stack & 4095) != 0) {
++	long addr = get_seg_long(KERNEL_DS, stack++);
++	/*
++	 * Stolen from kernel/traps.c.
++	 */
++	if (((addr >= (unsigned long) &start_kernel) &&
++	        (addr <= (unsigned long) &etext)) ||
++	        ((addr >= module_start) && (addr <= module_end))) {
++	    printk("%lx ", addr);
++	    i++;
++	}
++    }
++    printk("\n");
++}
++
++
+ #define GFP_LEVEL_MASK 0xf
+ 
+ /* I want this low enough for a while to catch errors.
+@@ -30,11 +93,15 @@
+ #define MAX_GET_FREE_PAGE_TRIES 4
+ 
+ 
+-/* Private flags. */
++/* Magic numbers. */
+ 
+ #define MF_USED 0xffaa0055
+ #define MF_FREE 0x0055ffaa
+ 
++#define MF_BAD 0xa0f55a0f
++#ifdef CONFIG_DEBUG_MALLOC
++#define MF_TRAILER 0xf0a50a5f
++#endif
+ 
+ /* 
+  * Much care has gone into making these routines in this file reentrant.
+@@ -51,13 +118,25 @@
+  * A block header. This is in front of every malloc-block, whether free or not.
+  */
+ struct block_header {
+-	unsigned long bh_flags;
++    unsigned long bh_magic;
+ 	union {
+-		unsigned long ubh_length;
++	int ubh_length;
+ 		struct block_header *fbh_next;
+ 	} vp;
++#ifdef CONFIG_MALLOC_NAMES
++    const char *file;
++    const char *ok_file;
++    unsigned short line;
++    unsigned short ok_line;
++#endif
+ };
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++struct block_trailer {
++    unsigned long bt_magic;
++};
++#endif
++
+ 
+ #define bh_length vp.ubh_length
+ #define bh_next   vp.fbh_next
+@@ -69,9 +148,10 @@
+  */
+ struct page_descriptor {
+ 	struct page_descriptor *next;
++    struct page_descriptor *prev;
+ 	struct block_header *firstfree;
+-	int order;
+-	int nfree;
++    short order;
++    short nfree;
+ };
+ 
+ 
+@@ -83,16 +163,24 @@
+  * Each class of sizes has its own freelist.
+  */
+ struct size_descriptor {
+-	struct page_descriptor *firstfree;
+-	struct page_descriptor *dmafree; /* DMA-able memory */
+ 	int size;
+ 	int nblocks;
++    unsigned long gfporder; /* number of pages in the area required */
+ 
++    struct page_descriptor *firstfree;
++    struct page_descriptor *dmafree; /* DMA-able memory */
++
++#ifdef CONFIG_MALLOC_TRACE
++    struct page_descriptor *firstfull;
++#endif
++#ifdef CONFIG_MALLOC_STATS
+ 	int nmallocs;
+ 	int nfrees;
+ 	int nbytesmalloced;
++    int ntotalbytesmalloced;
+ 	int npages;
+-	unsigned long gfporder; /* number of pages in the area required */
++    int ntotalpages;
++#endif
+ };
+ 
+ /*
+@@ -101,20 +189,35 @@
+  */
+ 
+ struct size_descriptor sizes[] = { 
+-	{ NULL, NULL,  32,127, 0,0,0,0, 0},
+-	{ NULL, NULL,  64, 63, 0,0,0,0, 0 },
+-	{ NULL, NULL, 128, 31, 0,0,0,0, 0 },
+-	{ NULL, NULL, 252, 16, 0,0,0,0, 0 },
+-	{ NULL, NULL, 508,  8, 0,0,0,0, 0 },
+-	{ NULL, NULL,1020,  4, 0,0,0,0, 0 },
+-	{ NULL, NULL,2040,  2, 0,0,0,0, 0 },
+-	{ NULL, NULL,4096-16,  1, 0,0,0,0, 0 },
+-	{ NULL, NULL,8192-16,  1, 0,0,0,0, 1 },
+-	{ NULL, NULL,16384-16,  1, 0,0,0,0, 2 },
+-	{ NULL, NULL,32768-16,  1, 0,0,0,0, 3 },
+-	{ NULL, NULL,65536-16,  1, 0,0,0,0, 4 },
+-	{ NULL, NULL,131072-16,  1, 0,0,0,0, 5 },
+-	{ NULL, NULL,   0,  0, 0,0,0,0, 0 }
++#ifndef CONFIG_DEBUG_MALLOC
++    {   24,170, 0 },
++    {   40,102, 0 },
++    {   80, 51, 0 },
++    {  156, 26, 0 },
++    {  272, 15, 0 },
++    {  580,  7, 0 },
++    { 1020,  4, 0 },
++    { 2040,  2, 0 },
++#else
++    {   40,  0, 0 },
++    {   60,  0, 0 },
++    {   80,  0, 0 },
++    {  120,  0, 0 },
++    {  156,  0, 0 },
++    {  272,  0, 0 },
++    {  408,  0, 0 },
++    {  580,  0, 0 },
++    { 1020,  0, 0 },
++    { 1360,  0, 0 },
++    { 2040,  0, 0 },
++#endif
++    { 4096,  0, 0 },
++    { 8192,  0, 1 },
++    { 16384, 0, 2 },
++    { 32768, 0, 3 },
++    { 65536, 0, 4 },
++    { 131072,0, 5 },
++    {    0,  0, 0 }
+ };
+ 
+ 
+@@ -127,15 +230,13 @@
+ {
+ 	int order;
+ 
+-/* 
++    /* 
+  * Check the static info array. Things will blow up terribly if it's
+  * incorrect. This is a late "compile time" check.....
+  */
+-for (order = 0;BLOCKSIZE(order);order++)
+-    {
+-    if ((NBLOCKS (order)*BLOCKSIZE(order) + sizeof (struct page_descriptor)) >
+-        AREASIZE(order)) 
+-        {
++    for (order = 0;BLOCKSIZE(order);order++) {
++	if ((NBLOCKS (order)*BLOCKSIZE(order) + sizeof (struct page_descriptor))
++		    > AREASIZE(order)) {
+         printk ("Cannot use %d bytes out of %d in order = %d block mallocs\n",
+                 (int) (NBLOCKS (order) * BLOCKSIZE(order) + 
+                         sizeof (struct page_descriptor)),
+@@ -143,8 +244,15 @@
+                 BLOCKSIZE (order));
+         panic ("This only happens if someone messes with kmalloc");
+         }
++	if (NBLOCKS(order) == 0) {
++	    if(BLOCKSIZE(order) == AREASIZE(order)) {
++		BLOCKSIZE(order) -= sizeof(struct page_descriptor);
++		NBLOCKS(order) = 1;
++	    } else
++		NBLOCKS(order) = (AREASIZE(order)-sizeof(struct page_descriptor))/BLOCKSIZE(order);
++	}
+     }
+-return start_mem;
++    return start_mem;
+ }
+ 
+ 
+@@ -155,13 +263,255 @@
+ 
+ 	/* Add the size of the header */
+ 	size += sizeof (struct block_header); 
++#ifdef CONFIG_DEBUG_MALLOC
++    size += sizeof (struct block_trailer);
++#endif
+ 	for (order = 0;BLOCKSIZE(order);order++)
+ 		if (size <= BLOCKSIZE (order))
+ 			return order; 
+ 	return -1;
+ }
+ 
+-void * kmalloc (size_t size, int priority)
++/*
++ * Figure out if this page is valid.
++ * recurse&1: look at adjacent pages;
++ * recurse&2: complain if an error is found.
++ */
++
++#ifdef CONFIG_DEBUG_MALLOC
++#   define ispage(ptr) __ispage(ptr,1,deb_file,deb_line)
++#   define dispage(ptr) __ispage(ptr,3,deb_file,deb_line)
++static int __ispage(void *ptr, int recurse, const char *deb_file, unsigned int deb_line)
++#else
++#   define dispage(ptr) ispage(ptr)
++static int ispage(void *ptr)
++#endif
++{
++    int order;
++    long s;
++    struct page_descriptor *page;
++
++    if(ptr == NULL) return 0;
++    page = PAGE_DESC (ptr);
++
++    save_flags(s); cli();
++
++    order = page->order;
++
++    if ((order < 0) || (order > sizeof (sizes)/sizeof (sizes[0]))) {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo1 %p:%s ",page,deb_page_info(page));
++#endif
++	restore_flags(s);
++        return 0;
++    }
++    if (((long)(page->prev)) & ~PAGE_MASK)  {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo2 %p %p:%s %s ",page,page->prev,deb_page_info(page),deb_page_info(page->prev));
++#endif
++	restore_flags(s);
++        return 0;
++    }
++    if (((long)(page->next)) & ~PAGE_MASK)  {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo3 %p %p:%s %s ",page,page->next,deb_page_info(page),deb_page_info(page->next));
++#endif
++	restore_flags(s);
++        return 0;
++    }
++#ifdef CONFIG_DEBUG_MALLOC
++    if ((recurse & 1) && page->next != NULL && !__ispage(page->next, recurse & ~1, deb_file,deb_line+10000)) {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo4 %p %p:%s %s ", page,page->next,deb_page_info(page),deb_page_info(page->next));
++#endif
++	restore_flags(s);
++	return 0;
++    }
++    if ((recurse & 1) && page->prev != NULL && !__ispage(page->prev, recurse & ~1, deb_file,deb_line+10000)) {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo5 %p %p:%s %s ",page,page->prev,deb_page_info(page),deb_page_info(page->prev));
++#endif
++	restore_flags(s);
++	return 0;
++    }
++#endif
++    if(page->firstfree != NULL && (((long)page ^ (long)page->firstfree) & PAGE_MASK) != 0) {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo7 %p %p:%s ",page,page->firstfree,deb_page_info(page));
++#endif
++	restore_flags(s);
++        return 0;
++    }
++    if(page->nfree < 0 || page->nfree > NBLOCKS(order)) {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(recurse & 2) printk(KERN_EMERG "Foo8 %p %d %d:%s ",page,page->nfree,NBLOCKS(order),deb_page_info(page));
++#endif
++	restore_flags(s);
++        return 0;
++    }
++    restore_flags(s);
++    return 1;
++}
++
++
++#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_NAMES
++static void blockcheck(const char *deb_file,unsigned int deb_line, void *x)
++#else
++static void blockcheck(void *x)
++#endif
++{
++    struct block_header *p;
++    struct page_descriptor *page;
++    int order, i;
++	    
++    page = PAGE_DESC (x);
++    order = page->order;
++    for (i=NBLOCKS(order)-1,p=BH (page+1);i >= 0;i--,p=BH(((unsigned long)p)+BLOCKSIZE(order))) {
++#ifdef CONFIG_MALLOC_NAMES
++        if(deb_kcheck_s(deb_file,deb_line+10000000,p+1,p->bh_length) < 0)
++	    break;
++#else
++        if(kcheck_s(p+1,p->bh_length) < 0)
++	    break;
++#endif
++    }
++}
++
++#ifdef CONFIG_MALLOC_NAMES
++void deb_kmallcheck(const char *deb_file, unsigned int deb_line)
++#else
++void kmallcheck(void)
++#endif
++{
++    int order;
++    struct block_header *p;
++    struct page_descriptor *page;
++    int i;
++
++    for(order=0; BLOCKSIZE(order); order++) {
++	int cnt=10000;
++
++	for (page = sizes[order].firstfree; page != NULL; page = page->next) {
++	    if (page == sizes[order].firstfree && page->prev != NULL) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++		stacktrace("Page List Broken 1 ",NULL,(long)page);
++		page->prev = NULL;
++	    }
++	    if(page->next != NULL && (!dispage(page->next) || page->next->prev != page)) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++		stacktrace("Page List Broken 2 ",NULL,(long)page);
++		page->next = NULL;
++	    }
++	    if(page->order != order || page->nfree == 0) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++		stacktrace("Page in wrong list",NULL,(long)page);
++		break;
++	    }
++	    for (i=NBLOCKS(order)-1,p=BH (page+1);i >= 0;i--,p=BH(((unsigned long)p)+BLOCKSIZE(order))) {
++		if(p->bh_magic == MF_USED || p->bh_magic == MF_FREE) {
++#ifdef CONFIG_MALLOC_NAMES
++		    deb_kcheck_s(deb_file,deb_line+1000000, p+1, 0);
++		    p->ok_file = deb_file; p->ok_line = deb_line;
++#endif
++		} else if(sizes[order].gfporder == 0) {
++#ifdef CONFIG_MALLOC_NAMES
++		    blockcheck(deb_file,deb_line, p);
++#else
++		    blockcheck(p);
++#endif
++		    break;
++		}
++	    }
++	    if(!--cnt) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++		stacktrace("Page List Loop",NULL,(long)page);
++		break;
++	    }
++	}
++#ifdef CONFIG_MALLOC_TRACE
++        for (page = sizes[order].firstfull; page != NULL; page = page->next) {
++	    if (page == sizes[order].firstfull && page->prev != NULL) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++	        stacktrace("Page List Broken 3 ",NULL,(long)page);
++	        page->prev = NULL;
++	    }
++	    if(page->next != NULL && (!dispage(page->next) || page->next->prev != page)) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++	        stacktrace("Page List Broken 4 ",NULL,(long)page);
++	        page->next = NULL;
++	    }
++	    if(page->order != order || page->nfree != 0) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++    		stacktrace("Page filed in wrong list",NULL,(long)page);
++	        break;
++	    }
++	    for (i=NBLOCKS(order)-1,p=BH (page+1);i >= 0;i--,p=BH(((unsigned long)p)+BLOCKSIZE(order))) {
++	        if(p->bh_magic == MF_USED || p->bh_magic == MF_FREE) {
++		    deb_kcheck_s(deb_file,deb_line+1000000, p+1, 0);
++		    p->ok_file = deb_file; p->ok_line = deb_line;
++	        } else if(sizes[order].gfporder == 0) {
++#ifdef CONFIG_MALLOC_NAMES
++		    blockcheck(deb_file,deb_line, p);
++#else
++		    blockcheck(p);
++#endif
++		    break;
++	        }
++	    }
++	    if(!--cnt) {
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "Called at %s:%d: ",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "Called from %p: ",__builtin_return_address(0));
++#endif
++	        stacktrace("Page List Loop",NULL,(long)page);
++	        break;
++	    }
++        }
++#endif
++    }
++    return;
++}
++
++#endif /* CONFIG_DEBUG_MALLOC */
++
++
++void *
++#ifdef CONFIG_MALLOC_NAMES
++deb_kmalloc(const char *deb_file, unsigned int deb_line,
++       size_t size, int priority)
++#else
++kmalloc (size_t size, int priority)
++#endif
+ {
+ 	unsigned long flags;
+ 	int order,tries,i,sz;
+@@ -169,64 +519,184 @@
+ 	struct block_header *p;
+ 	struct page_descriptor *page;
+ 
++#ifdef CONFIG_DEBUG_MALLOCTEST
++#ifdef CONFIG_MALLOC_NAMES
++    deb_kmallcheck(deb_file,deb_line);
++#else
++    kmallcheck();
++#endif
++#endif
++
+ 	dma_flag = (priority & GFP_DMA);
+ 	priority &= GFP_LEVEL_MASK;
+ 	  
+-/* Sanity check... */
++    /* Sanity check... */
+ 	if (intr_count && priority != GFP_ATOMIC) {
+ 		static int count = 0;
+ 		if (++count < 5) {
+-			printk("kmalloc called nonatomically from interrupt %p\n",
+-				__builtin_return_address(0));
+-			priority = GFP_ATOMIC;
++		printk(KERN_EMERG "kmalloc called nonatomically from interrupt");
+ 		}
++	priority = GFP_ATOMIC;
+ 	}
+ 
+-order = get_order (size);
+-if (order < 0)
+-    {
+-    printk ("kmalloc of too large a block (%d bytes).\n",(int) size);
++    order = get_order (size);
++    if (order < 0) {
++        printk (KERN_ERR "kmalloc of too large a block (%d bytes).\n",size);
++#ifdef CONFIG_MALLOC_NAMES
++	printk(KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++	printk(KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
+     return (NULL);
+     }
+ 
+-save_flags(flags);
++    save_flags(flags);
+ 
+-/* It seems VERY unlikely to me that it would be possible that this 
++    /* It seems VERY unlikely to me that it would be possible that this 
+    loop will get executed more than once. */
+-tries = MAX_GET_FREE_PAGE_TRIES; 
+-while (tries --)
+-    {
++    tries = MAX_GET_FREE_PAGE_TRIES; 
++    while (tries --) {
+     /* Try to allocate a "recently" freed memory block */
+     cli ();
+-    if ((page = (dma_flag ? sizes[order].dmafree : sizes[order].firstfree)) &&
+-        (p    =  page->firstfree))
+-        {
+-        if (p->bh_flags == MF_FREE)
+-            {
++#ifdef CONFIG_DEBUG_MALLOC
++	if(sizes[order].firstfree != NULL && !dispage(sizes[order].firstfree)) {
++		printk(KERN_EMERG "kmalloc: firstfree %d bad\n",order);
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++		stacktrace("FirstFree",NULL,0);
++		sizes[order].firstfree = 0;
++	}
++	if(sizes[order].dmafree != NULL && !dispage(sizes[order].dmafree)) {
++		printk(KERN_EMERG "kmalloc: dmafree %d bad\n",order);
++#ifdef CONFIG_MALLOC_NAMES
++		printk(KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++		printk(KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++		stacktrace("DMAfree",NULL,0);
++		sizes[order].dmafree = 0;
++	}
++#endif
++	/*
++         * Try to grab a free page
++	 */
++	if ((page = (dma_flag ? sizes[order].dmafree : sizes[order].firstfree))
++		&& (p    =  page->firstfree)) {
++	    if (p->bh_magic == MF_FREE) {
++#ifdef CONFIG_MALLOC_CLEAR
++	        unsigned char *x = (unsigned char *) (p+1);
++	        unsigned char *lim = x+BLOCKSIZE(order)-sizeof(struct block_header);
++		while(x < lim) {
++		    if(*x == 0xF8)
++			*x++ = 0xF0;
++		    else {
++#ifdef CONFIG_MALLOC_NAMES
++			printk(KERN_EMERG "kmalloc: 0x%p:%x was used after free from %s:%d\n",
++			    p,size,p->file,p->line);
++			printk(KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++			printk(KERN_EMERG "kmalloc: 0x%p:%x was used after free\n",
++			    p,size);
++			printk(KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++#if 0 /* ndef CONFIG_MALLOC_TRACE */
++#ifdef CONFIG_MALLOC_NAMES
++		        blockcheck(deb_file,deb_line,p);
++			if(dispage(p-PAGE_SIZE))
++				blockcheck(deb_file,deb_line,p-PAGE_SIZE);
++#else
++		        blockcheck(p);
++			if(dispage(p-PAGE_SIZE))
++				blockcheck(p-PAGE_SIZE);
++#endif
++#endif /* if 0 */
++			p->bh_magic = MF_BAD;
++			stacktrace(NULL,NULL,0);
++			restore_flags(flags);
++			return NULL;
++		    }
++		}
++#endif /* MALLOC_CLEAR */
++#ifdef CONFIG_MALLOC_NAMES
++	        p->ok_file = p->file; p->ok_line = p->line+1000000;
++	        p->file = deb_file; p->line = deb_line;
++	        ((struct block_trailer *)(((unsigned char *)(p+1))+size))->bt_magic = MF_TRAILER;
++#endif
++
+             page->firstfree = p->bh_next;
+-            page->nfree--;
+-            if (!page->nfree)
+-                {
+-		  if(dma_flag)
+-		    sizes[order].dmafree = page->next;
+-		  else
++		if(!dispage(page)) {
++#ifdef CONFIG_MALLOC_NAMES
++		    printk(KERN_EMERG "kmalloc: nextfree bad, from %s:%d\n",deb_file,deb_line);
++#else
++		    printk(KERN_EMERG "kmalloc: nextfree bad\n");
++#endif
++		    stacktrace("NextFree",NULL,0);
++		    sizes[order].firstfree = 0;
++		    continue;
++		}
++	        if (!--page->nfree) {
++		    if (page->next != NULL)
++			page->next->prev = NULL; /* page->prev, which _is_ NULL */
+ 		    sizes[order].firstfree = page->next;
++#ifdef CONFIG_MALLOC_TRACE
++		    page->next = sizes[order].firstfull;
++		    if (page->next != NULL)
++			page->next->prev = page;
++		    sizes[order].firstfull = page;
++		    /* page->prev already is NULL */
++#else
+ 		  page->next = NULL;
++#endif
+                 }
+-            restore_flags(flags);
+ 
+-            sizes [order].nmallocs++;
+-            sizes [order].nbytesmalloced += size;
+-            p->bh_flags =  MF_USED; /* As of now this block is officially in use */
++#ifdef CONFIG_MALLOC_STATS
++		sizes[order].nmallocs++;
++		sizes[order].nbytesmalloced += size;
++		sizes[order].ntotalbytesmalloced += size;
++#endif
++		p->bh_magic = MF_USED;
+             p->bh_length = size;
++		restore_flags(flags);
++
+             return p+1; /* Pointer arithmetic: increments past header */
+             }
+-        printk ("Problem: block on freelist at %08lx isn't free.\n",(long)p);
++            printk (KERN_CRIT "Block on freelist at %p isn't free.\n",p);   
++	    printk (KERN_CRIT "\tblock %s w/ magic %lx size %d\n",
++	            (p->bh_magic == MF_USED) ? "nonfree" : "trashed", 
++	            p->bh_magic,BLOCKSIZE(order));
++#ifdef CONFIG_MALLOC_NAMES
++	    printk (KERN_CRIT "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++	    printk (KERN_CRIT "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_NAMES
++            blockcheck(deb_file,deb_line,p);
++            if(dispage(p-PAGE_SIZE))
++	        blockcheck(deb_file,deb_line,p-PAGE_SIZE);
++#else /* no names */
++            blockcheck(p);
++            if(dispage(p-PAGE_SIZE))
++	        blockcheck(p-PAGE_SIZE);
++#endif
++#endif
++            stacktrace(NULL,NULL,0);
++
++            /* try to continue... */
++	    if (page->next != NULL)
++		page->next->prev = NULL;
++	    if(dma_flag)
++                sizes[order].dmafree = page->next;
++	    else
++                sizes[order].firstfree = page->next;
++            restore_flags(flags);
+         return (NULL);
+         }
+     restore_flags(flags);
+ 
+-
+     /* Now we're in trouble: We need to get a new free page..... */
+ 
+     sz = BLOCKSIZE(order); /* sz is the size of the blocks we're dealing with */
+@@ -236,153 +706,481 @@
+       page = (struct page_descriptor *) __get_dma_pages (priority & GFP_LEVEL_MASK, sizes[order].gfporder);
+     else
+       page = (struct page_descriptor *) __get_free_pages (priority & GFP_LEVEL_MASK, sizes[order].gfporder);
+-
+-    if (!page) {
++	if (page == NULL) {
+         static unsigned long last = 0;
+         if (last + 10*HZ < jiffies) {
+         	last = jiffies;
+-	        printk ("Couldn't get a free page.....\n");
++		printk (KERN_WARNING "Couldn't get a free page to kmalloc %d bytes\n",size);
++#ifdef CONFIG_MALLOC_NAMES
++		printk (KERN_WARNING "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++		printk (KERN_WARNING "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++		stacktrace(NULL,NULL,0);
+ 	}
+         return NULL;
+     }
+-#if 0
+-    printk ("Got page %08x to use for %d byte mallocs....",(long)page,sz);
+-#endif
++#ifdef CONFIG_MALLOC_STATS
+     sizes[order].npages++;
++        sizes[order].ntotalpages++;
++#endif
+ 
+-    /* Loop for all but last block: */
+-    for (i=NBLOCKS(order),p=BH (page+1);i > 1;i--,p=p->bh_next) 
+-        {
+-        p->bh_flags = MF_FREE;
+-        p->bh_next = BH ( ((long)p)+sz);
++        for (i=NBLOCKS(order)-1,p=BH (page+1);i >= 0;i--,p=p->bh_next) {
++            p->bh_magic = MF_FREE;
++            p->bh_next = (i ? BH (((long)p)+sz) : NULL);
++#ifdef CONFIG_MALLOC_NAMES
++            p->file = p->ok_file = "(expand)"; 
++            p->line = p->ok_line = 0;
++#endif
++#ifdef CONFIG_MALLOC_CLEAR
++            memset(p+1,0xF8, sz - sizeof(struct block_header));
++#endif
+         }
+-    /* Last block: */
+-    p->bh_flags = MF_FREE;
+-    p->bh_next = NULL;
+ 
+     page->order = order;
+     page->nfree = NBLOCKS(order); 
+     page->firstfree = BH(page+1);
+-#if 0
+-    printk ("%d blocks per page\n",page->nfree);
+-#endif
++
+     /* Now we're going to muck with the "global" freelist for this size:
+-       this should be uninterruptible */
++this should be uninterruptible */
+     cli ();
+     /* 
+      * sizes[order].firstfree used to be NULL, otherwise we wouldn't be
+      * here, but you never know.... 
+      */
+-    if (dma_flag) {
++	if(dma_flag) {
+       page->next = sizes[order].dmafree;
+       sizes[order].dmafree = page;
+     } else {
+       page->next = sizes[order].firstfree;
+       sizes[order].firstfree = page;
+     }
++	if(page->next != NULL)
++	    page->next->prev = page;
++	page->prev = NULL;
+     restore_flags(flags);
+     }
+ 
+-/* Pray that printk won't cause this to happen again :-) */
++#ifdef CONFIG_MALLOC_NAMES
++    printk(KERN_WARNING "Malloc of %d bytes at %s:%d failed\n",
++	    size, deb_file,deb_line);
++#else
++    printk(KERN_WARNING "Malloc of %d bytes from %p failed\n",
++    	    size,__builtin_return_address(0));
++#endif
++    return NULL;
++}
+ 
+-printk ("Hey. This is very funny. I tried %d times to allocate a whole\n"
+-        "new page for an object only %d bytes long, but some other process\n"
+-        "beat me to actually allocating it. Also note that this 'error'\n"
+-        "message is soooo very long to catch your attention. I'd appreciate\n"
+-        "it if you'd be so kind as to report what conditions caused this to\n"
+-        "the author of this kmalloc: wolff@dutecai.et.tudelft.nl.\n"
+-        "(Executive summary: This can't happen)\n", 
+-                MAX_GET_FREE_PAGE_TRIES,
+-                (int) size);
+-return NULL;
+-}
+-
+-void kfree_s (void *ptr,int size)
+-{
+-unsigned long flags;
+-int order;
+-register struct block_header *p=((struct block_header *)ptr) -1;
+-struct page_descriptor *page,*pg2;
+-
+-page = PAGE_DESC (p);
+-order = page->order;
+-if ((order < 0) || 
+-    (order > sizeof (sizes)/sizeof (sizes[0])) ||
+-    (((long)(page->next)) & ~PAGE_MASK) ||
+-    (p->bh_flags != MF_USED))
+-    {
+-    printk ("kfree of non-kmalloced memory: %p, next= %p, order=%d\n",
+-                p, page->next, page->order);
++
++#ifdef CONFIG_MALLOC_NAMES
++void
++deb_kfree_s(const char *deb_file, unsigned int deb_line,
++        void *ptr, int size)
++#else
++void
++kfree_s (void *ptr, size_t size)
++#endif
++{
++    unsigned long flags;
++    int order;
++    register struct block_header *p=((struct block_header *)ptr) -1;
++    struct page_descriptor *page;
++
++#ifdef CONFIG_DEBUG_MALLOCTEST
++#ifdef CONFIG_MALLOC_NAMES
++    deb_kmallcheck(deb_file,deb_line);
++#else
++    kmallcheck();
++#endif
++#endif
++
++    if(ptr == NULL) {
++#ifdef CONFIG_MALLOC_NAMES
++        printk(KERN_WARNING "Freeing NULL pointer at %s:%d\n", deb_file,deb_line);
++#else
++        printk(KERN_WARNING "Freeing NULL pointer from %p\n",__builtin_return_address(0));
++#endif
+     return;
+     }
+-if (size &&
+-    size != p->bh_length)
+-    {
+-    printk ("Trying to free pointer at %p with wrong size: %d instead of %lu.\n",
++
++    page = PAGE_DESC (p);
++    order = page->order;
++    if(!dispage(p)) {
++        printk (KERN_EMERG "kfree of non-kmalloced memory: %p, order=%d\n",
++            p,page->order);
++#ifdef CONFIG_MALLOC_NAMES
++        printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++        printk (KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++        stacktrace("Boom",NULL,0);
++        return;
++    }
++    if(p->bh_magic != MF_USED) {
++        if(p->bh_magic != MF_BAD) {
++            printk (KERN_EMERG "kfree of %s memory of %p\n",
++                (p->bh_magic == MF_FREE) ? "freed" : "bad",p);
++
++#ifdef CONFIG_MALLOC_NAMES
++            printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++            if(p->bh_magic == MF_FREE) {
++                if(p->ok_line != 0) 
++                    printk (KERN_EMERG "\tchecked at %s:%d\n",p->ok_file,p->ok_line);
++                printk (KERN_EMERG "\tfreed at %s:%d\n",p->file,p->line);
++                p->bh_magic = MF_BAD;
++            }
++#else
++            printk (KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++
++            stacktrace("Boom",NULL,0);
++        }
++        return;
++    }
++
++    if (size != 0) {
++        if (size != p->bh_length) {
++            printk (KERN_EMERG "Trying to free pointer at %p with wrong size: %d instead of %d.\n",
+         p,size,p->bh_length);
++
++#ifdef CONFIG_MALLOC_NAMES
++            printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++            if(p->ok_line != 0) 
++                printk (KERN_EMERG "\tchecked at %s:%d\n",p->ok_file,p->ok_line);
++            printk (KERN_EMERG "\tvmalloced at %s:%d\n",p->file,p->line);
++#else
++            printk (KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++            stacktrace("Boom",NULL,0);
+     return;
+     }
+-size = p->bh_length;
+-p->bh_flags = MF_FREE; /* As of now this block is officially free */
+-save_flags(flags);
+-cli ();
+-p->bh_next = page->firstfree;
+-page->firstfree = p;
+-page->nfree ++;
+-
+-if (page->nfree == 1)
+-   { /* Page went from full to one free block: put it on the freelist.  Do not bother
+-      trying to put it on the DMA list. */
+-   if (page->next)
++    } else
++        size = p->bh_length;
++
++    save_flags(flags);
++    cli ();
++
++#ifdef CONFIG_DEBUG_MALLOC
+         {
+-        printk ("Page %p already on freelist dazed and confused....\n", page);
++        struct block_trailer *x = (struct block_trailer *)(((unsigned char *)(p+1))+size);
++        if(x->bt_magic != MF_TRAILER) {
++            printk (KERN_EMERG "overran memory of %p\n", p);
++#ifdef CONFIG_MALLOC_NAMES
++            printk (KERN_EMERG "\tcalled at %s:%d\n", deb_file,deb_line);
++            if(p->ok_line != 0) 
++                printk (KERN_EMERG "\tchecked at %s:%d\n", p->ok_file,p->ok_line);
++            printk (KERN_EMERG "\tkmalloced at %s:%d\n", p->file,p->line);
++#else
++            printk (KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++            p->bh_magic = MF_BAD;
++            stacktrace("Boom",NULL,0);
++            restore_flags(flags);
++            return;
+         }
+-   else
++    }
++#ifdef CONFIG_MALLOC_NAMES
++    if(deb_line >= 1000000) {
++        p->ok_file = deb_file; p->ok_line = deb_line;
++    } else if(deb_line > 0) {
++        p->file = deb_file; p->line = deb_line;
++    }
++#endif /* Names */
++#endif /* DEBUG */
++
++#ifdef CONFIG_MALLOC_CLEAR
++    memset(p+1,0xF8,sizes[order].size-sizeof(struct block_header));
++#endif
++    p->bh_magic = MF_FREE; /* As of now this block is officially free */
++
++    p->bh_next = page->firstfree;
++    page->firstfree = p;
++    page->nfree ++;
++
++    if (page->nfree == 1) { /* Page went from full to one free block: put it on the freelist. Do not bother trying to put it on the DMA list */
++#ifndef CONFIG_MALLOC_TRACE
++        if (page->next) {
++            printk ("Page %p already on freelist dazed and confused....\n", page);
++#ifdef CONFIG_DEBUG_MALLOC
++#ifdef CONFIG_MALLOC_NAMES
++            blockcheck(deb_file,deb_line,p);
++            if(ispage(p-PAGE_SIZE))
++                blockcheck(deb_file,deb_line,p-PAGE_SIZE);
++#else
++            blockcheck(p);
++            if(ispage(p-PAGE_SIZE))
++                blockcheck(p-PAGE_SIZE);
++#endif
++#endif
++        } else
++#endif
+         {
++            if(page->next)
++                page->next->prev = page->prev;
++            if(page->prev)
++                page->prev->next = page->next;
++#ifdef CONFIG_MALLOC_TRACE
++            else
++                sizes[order].firstfull = page->next;
++#endif
+         page->next = sizes[order].firstfree;
+         sizes[order].firstfree = page;
++            if (page->next != NULL)
++                page->next->prev = page;
++	    page->prev = NULL;
+         }
+    }
+ 
+-/* If page is completely free, free it */
+-if (page->nfree == NBLOCKS (page->order))
+-    {
+-#if 0
+-    printk ("Freeing page %08x.\n", (long)page);
+-#endif
+-    if (sizes[order].firstfree == page)
+-        {
++#ifndef CONFIG_MALLOC_TRACE
++    /* If page is completely free, free it */
++    if (page->nfree == NBLOCKS (page->order)) {
++        if(page->next)
++            page->next->prev = page->prev;
++        if(page->prev)
++            page->prev->next = page->next;
++        else if(sizes[order].firstfree == page)
+         sizes[order].firstfree = page->next;
+-        }
+-    else if (sizes[order].dmafree == page)
+-        {
++        else if(sizes[order].dmafree == page)
+         sizes[order].dmafree = page->next;
++        else {
++            stacktrace("Bad page free chain",NULL,order);
++        }
++#ifdef CONFIG_MALLOC_STATS
++        sizes[order].npages--;
++#endif
++        free_pages ((long)page, sizes[order].gfporder);
+         }
++#endif /* MALLOC_TRACE -- if we're tracing, the page stays! */
++
++    restore_flags(flags);
++
++#ifdef CONFIG_MALLOC_STATS
++    sizes[order].nfrees++;      /* Noncritical (monitoring) admin stuff */
++    sizes[order].nbytesmalloced -= size;
++#endif
++}
++
++
++
++#ifdef CONFIG_DEBUG_MALLOC
++int
++#ifdef CONFIG_MALLOC_NAMES
++deb_kcheck_s(const char *deb_file, unsigned int deb_line, void *ptr, int size)
++#else
++kcheck_s(void *ptr, int size)
++#endif
++{
++    int order;
++    register struct block_header *p=((struct block_header *)ptr) -1;
++    struct page_descriptor *page;
++    unsigned long flags;
++
++#if defined(CONFIG_MALLOC_NAMED) && defined(CONFIG_DEBUG_MALLOCTEST)
++    if(deb_line != 0 && deb_line < 1000000)
++        deb_kmallcheck(deb_file,deb_line);
++#endif
++
++    if(ptr == NULL) {
++        printk(KERN_WARNING "Checking NULL pointer at %s:%d\n",deb_file,deb_line);
++        return 0;
++    }
++    save_flags(flags);
++    cli();
++
++    page = PAGE_DESC (p);
++    order = page->order;
++    if(!dispage(p)) {
++#ifdef CONFIG_MALLOC_NAMES
++        printk (KERN_EMERG "kcheck of non-kmalloced memory: %p, prev= %p, next= %p, order= %d\n",
++            p,page->prev,page->next,page->order);
++        printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++        printk (KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++        stacktrace("Boom",NULL,0);
++        restore_flags(flags);
++        return -EINVAL;
++    }
++    if(p->bh_magic != MF_USED && deb_line != 0 && deb_line < 1000000) {
++        if(p->bh_magic != MF_BAD) {
++            printk (KERN_EMERG "kcheck of %s memory of %p\n",
++                (p->bh_magic == MF_FREE) ? "freed" : "bad",p);
++#ifdef CONFIG_MALLOC_NAMES
++            printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++#else
++        	printk (KERN_EMERG "\tcalled from %p\n",__builtin_return_address(0));
++#endif
++            if(p->bh_magic == MF_FREE) {
++#ifdef CONFIG_MALLOC_NAMES
++                if(p->ok_line != 0) 
++                    printk (KERN_EMERG "\tchecked at %s:%d\n",p->ok_file,p->ok_line);
++                printk (KERN_EMERG "\tfreed at %s:%d\n",p->file,p->line);
++#endif
++                p->bh_magic = MF_BAD;
++            }
++            stacktrace("Boom",NULL,0);
++        }
++        restore_flags(flags);
++        return -EINVAL;
++    }
++    if (size != 0) {
++        if (size != p->bh_length) {
++            printk (KERN_EMERG "Trying to check pointer at %08lx with wrong size: %d instead of %d.\n",
++            (long)p,size,p->bh_length);
++            printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++            if(p->ok_line != 0) 
++                printk (KERN_EMERG "\tchecked at %s:%d\n",p->ok_file,p->ok_line);
++            printk (KERN_EMERG "\tmalloced at %s:%d\n",p->file,p->line);
++            stacktrace("Boom",NULL,0);
++            restore_flags(flags);
++            return -EINVAL;
++        }
++    } else
++        size = p->bh_length;
++
++    if(p->bh_magic == MF_FREE && (deb_line == 0 || deb_line >= 1000000)) {
++#ifdef CONFIG_MALLOC_CLEAR
++        unsigned char *x = (unsigned char *) (p+1);
++        unsigned char *lim = x+BLOCKSIZE(order)-sizeof(struct block_header);
++        while(x < lim) {
++            if(*x != 0xF8) {
++                printk(KERN_EMERG "kcheck: 0x%p:%x was used while free; from %s:%d\n",
++                    p,size,p->file,p->line);
++                printk(KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++                if(p->ok_line != 0)
++                    printk(KERN_EMERG "\tchecked at %s:%d\n",p->ok_file,p->ok_line);
++                p->bh_magic = MF_BAD;
++                stacktrace("Boom",NULL,0);
++                restore_flags(flags);
++                return -EINVAL;
++            }
++            x++;
++        }
++#endif
++        restore_flags(flags);
++        return 0;
++    } else {
++        if(((struct block_trailer *)(((unsigned char *)(p+1))+size))->bt_magic != MF_TRAILER) {
++            printk (KERN_EMERG "overran memory of %p\n", p);
++            printk (KERN_EMERG "\tcalled at %s:%d\n",deb_file,deb_line);
++            if(p->ok_line != 0) 
++                printk (KERN_EMERG "\tchecked at %s:%d\n",p->ok_file,p->ok_line);
++            printk (KERN_EMERG "\tkmalloced at %s:%d\n",p->file,p->line);
++            stacktrace("Boom",NULL,0);
++            p->bh_magic = MF_BAD;
++            restore_flags(flags);
++            return -EINVAL;
++        }
++    }
++    p->ok_file = deb_file;
++    p->ok_line = (deb_line ? deb_line : 1000000);
++    restore_flags(flags);
++    return 0;
++}
++
++#endif
++
++
++#ifdef CONFIG_MALLOC_STATS
++int get_malloc(char *page)
++{
++    int order;
++    char *buf = page;
++
++    for(order=0;BLOCKSIZE(order)!=0;order++) {
++        buf += sprintf(buf," %7d %7d %8d %7d %7d %6dk %7d %7d\n",
++            sizes[order].size,
++            sizes[order].nblocks,
++            sizes[order].nmallocs,
++            sizes[order].nfrees,
++            sizes[order].nbytesmalloced,
++            sizes[order].ntotalbytesmalloced/1024,
++            sizes[order].npages,
++            sizes[order].ntotalpages);
++    }
++    return buf-page;
++}
++#endif
++
++#if 0
++#ifdef CONFIG_MALLOC_TRACE
++static inline const char *basenam(const char *x)
++{
++    const char *fx = strrchr(x,'/');
++
++    if(fx == NULL)
++    	return x;
+     else
+-        {
+-        for (pg2=sizes[order].firstfree;
+-                (pg2 != NULL) && (pg2->next != page);
+-                        pg2=pg2->next)
+-            /* Nothing */;
+-	if (!pg2)
+-	  for (pg2=sizes[order].dmafree;
+-	       (pg2 != NULL) && (pg2->next != page);
+-	       pg2=pg2->next)
+-            /* Nothing */;
+-        if (pg2 != NULL)
+-            pg2->next = page->next;
++    	return fx+1;
++}
++
++int get_malloc_trace(char *buffer, int maxlen, int offset)
++{
++    int len;
++    char buf[256];
++    int order;
++    struct block_header *p;
++    struct page_descriptor *page;
++    int i;
++    char *pp = buffer;
++
++    for(order=0; BLOCKSIZE(order); order++) {
++        for (page = sizes[order].firstfree; page != NULL; page = page->next) {
++            for (i=NBLOCKS(order)-1,p=BH (page+1);i >= 0;i--,p=BH(((unsigned long)p)+BLOCKSIZE(order))) {
++                if(p->bh_magic == MF_USED) {
++                    if(p->file != p->ok_file && p->ok_line != 0)
++                        len = sprintf(buf,"%p:%03x %s:%d %s:%d\n",
++                            p+1,p->bh_length,basenam(p->file),p->line,basenam(p->ok_file),p->ok_line);
++                    else if(p->line != p->ok_line && p->ok_line != 0)
++                        len = sprintf(buf,"%p:%03x %s:%d %d\n",
++                            p+1,p->bh_length,basenam(p->file),p->line,p->ok_line);
+         else
+-            printk ("Ooops. page %p doesn't show on freelist.\n", page);
++                        len = sprintf(buf,"%p:%03x %s:%d\n",
++                            p+1,p->bh_length,basenam(p->file),p->line);
++                    if(maxlen < len)
++                        return pp-buffer;
++                    else if (offset >= len)
++                        offset -= len;
++                    else {
++                        if(buffer != NULL) 
++                            memcpy_tofs(pp, buf, len);
++                        pp += len;
++                        maxlen -= len;
++                        offset=0;
+         }
+-/* FIXME: I'm sure we should do something with npages here (like npages--) */
+-    free_pages ((long)page, sizes[order].gfporder);
+     }
+-restore_flags(flags);
+-
+-/* FIXME: ?? Are these increment & decrement operations guaranteed to be
+- *	     atomic? Could an IRQ not occur between the read & the write?
+- *	     Maybe yes on a x86 with GCC...??
+- */
+-sizes[order].nfrees++;      /* Noncritical (monitoring) admin stuff */
+-sizes[order].nbytesmalloced -= size;
++            }
++        }
++        for (page = sizes[order].firstfull; page != NULL; page = page->next) {
++            for (i=NBLOCKS(order)-1,p=BH (page+1);i >= 0;i--,p=BH(((unsigned long)p)+BLOCKSIZE(order))) {
++                if(p->file != p->ok_file && p->ok_line != 0)
++                    len = sprintf(buf,"%p:%03x %s:%d %s:%d\n",
++                        p+1,p->bh_length,basenam(p->file),p->line,basenam(p->ok_file),p->ok_line);
++                else if(p->line != p->ok_line && p->ok_line != 0)
++                    len = sprintf(buf,"%p:%03x %s:%d %d\n",
++                        p+1,p->bh_length,basenam(p->file),p->line,p->ok_line);
++                else
++                    len = sprintf(buf,"%p:%03x %s:%d\n",
++                        p+1,p->bh_length,basenam(p->file),p->line);
++                if(maxlen < len)
++                    return pp-buffer;
++                else if (offset >= len)
++                    offset -= len;
++                else {
++                    if(buffer != NULL)
++                        memcpy_tofs(pp, buf, len);
++                    pp += len;
++                    maxlen -= len;
++                    offset = 0;
++                }
++            }
++        }
++    }
++    return pp-buffer;
+ }
++#endif
++#endif
++
++
++
++
+diff -rub --unidir /pub/src/linux/kernel/linux/kernel/ksyms.c ./kernel/ksyms.c
+--- /pub/src/linux/kernel/linux/kernel/ksyms.c	Tue Apr  4 15:18:53 1995
++++ ./kernel/ksyms.c	Tue Mar 28 19:04:11 1995
+@@ -118,8 +119,14 @@
+ 	/* internal kernel memory management */
+ 	X(__get_free_pages),
+ 	X(free_pages),
++#ifdef CONFIG_DEBUG_MALLOC
++	X(deb_kmalloc),
++	X(deb_kfree_s),
++	X(deb_kcheck_s),
++#else
+ 	X(kmalloc),
+ 	X(kfree_s),
++#endif
+ 	X(vmalloc),
+ 	X(vfree),
+ 
+@@ -287,9 +301,15 @@
+ 	X(register_netdev),
+ 	X(unregister_netdev),
+ 	X(ether_setup),
++#ifdef CONFIG_DEBUG_MALLOC
++	X(deb_alloc_skb),
++	X(deb_kfree_skb),
++	X(deb_dev_kfree_skb),
++#else
+ 	X(alloc_skb),
+ 	X(kfree_skb),
+ 	X(dev_kfree_skb),
++#endif
+ 	X(netif_rx),
+ 	X(dev_rint),
+ 	X(dev_tint),
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/af_inet.c ./net/inet/af_inet.c
+--- /pub/src/linux/kernel/linux/net/inet/af_inet.c	Tue Mar  7 13:43:50 1995
++++ ./net/inet/af_inet.c	Wed Mar 22 19:52:02 1995
+@@ -264,7 +264,11 @@
+  *	Destroy an AF_INET socket
+  */
+  
++#ifdef CONFIG_DEBUG_MALLOC
++void deb_destroy_sock(const char *deb_file, unsigned int deb_line, struct sock *sk)
++#else
+ void destroy_sock(struct sock *sk)
++#endif
+ {
+ 	struct sk_buff *skb;
+ 
+@@ -350,6 +354,7 @@
+ 	/* Now if it has a half accepted/ closed socket. */
+ 	if (sk->pair) 
+ 	{
++		kcheck(sk->pair);
+ 		sk->pair->dead = 1;
+ 		sk->pair->prot->close(sk->pair, 0);
+ 		sk->pair = NULL;
+@@ -363,7 +368,11 @@
+ 
+ 	  if (sk->dead && sk->rmem_alloc == 0 && sk->wmem_alloc == 0) 
+ 	  {
++#ifdef CONFIG_DEBUG_MALLOC
++		deb_kfree_s(deb_file,deb_line, (void *)sk,sizeof(*sk));
++#else
+ 		kfree_s((void *)sk,sizeof(*sk));
++#endif
+ 	  } 
+ 	  else 
+ 	  {
+@@ -942,6 +952,7 @@
+ 	if (sock->state == SS_CONNECTING && sk->protocol == IPPROTO_TCP && (flags & O_NONBLOCK))
+ 		return -EALREADY;	/* Connecting is currently in progress */
+   	
++	kcheck(sk);
+ 	if (sock->state != SS_CONNECTING) 
+ 	{
+ 		/* We may need to bind the socket. */
+@@ -968,6 +979,7 @@
+ 	if (sk->state != TCP_ESTABLISHED &&(flags & O_NONBLOCK)) 
+ 	  	return(-EINPROGRESS);
+ 
++	kcheck(sk);
+ 	cli(); /* avoid the race condition */
+ 	while(sk->state == TCP_SYN_SENT || sk->state == TCP_SYN_RECV) 
+ 	{
+@@ -991,6 +1003,7 @@
+ 	sti();
+ 	sock->state = SS_CONNECTED;
+ 
++	kcheck(sk);
+ 	if (sk->state != TCP_ESTABLISHED && sk->err) 
+ 	{
+ 		sock->state = SS_UNCONNECTED;
+@@ -1040,6 +1053,7 @@
+ 	{
+ 		sk2 = sk1->pair;
+ 		sk1->pair = NULL;
++		kcheck(sk2);
+ 	} 
+ 	else
+ 	{
+@@ -1052,6 +1066,7 @@
+ 			sk1->err=0;
+ 			return(-err);
+ 		}
++		kcheck(sk2);
+ 	}
+ 	newsock->data = (void *)sk2;
+ 	sk2->sleep = newsock->wait;
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/icmp.c ./net/inet/icmp.c
+--- /pub/src/linux/kernel/linux/net/inet/icmp.c	Mon Mar  6 10:22:08 1995
++++ ./net/inet/icmp.c	Fri Mar 31 09:26:02 1995
+@@ -237,6 +237,7 @@
+ 		kfree_skb(skb, FREE_READ);
+ 		return;
+ 	}
++	kcheck(skb);
+ 
+ 	/* 
+ 	 *	Re-adjust length according to actual IP header size. 
+@@ -252,13 +253,17 @@
+ 	icmph->type = type;
+ 	icmph->code = code;
+ 	icmph->checksum = 0;
++	kcheck(skb);
+ 	icmph->un.gateway = info;	/* This might not be meant for 
+ 					   this form of the union but it will
+ 					   be right anyway */
++	kcheck(skb);
+ 	memcpy(icmph + 1, iph, sizeof(struct iphdr) + 8);
++	kcheck(skb);
+ 
+ 	icmph->checksum = ip_compute_csum((unsigned char *)icmph,
+                          sizeof(struct icmphdr) + sizeof(struct iphdr) + 8);
++	kcheck(skb);
+ 
+ 	/*
+ 	 *	Send it and free it once sent.
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/ip.c ./net/inet/ip.c
+--- /pub/src/linux/kernel/linux/net/inet/ip.c	Sat Mar 18 06:06:09 1995
++++ ./net/inet/ip.c	Thu Mar 23 17:23:27 1995
+@@ -197,6 +197,7 @@
+ {
+ 	int mac = 0;
+ 
++	kcheck(skb);
+ 	skb->dev = dev;
+ 	skb->arp = 1;
+ 	if (dev->hard_header)
+@@ -235,6 +236,7 @@
+ 	int tmp;
+ 	unsigned long src;
+ 
++	kcheck(skb);
+ 	buff = skb->data;
+ 
+ 	/*
+@@ -1962,6 +1965,8 @@
+ 	if((dev->flags&IFF_BROADCAST) && iph->daddr==dev->pa_brdaddr && !(dev->flags&IFF_LOOPBACK))
+ 		ip_loopback(dev,skb);
+ 		
++	kcheck(skb);
++
+ 	if (dev->flags & IFF_UP)
+ 	{
+ 		/*
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/skbuff.c ./net/inet/skbuff.c
+--- /pub/src/linux/kernel/linux/net/inet/skbuff.c	Sat Jan  7 11:57:55 1995
++++ ./net/inet/skbuff.c	Wed Mar 22 15:44:51 1995
+@@ -330,7 +330,11 @@
+  *	not need to like protocols and sockets.
+  */
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++void deb_kfree_skb(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, int rw)
++#else
+ void kfree_skb(struct sk_buff *skb, int rw)
++#endif
+ {
+ 	if (skb == NULL)
+ 	{
+@@ -341,10 +345,14 @@
+ #ifdef CONFIG_SKB_CHECK
+ 	IS_SKB(skb);
+ #endif
++
+ 	if (skb->lock)
+ 	{
+ 		skb->free = 3;    /* Free when unlocked */
+ 		net_free_locked++;
++#ifdef CONFIG_DEBUG_MALLOC
++		deb_kcheck_s(deb_file,deb_line, skb,0);
++#endif
+ 		return;
+   	}
+   	if (skb->free == 2)
+@@ -357,6 +365,7 @@
+ 	{
+ 	        if(skb->sk->prot!=NULL)
+ 		{
++			kcheck(skb);
+ 			if (rw)
+ 		     		skb->sk->prot->rfree(skb->sk, skb, skb->mem_len);
+ 		     	else
+@@ -376,18 +385,30 @@
+ 			restore_flags(flags);
+ 			if(!skb->sk->dead)
+ 				skb->sk->write_space(skb->sk);
++#ifdef CONFIG_DEBUG_MALLOC
++			deb_kfree_skbmem(deb_file,deb_line, skb,skb->mem_len);
++#else
+ 			kfree_skbmem(skb,skb->mem_len);
++#endif
+ 		}
+ 	}
+ 	else
++#ifdef CONFIG_DEBUG_MALLOC
++		deb_kfree_skbmem(deb_file,deb_line, skb, skb->mem_len);
++#else
+ 		kfree_skbmem(skb, skb->mem_len);
++#endif
+ }
+ 
+ /*
+  *	Allocate a new skbuff. We do this ourselves so we can fill in a few 'private'
+  *	fields and also do memory statistics to find all the [BEEP] leaks.
+  */
++#ifdef CONFIG_DEBUG_MALLOC
++struct sk_buff *deb_alloc_skb(const char *deb_file, unsigned int deb_line, unsigned int size,int priority)
++#else
+ struct sk_buff *alloc_skb(unsigned int size,int priority)
++#endif
+ {
+ 	struct sk_buff *skb;
+ 	unsigned long flags;
+@@ -397,12 +418,16 @@
+ 		if (++count < 5) {
+ 			printk("alloc_skb called nonatomically from interrupt %p\n",
+ 				__builtin_return_address(0));
+-			priority = GFP_ATOMIC;
+ 		}
++		priority = GFP_ATOMIC;
+ 	}
+ 
+ 	size+=sizeof(struct sk_buff);
++#ifdef CONFIG_DEBUG_MALLOC
++	skb=(struct sk_buff *)deb_kmalloc(deb_file,deb_line,size,priority);
++#else
+ 	skb=(struct sk_buff *)kmalloc(size,priority);
++#endif
+ 	if (skb == NULL)
+ 	{
+ 		net_fails++;
+@@ -447,7 +472,11 @@
+  *	Free an skbuff by memory
+  */
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++void deb_kfree_skbmem(const char *deb_file, unsigned int deb_line, struct sk_buff *skb,unsigned size)
++#else
+ void kfree_skbmem(struct sk_buff *skb,unsigned size)
++#endif
+ {
+ 	unsigned long flags;
+ #ifdef CONFIG_SLAVE_BALANCING
+@@ -478,7 +507,7 @@
+ #else
+ 	save_flags(flags);
+ 	cli();
+-	kfree_s((void *)skb,size);
++	deb_kfree_s(deb_file,deb_line, (void *)skb,size);
+ 	net_skbcount--;
+ 	net_memory -= size;
+ 	restore_flags(flags);
+@@ -490,12 +519,21 @@
+  *	and will be freed on deletion.
+  */
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++struct sk_buff *deb_skb_clone(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, int priority)
++#else
+ struct sk_buff *skb_clone(struct sk_buff *skb, int priority)
++#endif
+ {
+ 	struct sk_buff *n;
+ 	unsigned long offset;
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++	deb_kcheck_s(deb_file,deb_line, skb,0);
++	n=deb_alloc_skb(deb_file,deb_line, skb->mem_len-sizeof(struct sk_buff),priority);
++#else
+ 	n=alloc_skb(skb->mem_len-sizeof(struct sk_buff),priority);
++#endif
+ 	if(n==NULL)
+ 		return NULL;
+ 
+@@ -530,8 +568,15 @@
+  *     Skbuff device locking
+  */
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++void deb_skb_device_lock(const char *deb_file, unsigned int deb_line, struct sk_buff *skb)
++#else
+ void skb_device_lock(struct sk_buff *skb)
++#endif
+ {
++#ifdef CONFIG_DEBUG_MALLOC
++	deb_kcheck_s(deb_file,deb_line, skb,0);
++#endif
+ 	if(skb->lock)
+ 		printk("double lock on device queue!\n");
+ 	else
+@@ -539,8 +584,15 @@
+ 	skb->lock++;
+ }
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++void deb_skb_device_unlock(const char *deb_file, unsigned int deb_line, struct sk_buff *skb)
++#else
+ void skb_device_unlock(struct sk_buff *skb)
++#endif
+ {
++#ifdef CONFIG_DEBUG_MALLOC
++	deb_kcheck_s(deb_file,deb_line, skb,0);
++#endif
+ 	if(skb->lock==0)
+ 		printk("double unlock on device queue!\n");
+ 	skb->lock--;
+@@ -548,7 +600,11 @@
+ 		net_locked--;
+ }
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++void deb_dev_kfree_skb(const char *deb_file, unsigned int deb_line, struct sk_buff *skb, int mode)
++#else
+ void dev_kfree_skb(struct sk_buff *skb, int mode)
++#endif
+ {
+ 	unsigned long flags;
+ 
+@@ -560,14 +616,25 @@
+ 	if (!--skb->lock && (skb->free == 1 || skb->free == 3))
+ 	{
+ 		restore_flags(flags);
++#ifdef CONFIG_DEBUG_MALLOC
++		deb_kfree_skb(deb_file,deb_line, skb,mode);
++#else
+ 		kfree_skb(skb,mode);
++#endif
+ 	}
+ 	else
+ 		restore_flags(flags);
+ }
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++int deb_skb_device_locked(const char *deb_file, unsigned int deb_line, struct sk_buff *skb)
++#else
+ int skb_device_locked(struct sk_buff *skb)
++#endif
+ {
++#ifdef CONFIG_DEBUG_MALLOC
++	deb_kcheck_s(deb_file,deb_line, skb,0);
++#endif
+ 	return skb->lock? 1 : 0;
+ }
+ 
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/sock.h ./net/inet/sock.h
+--- /pub/src/linux/kernel/linux/net/inet/sock.h	Tue Jan 24 14:31:48 1995
++++ ./net/inet/sock.h	Wed Mar 22 17:30:36 1995
+@@ -273,7 +273,12 @@
+ #define SEND_SHUTDOWN	2
+ 
+ 
++#ifdef CONFIG_DEBUG_MALLOC
++extern void		deb_destroy_sock(const char *deb_file, unsigned int deb_line, struct sock *sk);
++#define destroy_sock(a) deb_destroy_sock(__FILE__,__LINE__,(a))
++#else
+ extern void			destroy_sock(struct sock *sk);
++#endif
+ extern unsigned short		get_new_socknum(struct proto *, unsigned short);
+ extern void			put_sock(unsigned short, struct sock *); 
+ extern void			release_sock(struct sock *sk);

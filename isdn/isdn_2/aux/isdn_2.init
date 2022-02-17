@@ -1,0 +1,46 @@
+#
+echo ISN_2 Init
+cd /dev
+rm -rf isdn isdnmon
+I=0
+KERNEL=/unix
+
+while test -n "$1"
+do
+	case $1 in
+	-k)	shift
+		KERNEL=$1
+		;;
+	-M)	shift
+		M=$1;
+		rm -f isdn isdn[0-9]* isdnmon
+		mknod isdn  c 12 $M; chown root isdn ; chgrp root isdn ; chmod 666 isdn
+		mknod isdn1 c 12 $M; chown root isdn1; chgrp root isdn1; chmod 666 isdn1
+		mknod isdn2 c 12 $M; chown root isdn2; chgrp root isdn2; chmod 666 isdn2
+		mknod isdn3 c 12 $M; chown root isdn3; chgrp root isdn3; chmod 666 isdn3
+		mknod isdn4 c 12 $M; chown root isdn4; chgrp root isdn4; chmod 666 isdn4
+
+		mknod isdnmon c $M 0; chown root isdnmon; chgrp root isdnmon; chmod 600 isdnmon
+		;;
+
+	*)	;;
+	esac
+	shift
+done
+
+echo Setting parameters for New ISDN in kernel $KERNEL
+
+kconfig -n $KERNEL << EOT
+	NCALL    += 20
+	NSTREAM  += 5
+	NQUEUE   += 10
+    NBLK2048 += 5
+    NBLK1024 += 5
+    NBLK512  += 5
+    NBLK256  += 10
+    NBLK128  += 10
+    NBLK64   += 10
+    NBLK16   += 50
+    NBLK4    += 100
+EOT
+

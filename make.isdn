@@ -1,0 +1,57 @@
+#!/bin/bash
+set -ex
+
+if test ! -f .toldem ; then
+cat <<'EOF'
+
+Hi.
+
+FÜR ABSTÜRZE, DATENVERLUST UND ÄHNLICHE PROBLEME ÜBERNEHME ICH KEINERLEI
+WIE AUCH IMMER GEARTETE HAFTUNG.
+
+Wem das nicht paßt, der lösche diesen Code. Jetzt.
+
+Ansonsten: Erst DOKU lesen (im isdn-Verzeichnis)!
+
+Dann die Patches auf den aktuellen Kernel (momentan 1.1.91) anwenden,
+Kernel bauen, booten. Nachsehen ob das System noch funktioniert.
+
+Dann isdn/config/config.data und isdn/cards/dumb/Config.c ansehen und
+gegebenenfalls ändern (in config.data steht "gcc-elf", den hat nicht
+jeder; ersetze durch "gcc").
+
+Dann nochmal make.isdn aufrufen.
+
+Die gebauten Module können automatisch beim Booten geladen werden mit
+folgendem Skript irgendwo in der Bootsequenz:
+
+>  ( cd /boot/modules/$(uname -r); echo -n "ISDN for kernel $(uname -r): "
+>    while read a ; do echo -n $a "" ; insmod $a ; done < ISDN_MODULES
+>    echo ""
+>  )
+
+EOF
+touch .toldem
+exit 1
+fi
+
+if test -f make.isdn.local ; then 
+. make.isdn.local $*
+fi
+
+set $(isdn/tools/getversion)
+VERS=$1
+VERSION=$2
+
+if test "$(whoami)" = "root" ; then
+dir=/boot/modules/$VERSION
+if test ! -d $dir ; then mkdir -p $dir ; fi
+cp /dev/null $dir/ISDN_MODULES
+if test ! -f .depend ; then make depend && touch .depend ; fi
+PATH=$(pwd)/isdn/tools:$PATH make load
+make -C isdn iprog
+else
+	if test ! -f .depend ; then make depend && touch .depend ; fi
+	make all
+	make -C isdn prog
+fi

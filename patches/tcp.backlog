@@ -1,0 +1,26 @@
+Dieser Patch erlaubt listen(x.y) mit y > 5.
+
+Optional aber sehr sinnvoll.
+
+diff -rub --unidir /pub/src/linux/kernel/linux/net/inet/af_inet.c ./net/inet/af_inet.c
+--- /pub/src/linux/kernel/linux/net/inet/af_inet.c	Tue Mar  7 13:43:50 1995
++++ ./net/inet/af_inet.c	Wed Mar 22 19:52:02 1995
+@@ -469,12 +478,13 @@
+ 		return -EAGAIN;
+ 
+ 	/* We might as well re use these. */ 
+-	/*
+-	 * note that the backlog is "unsigned char", so truncate it
+-	 * somewhere. We might as well truncate it to what everybody
+-	 * else does..
++
++	/* The backlog should be limited, but, because of the possibility 
++	 * of denial-of-service attacks, not _too_ limited. (If there's no
++	 * route back to the originator, and if we don't get ICMPs, sockets
++	 * get stuck in SYN_RECV for some time.)
+ 	 */
+-	if (backlog > 5)
++	if (backlog > 127)
+ 		backlog = 5;
+ 	sk->max_ack_backlog = backlog;
+ 	if (sk->state != TCP_LISTEN)

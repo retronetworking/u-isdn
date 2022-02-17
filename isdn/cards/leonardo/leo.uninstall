@@ -1,0 +1,17 @@
+:
+
+PATH=/bin:/usr/bin:/etc:/usr/etc
+
+	name=leo
+
+#	Delete the object file
+ 
+	rm -f /etc/boot.d/$name
+
+#	Delete the master file
+ 
+	rm -f /etc/master.d/$name
+
+#	Delete the init file
+
+	rm -f /etc/init.d/$name

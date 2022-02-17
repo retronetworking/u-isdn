@@ -1,0 +1,303 @@
+--- /pub/src/linux/kernel/linux-1.1/drivers/char/serial.c	Tue Jan 24 12:44:05 1995
++++ drivers/char/serial.c	Sat Feb 11 07:12:10 1995
+@@ -17,6 +17,14 @@
+  * 	int  rs_open(struct tty_struct * tty, struct file * filp)
+  */
+ 
++#ifdef MODULE
++#include <linux/version.h>
++#include <linux/module.h>
++#else
++#define MOD_INC_USE_COUNT
++#define MOD_DEC_USE_COUNT
++#endif
++
+ #include <linux/errno.h>
+ #include <linux/signal.h>
+ #include <linux/sched.h>
+@@ -80,11 +88,13 @@
+  * 				should be after the IRQ has been active.
+  */
+ 
+-static struct async_struct *IRQ_ports[16];
++static struct async_struct *IRQ_ports[16] = {NULL,};
+ static int IRQ_timeout[16];
++#ifndef MODULE
+ static volatile int rs_irq_triggered;
+ static volatile int rs_triggered;
+ static int rs_wild_int_mask;
++#endif
+ 
+ static void autoconfig(struct async_struct * info);
+ static void change_speed(struct async_struct *info);
+@@ -343,6 +353,7 @@
+  * -----------------------------------------------------------------------
+  */
+ 
++#ifndef MODULE
+ /*
+  * This is the serial driver's interrupt routine while we are probing
+  * for submarines.
+@@ -353,6 +364,7 @@
+ 	rs_triggered |= 1 << irq;
+ 	return;
+ }
++#endif
+ 
+ /*
+  * This routine is used by the interrupt handler to schedule
+@@ -788,6 +804,7 @@
+  * ---------------------------------------------------------------
+  */
+ 
++#ifndef MODULE
+ /*
+  * Grab all interrupts in preparation for doing an automatic irq
+  * detection.  dontgrab is a mask of irq's _not_ to grab.  Returns a
+@@ -819,6 +836,7 @@
+ 			free_irq(i);
+ 	}
+ }
++#endif
+ 
+ /*
+  * This routine figures out the correct timeout for a particular IRQ.
+@@ -1632,6 +1650,7 @@
+ 	sti();
+ }
+ 
++#ifndef MODULE
+ /*
+  * This routine returns a bitfield of "wild interrupts".  Basically,
+  * any unclaimed interrupts which is flapping around.
+@@ -1675,6 +1694,7 @@
+ 	restore_flags(flags);
+ 	return wild_interrupts;
+ }
++#endif
+ 
+ static int rs_ioctl(struct tty_struct *tty, struct file * file,
+ 		    unsigned int cmd, unsigned long arg)
+@@ -1745,6 +1765,7 @@
+ 		case TIOCSERCONFIG:
+ 			return do_autoconfig(info);
+ 
++#ifndef MODULE
+ 		case TIOCSERGWILD:
+ 			error = verify_area(VERIFY_WRITE, (void *) arg,
+ 					    sizeof(int));
+@@ -1752,6 +1773,7 @@
+ 				return error;
+ 			put_fs_long(rs_wild_int_mask, (unsigned long *) arg);
+ 			return 0;
++#endif
+ 
+ 		case TIOCSERGETLSR: /* Get line status register */
+ 			error = verify_area(VERIFY_WRITE, (void *) arg,
+@@ -1761,6 +1783,7 @@
+ 			else
+ 			    return get_lsr_info(info, (unsigned int *) arg);
+ 
++#ifndef MODULE
+ 		case TIOCSERSWILD:
+ 			if (!suser())
+ 				return -EPERM;
+@@ -1768,6 +1791,7 @@
+ 			if (rs_wild_int_mask < 0)
+ 				rs_wild_int_mask = check_wild_interrupts(0);
+ 			return 0;
++#endif
+ 
+ 		case TIOCSERGSTRUCT:
+ 			error = verify_area(VERIFY_WRITE, (void *) arg,
+@@ -1835,6 +1859,7 @@
+ 	
+ 	if (tty_hung_up_p(filp)) {
+ 		restore_flags(flags);
++		MOD_DEC_USE_COUNT;
+ 		return;
+ 	}
+ 	
+@@ -1860,6 +1885,7 @@
+ 	}
+ 	if (info->count) {
+ 		restore_flags(flags);
++		MOD_DEC_USE_COUNT;
+ 		return;
+ 	}
+ 	info->flags |= ASYNC_CLOSING;
+@@ -1923,6 +1949,7 @@
+ 			 ASYNC_CLOSING);
+ 	wake_up_interruptible(&info->close_wait);
+ 	restore_flags(flags);
++	MOD_DEC_USE_COUNT;
+ }
+ 
+ /*
+@@ -2097,22 +2124,27 @@
+ 	printk("rs_open %s%d, count = %d\n", tty->driver.name, info->line,
+ 	       info->count);
+ #endif
++	MOD_INC_USE_COUNT;
+ 	info->count++;
+ 	tty->driver_data = info;
+ 	info->tty = tty;
+ 
+ 	if (!tmp_buf) {
+ 		tmp_buf = (unsigned char *) get_free_page(GFP_KERNEL);
+-		if (!tmp_buf)
++		if (!tmp_buf) {
++			MOD_DEC_USE_COUNT;
+ 			return -ENOMEM;
+ 	}
++	}
+ 	
+ 	/*
+ 	 * Start up serial port
+ 	 */
+ 	retval = startup(info);
+-	if (retval)
++	if (retval) {
++		MOD_DEC_USE_COUNT;
+ 		return retval;
++	}
+ 
+ 	retval = block_til_ready(tty, filp, info);
+ 	if (retval) {
+@@ -2120,6 +2152,7 @@
+ 		printk("rs_open returning after block_til_ready with %d\n",
+ 		       retval);
+ #endif
++		MOD_DEC_USE_COUNT;
+ 		return retval;
+ 	}
+ 
+@@ -2168,6 +2201,8 @@
+ #undef SERIAL_OPT
+ }
+ 
++
++#ifndef MODULE
+ /*
+  * This routine is called by do_auto_irq(); it attempts to determine
+  * which interrupt a serial port is configured to use.  It is not
+@@ -2259,6 +2294,7 @@
+ 	free_all_interrupts(irq_lines);
+ 	return (irq_try_1 == irq_try_2) ? irq_try_1 : 0;
+ }
++#endif /* CONFIG_SERIAL */
+ 
+ /*
+  * This routine is called by rs_init() to initialize a specific serial
+@@ -2322,12 +2358,14 @@
+ 		}
+ 	} 
+ 	
++#ifndef MODULE
+ 	/*
+ 	 * If the AUTO_IRQ flag is set, try to do the automatic IRQ
+ 	 * detection.
+ 	 */
+ 	if (info->flags & ASYNC_AUTO_IRQ)
+ 		info->irq = do_auto_irq(info);
++#endif
+ 		
+ 	serial_outp(info, UART_FCR, UART_FCR_ENABLE_FIFO);
+ 	scratch = serial_in(info, UART_IIR) >> 6;
+@@ -2382,15 +2420,31 @@
+ /*
+  * The serial driver boot-time initialization code!
+  */
++#ifdef MODULE
++
++char kernel_version[]= UTS_RELEASE;
++
++void cleanup_module(void)
++{
++	tty_unregister_driver(&serial_driver);
++	tty_unregister_driver(&callout_driver);
++	bh_base[SERIAL_BH].routine = NULL;
++	timer_table[RS_TIMER].fn = NULL;
++}
++
++int init_module(void)
++#else
+ long rs_init(long kmem_start)
++#endif
+ {
+-	int i;
++	int i, err;
+ 	struct async_struct * info;
+ 	
+ 	bh_base[SERIAL_BH].routine = do_serial_bh;
++	enable_bh(SERIAL_BH);
+ 	timer_table[RS_TIMER].fn = rs_timer;
+ 	timer_table[RS_TIMER].expires = 0;
+-#ifdef CONFIG_AUTO_IRQ
++#if defined(CONFIG_AUTO_IRQ) && !defined(MODULE)
+ 	rs_wild_int_mask = check_wild_interrupts(1);
+ #endif
+ 
+@@ -2445,10 +2499,15 @@
+ 	callout_driver.major = TTYAUX_MAJOR;
+ 	callout_driver.subtype = SERIAL_TYPE_CALLOUT;
+ 
+-	if (tty_register_driver(&serial_driver))
+-		panic("Couldn't register serial driver\n");
+-	if (tty_register_driver(&callout_driver))
+-		panic("Couldn't register callout driver\n");
++	if ((err = tty_register_driver(&serial_driver)) < 0) {
++		printk("Couldn't register serial driver\n");
++		return err;
++	}
++	if ((err = tty_register_driver(&callout_driver)) < 0) {
++		printk("Couldn't register callout driver\n");
++		tty_unregister_driver(&serial_driver);
++		return err;
++	}
+ 	
+ 	for (i = 0, info = rs_table; i < NR_PORTS; i++,info++) {
+ 		info->magic = SERIAL_MAGIC;
+@@ -2471,6 +2530,7 @@
+ 		info->prev_port = 0;
+ 		if (info->irq == 2)
+ 			info->irq = 9;
++#ifndef MODULE
+ 		if (!(info->flags & ASYNC_BOOT_AUTOCONF))
+ 			continue;
+ 		autoconfig(info);
+@@ -2496,8 +2556,13 @@
+ 				printk("\n");
+ 				break;
+ 		}
++#endif
+ 	}
++#ifndef MODULE
+ 	return kmem_start;
++#else
++	return 0;
++#endif
+ }
+ 
+ /*
+@@ -2533,12 +2598,14 @@
+ 		       "device already open\n", i, req->port, req->irq);
+ 		return -1;
+ 	}
++	MOD_INC_USE_COUNT;
+ 	info->irq = req->irq;
+ 	info->port = req->port;
+ 	autoconfig(info);
+ 	if (info->type == PORT_UNKNOWN) {
+ 		restore_flags(flags);
+ 		printk("register_serial(): autoconfig failed\n");
++		MOD_DEC_USE_COUNT;
+ 		return -1;
+ 	}
+ 	printk("tty%02d at 0x%04x (irq = %d)", info->line, 
+@@ -2571,4 +2638,5 @@
+ 	info->type = PORT_UNKNOWN;
+ 	printk("tty%02d unloaded\n", info->line);
+ 	restore_flags(flags);
++	MOD_DEC_USE_COUNT;
+ }

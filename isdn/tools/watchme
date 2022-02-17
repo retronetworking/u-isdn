@@ -1,0 +1,100 @@
+#!/usr/bin/perl5
+
+$reset=`reset`;
+$bfon="\033[1m"; $bfoff="\033[m"; 
+
+require "getopts.pl";
+&Getopts("qs:");
+$opt_s = 60 unless defined $opt_s;
+$|=1;
+$lockname="/var/lock/uucp/LTMP.$$";
+$devlock="/var/lock/uucp/LCK..isdn";
+unlink($lockname);
+open (LOCK,">$lockname") || die "Cannot create lock file $lockname: $!";
+print LOCK "$$\n";
+close (LOCK);
+open(MIT,">/tmp/isisc");
+
+sub bykey { 
+	if($msg{$a} =~ /^000/ || $msg{$b} =~ /^000/) {
+		if($msg{$a} != 0)
+			{ return -1; }
+		elsif($msg{$b} != 0)
+			{ return 1; }
+	}
+	  ($mkey{$a} cmp $mkey{$b})
+	|| ($msg{$a} <=> $msg{$b}) 
+	|| ($msg{$a} cmp $msg{$b}) 
+	|| ($a <=> $b) 
+; }
+
+$msg=$reset."### Site   Prot Cl    PID State Card Cost Total State";
+
+$dev=99;
+outer:
+while(1) {
+	until(link($lockname,$devlock.$dev))
+	{ $dev--; $dev = 199 if $dev == 9; }
+
+	$cbfon = ""; $cbfoff = "";
+	%msg=(); %mkey=();
+	open(P,"+>/dev/isdn/isdn$dev") || next;
+	select(P); $*=1;$|=1;select(STDOUT);
+	print P "AT/L\r" || next outer;
+	<P> ne "" || next outer;
+	<P> ne "" || next outer;
+	while(<P>) {
+		print MIT;
+		chop;chop;
+		if (/^OK/) {
+			$cbfon = $bfon; $cbfoff = $bfoff;
+			next;
+		}
+		($id,$site,$protocol,$class,$pid,$stc,$cost,$total,$flags,$cause)=split(/\s+/,$_,10);
+		unless($id =~ /(\d+)\:(\d+)/) {
+			next unless ($id =~ /-(\d+)/);
+			delete $msg{$1};
+			delete $mkey{$1};
+		} else {
+			next if $2==0; # Grr 
+			$id = $1; $ordnr = $2;
+			($state,$card)=split(/\//,$stc);
+			if($state eq "up" || $state =~ /^\>/) {
+				$xbfon = $bfon; $xbfoff = $bfoff;
+			} else {
+				$xbfon = ""; $xbfoff = "";
+			}
+
+			$mkey{$ordnr} = $site."/".$protocol;
+			$msg{$ordnr} = sprintf("\n%03d %-7.7s %-5.5s %-2.2s %5d %s%5s%s %s%4s%s %4d %5d %s",
+				$id,$site,$protocol,$class,$pid,$cbfon,$state,$cbfoff,$xbfon,$card,$xbfoff,$cost,$total,$cause);
+		}
+	    ### todo: optimize display 
+	    print $msg;
+	    foreach $key(sort bykey %msg) {
+		    print $msg{$key};
+	    }
+		$msg{$ordnr} = sprintf("\n%03d %-7.7s %-5.5s %-2.2s %5d %5s %s%4s%s %4d %5d %s",
+			$id,$site,$protocol,$class,$pid,$state,$xbfon,$card,$xbfoff,$cost,$total,$cause);
+	}
+#	unless ($opt_q) {
+#		system("ping >/dev/null 2>&1 -c 5:30 193.141.40.253");
+#		if(($? >> 8) == 0) {
+#			print "  _The_ link seems to be up.\r";
+#			$failcount=0;
+#		} else {
+#			$failcount++;
+#			print "$failcount Error, drop the link??";
+#			if($failcount > 5) {
+#				print P "AT/Q\r";
+#				$failcount=-20;
+#			}
+#		}
+#	}
+#	sleep $opt_s;
+#	close (P);
+} continue {
+	unlink($devlock.$dev);
+	print $reset "ISDN not available: $!\n";
+	sleep 10;
+}

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+FILE=$1
+
+set $(getversion)
+VERS=$1
+VERSION=$2
+dir=/boot/modules/$VERSION
+echo $FILE >>$dir/ISDN_MODULES
+rm -f $dir/$FILE
+cp $FILE $dir/$FILE &
+
+exit 0

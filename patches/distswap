@@ -1,0 +1,58 @@
+Dieser Patch bewirkt, daß Swapbereiche auf mehrere Platten verteilt werden,
+anstatt erst die erste Platte vollständig aufzufüllen.
+
+Optional. Sinnvoll wenn sich der Swapbereich auf mehr als eine schnelle
+Platte verteilt. Nicht sinnvoll bei Swapdateien oder bei mehr als einem
+Swapbereich auf einer Platte.
+
+diff -rub --unidir /pub/src/linux/kernel/linux/mm/swap.c ./mm/swap.c
+--- /pub/src/linux/kernel/linux/mm/swap.c	Tue Apr  4 15:18:58 1995
++++ ./mm/swap.c	Tue Mar 28 19:04:15 1995
+@@ -37,6 +37,7 @@
+ int min_free_pages = 20;
+ 
+ static int nr_swapfiles = 0;
++static int last_swap_file = 0;
+ static struct wait_queue * lock_queue = NULL;
+ 
+ static struct swap_info_struct {
+@@ -186,11 +187,15 @@
+ {
+ 	struct swap_info_struct * p;
+ 	unsigned int offset, type;
++	int looped;
+ 
++	for (looped = 0; looped < 2; looped++) {
+ 	p = swap_info;
+ 	for (type = 0 ; type < nr_swapfiles ; type++,p++) {
+ 		if ((p->flags & SWP_WRITEOK) != SWP_WRITEOK)
+ 			continue;
++		if(type <= last_swap_file && !looped)
++			continue;
+ 		for (offset = p->lowest_bit; offset <= p->highest_bit ; offset++) {
+ 			if (p->swap_map[offset])
+ 				continue;
+@@ -201,9 +206,10 @@
+ 			if (offset == p->highest_bit)
+ 				p->highest_bit--;
+ 			p->lowest_bit = offset;
++			last_swap_file = type;
+ 			return SWP_ENTRY(type,offset);
+ 		}
+-	}
++	} }
+ 	return 0;
+ }
+ 
+@@ -748,8 +754,9 @@
+ 			priority = GFP_ATOMIC;
+ 		}
+ 	}
+-	reserved_pages = 5;
+-	if (priority != GFP_NFS)
++	if (priority == GFP_NFS)
++		reserved_pages = min_free_pages>>1;
++	else
+ 		reserved_pages = min_free_pages;
+ 	save_flags(flags);
+ repeat:
