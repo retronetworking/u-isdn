@@ -1,0 +1,24 @@
+As far as this code is copyright 19??-1995 Matthias Urlichs,
+as of 2022-02 I hereby relicense it under the GPL v2 or later.
+
+If you don't know where to find the text of the GPL v2, please delete this
+archive and do something useful instead.
+
+You might (or might not) want to take the first three words of this file
+seriously. There's a "streams" subdirectory in there, and if you know
+anything about the history of Unix you should notice the problem.
+
+That being said, the code is too old to be useful with modern compilers
+and the copyright holder doesn't exist any more anyway (more or less), so
+I'll leave deciding whether or not that's a possible problem to the reader/user.
+
+Personally, I wouldn't bother.
+
+In case anybody knows the "Brad K. Clements" who wrote the code that ended up
+as isdn/str_if/str_in.c in 1990: please forward his email address to me.
+I'd like to ask him whether we should still take his "all rights reserved"
+seriously.
+
+Matthias Urlichs
+<matthias@urlichs.de>
+2022-02-17
