@@ -6,10 +6,10 @@ cat <<'EOF'
 
 Hi.
 
-FÜR ABSTÜRZE, DATENVERLUST UND ÄHNLICHE PROBLEME ÜBERNEHME ICH KEINERLEI
+FÃœR ABSTÃœRZE, DATENVERLUST UND Ã„HNLICHE PROBLEME ÃœBERNEHME ICH KEINERLEI
 WIE AUCH IMMER GEARTETE HAFTUNG.
 
-Wem das nicht paßt, der lösche diesen Code. Jetzt.
+Wem das nicht paÃŸt, der lÃ¶sche diesen Code. Jetzt.
 
 Ansonsten: Erst DOKU lesen (im isdn-Verzeichnis)!
 
@@ -17,12 +17,12 @@ Dann die Patches auf den aktuellen Kernel (momentan 1.1.91) anwenden,
 Kernel bauen, booten. Nachsehen ob das System noch funktioniert.
 
 Dann isdn/config/config.data und isdn/cards/dumb/Config.c ansehen und
-gegebenenfalls ändern (in config.data steht "gcc-elf", den hat nicht
+gegebenenfalls Ã¤ndern (in config.data steht "gcc-elf", den hat nicht
 jeder; ersetze durch "gcc").
 
 Dann nochmal make.isdn aufrufen.
 
-Die gebauten Module können automatisch beim Booten geladen werden mit
+Die gebauten Module kÃ¶nnen automatisch beim Booten geladen werden mit
 folgendem Skript irgendwo in der Bootsequenz:
 
 >  ( cd /lib/modules/$(uname -r); echo -n "ISDN for kernel $(uname -r): "
@@ -31,7 +31,7 @@ folgendem Skript irgendwo in der Bootsequenz:
 >  )
 
 Vorher: In /lib/modules/KERNELVERSION: modules.isdn.all nach modules.isdn
-        kopieren und nicht benötigte Module aus dieser Datei rauswerfen.
+        kopieren und nicht benÃ¶tigte Module aus dieser Datei rauswerfen.
 
 EOF
 touch .toldem

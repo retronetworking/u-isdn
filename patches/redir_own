@@ -1,4 +1,4 @@
-Dieser Patch verhindert, daß ICMP-Redirects, die auf den eigenen Host
+Dieser Patch verhindert, daÃŸ ICMP-Redirects, die auf den eigenen Host
 zeigen, akzeptiert werden.
 
 --- /pub/src/linux/kernel/linux-1.1/net/inet/icmp.c	Fri Jan 27 15:16:16 1995

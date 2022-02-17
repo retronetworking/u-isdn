@@ -8,7 +8,7 @@ struct _dumb {
 	short ioaddr;
 	char irq, ipl;
 	/* Linux: IRQ wird nicht automatisch erkannt bei ladbaren Treibern! */
-	/* IPL ist 0 für Teles/8-Karten, 1..3 für Teles/16-Karten an der 1..3.
+	/* IPL ist 0 fÃ¼r Teles/8-Karten, 1..3 fÃ¼r Teles/16-Karten an der 1..3.
 	   Adresse. */
 	char numHCRX;
 	long ID;
