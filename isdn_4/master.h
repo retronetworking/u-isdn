@@ -4,10 +4,10 @@
 #undef DO_DEBUG_MALLOC
 
 /*
- * gmalloc alloziert einen normalen Block, der Zeiger auf aufzur‰umende
- * Blˆcke haben kann, aber selber nicht aufger‰umt wird.
+ * gmalloc alloziert einen normalen Block, der Zeiger auf aufzur√§umende
+ * Bl√∂cke haben kann, aber selber nicht aufger√§umt wird.
  *
- * gcmalloc alloziert einen Block, der aufger‰umt werden kann.
+ * gcmalloc alloziert einen Block, der aufger√§umt werden kann.
  * gbmalloc dito, aber ohne interne Zeiger.
  */
 #ifdef DO_GARBAGE_COLLECT

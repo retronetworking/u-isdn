@@ -6,7 +6,7 @@ PostIRQ(struct _dumb * dumb)
 }
 
 /*
- * Die Offsets sind alle +20 wegen der FIFO, deshalb wird überall 0x20
+ * Die Offsets sind alle +20 wegen der FIFO, deshalb wird Ã¼berall 0x20
  * "zuviel" abgezogen.
  */
 

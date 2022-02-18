@@ -275,7 +275,7 @@ read_file (FILE * ffile, char *errf)
 			app (&cf_DL, c);
 			continue;
 		case CHAR2 ('D', 'P'):
-			/* DP <Karte> <Nummernpräfixe-Dialout> <Nummernpräfixe-Dialin> */
+			/* DP <Karte> <NummernprÃ¤fixe-Dialout> <NummernprÃ¤fixe-Dialin> */
 			if (skipsp (&li)) break; c->card = li;
 			if (skipsp (&li)) break; c->arg = li;
 			if (skipsp (&li)) c->args = c->arg; else {

@@ -6,24 +6,24 @@ cat <<'EOF'
 
 Hi.
 
-FÜR ABSTÜRZE, DATENVERLUSTE UND ÄHNLICHE PROBLEME ÜBERNEHME ICH KEINERLEI
+FÃœR ABSTÃœRZE, DATENVERLUSTE UND Ã„HNLICHE PROBLEME ÃœBERNEHME ICH KEINERLEI
 WIE AUCH IMMER GEARTETE HAFTUNG.
 
-Wem das nicht paßt, der lösche diesen Code. Jetzt.
+Wem das nicht paÃŸt, der lÃ¶sche diesen Code. Jetzt.
 
 Ansonsten: Erst DOKU lesen.
 
 Dann ggf. die Patches auf den aktuellen Kernel (momentan 1.2.13 / 1.3.29)
-anwenden (nicht alle Patches werden benötigt -- vorher nachlesen), Kernel
+anwenden (nicht alle Patches werden benÃ¶tigt -- vorher nachlesen), Kernel
 bauen, mit diesem Kernel booten.
 
-Dann config/config.data ansehen und gegebenenfalls ändern.
+Dann config/config.data ansehen und gegebenenfalls Ã¤ndern.
 
 Dann nochmal make.isdn aufrufen.
 
-Die gebauten Module können automatisch beim Booten geladen werden; siehe
+Die gebauten Module kÃ¶nnen automatisch beim Booten geladen werden; siehe
 tools/rc.isdn. Dazu in /lib/modules: modules.isdn.all nach modules.isdn
-kopieren; nicht benötigte Module ggf. aus dieser Datei rauswerfen.
+kopieren; nicht benÃ¶tigte Module ggf. aus dieser Datei rauswerfen.
 
 EOF
 touch .toldem

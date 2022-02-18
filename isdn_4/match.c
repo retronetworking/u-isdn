@@ -298,7 +298,7 @@ pmatch1 (cf prot, conngrab *cgm)
 			case ARG_OUTNUMS : nrt=ARG_OUT; break;
 			case ARG_BOTHNUMS: nrt=ARG_IN|ARG_OUT; break;
 
-				/* Flags, ob lokale / entfernte Nummern pr‰sent sein sollen
+				/* Flags, ob lokale / entfernte Nummern pr√§sent sein sollen
 				   oder nicht. Logischerweise nur bei ankommenden Anrufen
 				   interessant. */
 			case ARG_NEEDNOLOCAL:

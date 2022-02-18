@@ -8,4 +8,4 @@ else
 	fi
 	uname -r
 fi
-# \2 statt \1 für die letzte Ziffer
+# \2 statt \1 fÃ¼r die letzte Ziffer

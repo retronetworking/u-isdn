@@ -8,47 +8,47 @@ README.isdn in den Kernelsourcen.
 
 Update 42. Grummel...
 
-Neue Feature: Wenn eine Verbindung länger als 10 Sekunden im >down-Zustand
-bleibt, wird der Master umgebracht. (Das ist meistens ein Symptom für ein
+Neue Feature: Wenn eine Verbindung lÃ¤nger als 10 Sekunden im >down-Zustand
+bleibt, wird der Master umgebracht. (Das ist meistens ein Symptom fÃ¼r ein
 verknotetes D-Kanal-Handling oder eine verklemmte aktive Karte.)
 
 Syslog "CONN" loggt die Verbindungszeit in Sekunden. ("COST" loggt die
 Verbindungskosten, wie vorher.)
 
 Die Zahl der Verbindungen wird beim Minuten-Timestamp mitgeschrieben;
-daraus läßt sich sehr schön eine Grafik generieren...
+daraus lÃ¤ÃŸt sich sehr schÃ¶n eine Grafik generieren...
 
 
 *** 1996-04-??
 
-Update 39. Support für "altes" /sbin/route ist gestrichen!
+Update 39. Support fÃ¼r "altes" /sbin/route ist gestrichen!
 
-/sbin/route --help _muß_ bei "route del" die Angabe einer Netmask und eines
+/sbin/route --help _muÃŸ_ bei "route del" die Angabe einer Netmask und eines
 Interfaces zulassen. Test mit "route --help".
 
 
 *** 1996-04-11
 
-Update 38. Support für "alte" Kernels (< 1.3.78 oder so) ist gestrichen!
+Update 38. Support fÃ¼r "alte" Kernels (< 1.3.78 oder so) ist gestrichen!
 
 PPP tut mit Bintec-S0- und S2M-Karten.
 Update zum Verbindungshandling bei Callback, sollte jetzt besser
   funktionieren.
 Freigabe von Devices hatte ich teilweise vergessen...
 Das reconn-Modul hat manchmal Pakete zu voreilig weggeworfen.
-str_if loggt mit, wenn Pakete weggeworfen werden mußten.
+str_if loggt mit, wenn Pakete weggeworfen werden muÃŸten.
 Wiedermal ein htons() vergessen...
-slipto kann jetzt auch "-r ipadresse/bits", zusätzlich zu
+slipto kann jetzt auch "-r ipadresse/bits", zusÃ¤tzlich zu
   "-r ipadresse:netmask".
 
 
 *** 1996-02-07
 
-Update 37. ACHTUNG: Nur für Kernel 1.3.71 ff.
-Für ältere Kernels gibt es einen Patch 37-old, der _anstatt_ isdn-36-37.gz
-angewendet werden muß.
+Update 37. ACHTUNG: Nur fÃ¼r Kernel 1.3.71 ff.
+FÃ¼r Ã¤ltere Kernels gibt es einen Patch 37-old, der _anstatt_ isdn-36-37.gz
+angewendet werden muÃŸ.
 
-Weitere Patches (d.h. 37->38 ff) können Konflikte verursachen. Ich empfehle
+Weitere Patches (d.h. 37->38 ff) kÃ¶nnen Konflikte verursachen. Ich empfehle
 jedem, 1.3.71 zu installieren; das Teil ist um _einiges_ schneller als
 1.2.13.
 
@@ -68,7 +68,7 @@ Achtung: Alle zutreffenden Keys in TM-Zeilen werden nun geODERt.
 
 *** 1996-01-03
 
-Update 33. Timer wieder umgestellt. Testcode für automatische Anpassung des
+Update 33. Timer wieder umgestellt. Testcode fÃ¼r automatische Anpassung des
 Timeouts, noch nicht ausreichend getestet.
 
 
@@ -77,11 +77,11 @@ Timeouts, noch nicht ausreichend getestet.
 Update 32. WICHTIG UNBEDINGT INSTALLIEREN. Verbindungen werden nicht
 korrekt abgebaut!
 
-Wenn nicht installiert wird: in der ML-Zeile des Timers die Parameter für
+Wenn nicht installiert wird: in der ML-Zeile des Timers die Parameter fÃ¼r
 :ti und :to UNBEDINGT auf GERINGERE Werte als der Abstand zwischeen zwei
-Gebühreninfos einstellen!
+GebÃ¼hreninfos einstellen!
 
-Ausserdem: Kompatibilitätspatch für die Niederlande.
+Ausserdem: KompatibilitÃ¤tspatch fÃ¼r die Niederlande.
 
 
 *** 1996-01-01
@@ -105,7 +105,7 @@ Funktioniert dip jetzt? Bitte testen.
 Release 25. Die Umstellungsprobleme sind nun (hoffentlich) endlich
 beseitigt.
 
-Die Puffergrößen in den Datenströmen wurden drastisch reduziert. Wenn
+Die PuffergrÃ¶ÃŸen in den DatenstrÃ¶men wurden drastisch reduziert. Wenn
 Datenverluste auftreten (zB beim Weiterleiten von IP-Paketen oder beim
 Empfang von Audiodaten, wenn das lesende Programm zu langsam ist), sollte
 ein "buffer"-Modul zwischengeschaltet und geeignet konfiguriert werden,
@@ -115,8 +115,8 @@ sinnvollerweise hinter dem reconn-Modul (IP) bzw. direkt hinter transalaw
 
 *** 1995-11-28
 
-Release 22. Vernünftigeres Beartbeiten des Verbindungsauf/abbaus eingebaut.
-Unter Kernel 1.3.44: Experimenteller Code, der sk_buff-Blöcke zur
+Release 22. VernÃ¼nftigeres Beartbeiten des Verbindungsauf/abbaus eingebaut.
+Unter Kernel 1.3.44: Experimenteller Code, der sk_buff-BlÃ¶cke zur
 Datenspeicherung verwendet, wird aktiviert. Wenn das Probleme macht ->
 meckern (abschaltbar in streams/stream.h, ganz oben).
 
@@ -134,21 +134,21 @@ Timingabhaengigkeit im Kernel, sorry. Abhilfe: cu verwenden.
 Wenn es einen User "isdnmaster" gibt, darf dieser mit dem ISDN-Programm
 alles, was root auch darf. "isdnmaster" ist konfigurierbar.
 
-WICHTIG: Im D-Kanal-Handling hat sich was geändert. Wenn Anrufe von manchen
+WICHTIG: Im D-Kanal-Handling hat sich was geÃ¤ndert. Wenn Anrufe von manchen
 Leuten funktionieren, Anrufe mit identischen Dienstkennungen von anderen
-Leuten mit längerer / kürzerer / ohne Nummer (also analog) jedoch nicht,
-in cards/dumb/shell.c den #if 0...TELL ME (Zeile 1175) in #if 1 ändern;
-wenn es nach dieser Änderung (und bitte NUR diese Änderung!) wieder
+Leuten mit lÃ¤ngerer / kÃ¼rzerer / ohne Nummer (also analog) jedoch nicht,
+in cards/dumb/shell.c den #if 0...TELL ME (Zeile 1175) in #if 1 Ã¤ndern;
+wenn es nach dieser Ã„nderung (und bitte NUR diese Ã„nderung!) wieder
 funktioniert, bitte bei mir melden.
 
 Die CM-Zeilen sind weggefallen; die Treiber erkennen nun "frame" etc direkt.
 Dies als Vorbereitung auf das Erkennen von "frame x75 t70" und Handling
 desselben auf der Karte, wenn intelligente Karte.
 
-Das Handling der Treibermodule hat sich geändert: Module vor "reconn"
+Das Handling der Treibermodule hat sich geÃ¤ndert: Module vor "reconn"
 werden jetzt erst beim Verbindungsaufbau geladen; sinnvoll, wenn eine
 Gegenstelle mehr als eine Nummer hat und dort unterschiedliche Protokolle
-fährt. (Soll es ja geben...)
+fÃ¤hrt. (Soll es ja geben...)
 
 
 *** 1995-11-15
@@ -157,14 +157,14 @@ Release 21. Ditto Bugfixes. Callback funktioniert wieder in beide
 Richtungen, und nicht nur mit U-ISDN oder mit einer Karte.
 
 Das Teil ist bei mir im aktiven Einsatz als IP-Router. Also meckert nicht
-"es funktioniert überhaupt nix", das ist falsch. ;-)
+"es funktioniert Ã¼berhaupt nix", das ist falsch. ;-)
 
-Nein, ich werde nicht dafür bezahlt, dieses ISDN-Tier zu bauen. Folglich
+Nein, ich werde nicht dafÃ¼r bezahlt, dieses ISDN-Tier zu bauen. Folglich
 habe ich auch keine Zeit, dieses und jenes Feature in jedem neuen Release
 neu zu testen. Sorry, aber das ist so. Insbesondere habe ich hier nur noch
 einen Rechner unter 1.2.x laufen, und den fasse ich momentan nicht an; der
 Rest ist 1.3.40. Wenn das System nicht unter 1.2 zu kompilieren ist, dann
-ist das zwar scheußlich, aber ich erwarte, daß sich jemand aufrafft und mir
+ist das zwar scheuÃŸlich, aber ich erwarte, daÃŸ sich jemand aufrafft und mir
 einen diff schickt, weil ich es _nicht_ selber mache(n kann). Sorry, aber
 so ist es nunmal. 
 
@@ -174,7 +174,7 @@ so ist es nunmal.
 Release 20. Bugfixes et al.
 
 Standleitungen werden nun automatisch wieder aufgebaut, wenn sie als pf
-gekennzeichnet sind und das übliche reconn und :dI haben.
+gekennzeichnet sind und das Ã¼bliche reconn und :dI haben.
 
 Der Kartentreiber meckert, wenn er die Leitung nicht hochkriegt. Abhilfe:
 an dieser Leitung (manuell) anrufen. Dieser doofe Chip war schonmal
@@ -182,32 +182,32 @@ einfacher zu programmieren...
 
 Kartentreiber weg- und wieder reinlinken ist noch problemaitsch. Das kann
 aber am GCC liegen, gcc 2.7.0 macht Mist mit -O2 -fomit-frame-pointer
--m486. Ich habe alles mit -O -m386 gebaut (funktioniert) und für weitere
-Experimente im Moment keine Zeit (muß PPP für Binteckarten zum Laufen
+-m486. Ich habe alles mit -O -m386 gebaut (funktioniert) und fÃ¼r weitere
+Experimente im Moment keine Zeit (muÃŸ PPP fÃ¼r Binteckarten zum Laufen
 bekommen. Das ist einfach, die haben PPP bereits im Treiber eingebaut.
-PPP für passive Karten ist aufwendiger, leider). 
+PPP fÃ¼r passive Karten ist aufwendiger, leider). 
 
-Neues Flag ,X in der P-Zeile: es wird X-mal gewählt, bevor die Verbindung
-gekippt wird (Retry-Zähler).
+Neues Flag ,X in der P-Zeile: es wird X-mal gewÃ¤hlt, bevor die Verbindung
+gekippt wird (Retry-ZÃ¤hler).
 
-Neues Flag ,X in der D-Zeile macht prioritätsgesteuertes Wählen: alle
-D-Zeilen mit kleinem X werden durchprobiert (bis der Retryzähler ereicht
-ist), dann alle mit nächsthöherem X. Fehlendes X wird wie Null behandelt,
+Neues Flag ,X in der D-Zeile macht prioritÃ¤tsgesteuertes WÃ¤hlen: alle
+D-Zeilen mit kleinem X werden durchprobiert (bis der RetryzÃ¤hler ereicht
+ist), dann alle mit nÃ¤chsthÃ¶herem X. Fehlendes X wird wie Null behandelt,
 negative Werte sind verboten.
 
-Mindestens drei Kartenhersteller bekundeten Interesse an einem Modul für
-meinen Treiber, und ließen dann nie wieder was von sich hören. You know who
-you are. Es wäre sinnvoll, wenn ein paar von euch die diversen Hersteller
-mal nerven würden, sie sollen mir eine Karte nebst Doku zur Verfügung
-stellen, auf daß es bald einen Treiber gebe. Anders wird das nämlich nix.
+Mindestens drei Kartenhersteller bekundeten Interesse an einem Modul fÃ¼r
+meinen Treiber, und lieÃŸen dann nie wieder was von sich hÃ¶ren. You know who
+you are. Es wÃ¤re sinnvoll, wenn ein paar von euch die diversen Hersteller
+mal nerven wÃ¼rden, sie sollen mir eine Karte nebst Doku zur VerfÃ¼gung
+stellen, auf daÃŸ es bald einen Treiber gebe. Anders wird das nÃ¤mlich nix.
 
-Den Sub-Makefiles wird ein -r verpaßt (ignoriere die eingebauten Regeln),
-weil es sonst in mindestens einem Fall passiert. daß die expliziten Regeln
+Den Sub-Makefiles wird ein -r verpaÃŸt (ignoriere die eingebauten Regeln),
+weil es sonst in mindestens einem Fall passiert. daÃŸ die expliziten Regeln
 in make.rules ignoriert werden (weil die eingebaute Regel einen Schritt
-kürzer ist). Grummel.
+kÃ¼rzer ist). Grummel.
 
 Das Masterprogramm wird nun mit -static gelinkt, damit Libraries nicht
-rausgeswappt werden können. Grr.
+rausgeswappt werden kÃ¶nnen. Grr.
 
 
 *** 1995-11-06
@@ -216,11 +216,11 @@ Release 19. Kleinere Bugfixes, insbesondere funktioniert das Senden von
 EAZ unter 1TR6 wieder...
 
 Der Backoff-Algorithmus, wennn die Gegenstelle nicht antwortet, wurde von
-"konstant oder linear" auf "exponentiell" umgestellt. Sorry, aber das muß
+"konstant oder linear" auf "exponentiell" umgestellt. Sorry, aber das muÃŸ
 so sein -- sonst meckert die Telekomik. 
 
 Der Master spuckt jetzt seine ganzen Debugmeldungen auf stderr aus und
-protokolliert Statusmeldungen (Gebühreneinheiten) auf stdout.
+protokolliert Statusmeldungen (GebÃ¼hreneinheiten) auf stdout.
 VORHER WAR DAS UMGEKEHRT, das hat manchen Benutzer durcheinandergebracht.
 
 
@@ -232,7 +232,7 @@ TM-Zeile. Siehe DOKU. Eine angepasste isdn.conf gibt es demnaechst,
 wenn sie mir nicht jemand macht. ;-)
 
 BINTEC-Karten. Getestet mit Einfach-BRI-Version; Vierfach-BRI sollte
-funktionieren, ist aber ungetestet; S2M demnächst, da muß noch was getan
+funktionieren, ist aber ungetestet; S2M demnÃ¤chst, da muÃŸ noch was getan
 werden. 
 
 Neuer DL-Zeilen-Parameter :de, neuer Befehl AT/W: Loggt den
@@ -256,17 +256,17 @@ Ansonsten siehe unten. Feedback bitte!
 
 Release 14.
 
-Mit dem RP-Zeilen gibt es anscheinend Probleme. Wäre nett, wenn das jemand
-anders debuggen könnte, sonst dauert das nämlich bis Version 16 oder so.
+Mit dem RP-Zeilen gibt es anscheinend Probleme. WÃ¤re nett, wenn das jemand
+anders debuggen kÃ¶nnte, sonst dauert das nÃ¤mlich bis Version 16 oder so.
 
 Wer kennt sich mit tcl/tk oder tclperl oder wish oder was-auch-immer aus?
-Gebraucht wird ein vernünftiges Frontend für die Konfigdatei...
+Gebraucht wird ein vernÃ¼nftiges Frontend fÃ¼r die Konfigdatei...
 
-Login und Kermit, nächster Versuch...
+Login und Kermit, nÃ¤chster Versuch...
 
 Aktive Karten (momentan: Bintec) tun NOCH NICHT, aber ich arbeite dran.
 
-Mehr Kommentare im Source. (Immer noch zuwenige, ich weiß. Working.)
+Mehr Kommentare im Source. (Immer noch zuwenige, ich weiÃŸ. Working.)
 
 Fehler bereinigt. Insbesondere sollte der Treiber nun ca. eine Sekunde
 schneller sein beim Verbindungsaufbau, wenn gerade keine andere Verbindung
@@ -275,7 +275,7 @@ offen ist. Grr...
 Debugmeldungen schreiben nun das Intervall (in Jiffies, also normalerweise
 Hundertstelsekunden) seit der letzten Debugmeldung mit.
 
-ACHTUNG, leichte Änderungen im Format der Konfigdatei (DL- und CL-Zeile:
+ACHTUNG, leichte Ã„nderungen im Format der Konfigdatei (DL- und CL-Zeile:
 <Key>-Parameter ist dazugekommen); siehe Doku.
 
 Kann jemand aus Taylor-UUCP (oder sonstwoher) den Code "ist die aktuelle
@@ -284,12 +284,12 @@ Angabe der Anzahl Sekunden bis zum Verlassen des Zeitfensters erweitern?
 Beispiel: wenn es jetzt Sonntag 23:00:01 Uhr ist:
 - isintime("Mon") => 0
 - isintime("Sun") => 3599
-Sonst muß ich das machen und dafür habe ich keine Zeit. Das Ganze wird
-benötigt, um zB Logins nur abends zu erlauben oder den Zeittakt
+Sonst muÃŸ ich das machen und dafÃ¼r habe ich keine Zeit. Das Ganze wird
+benÃ¶tigt, um zB Logins nur abends zu erlauben oder den Zeittakt
 umzustellen. Momentan braucht es dazu ein per cron aufgerufenes externes
 Programm, das /etc/isdn.conf.times von isdn.conf.times.day nach
-isdn.conf.times.night umlinkt und AT/R anstößt; geht, aber ist nicht
-besonders schön.
+isdn.conf.times.night umlinkt und AT/R anstÃ¶ÃŸt; geht, aber ist nicht
+besonders schÃ¶n.
 
 
 *** 1995-09-31
@@ -297,24 +297,24 @@ besonders schön.
 Release 13.
 
 Wenn es immer noch Probleme beim ISDN-Login gibt: am Anfang von
-streams/streams_io das #undef in ein #define ändern, isdn_2.o mit
+streams/streams_io das #undef in ein #define Ã¤ndern, isdn_2.o mit
 "mod2=0x05" installieren, nochmal testen, mir den Syslog-Output schicken
-(*.debug, NICHT *.=debug !!!). Vorsicht, Paßwörter etc. stehen in diesem
+(*.debug, NICHT *.=debug !!!). Vorsicht, PaÃŸwÃ¶rter etc. stehen in diesem
 Log mit drin!
 
-Wegen eines Fehlers im GNU-Make kann es passieren, daß "make" oder "make -w"
+Wegen eines Fehlers im GNU-Make kann es passieren, daÃŸ "make" oder "make -w"
 nicht funktioniert. In diesem Fall "make --warn" verwenden.
 
 
 Die folgenden neuen Features sind noch mehr oder weniger ungetestet:
 SIGIO-Support.
 TTY-Code repariert.
-Starten beliebiger Programme bei Zustandsänderungen (RP-Zeile in der Konfig).
-Ethertype-Support (noch nicht vollständig).
-Callback wenn möglich auf derselben Leitung.
+Starten beliebiger Programme bei ZustandsÃ¤nderungen (RP-Zeile in der Konfig).
+Ethertype-Support (noch nicht vollstÃ¤ndig).
+Callback wenn mÃ¶glich auf derselben Leitung.
 Callback auf Leitung B, wenn ein Ruf auf A ankommt, dort aber besetzt ist.
 
-Einigermaßen getestet:
+EinigermaÃŸen getestet:
 Callback. (War das ein Nerv. Manche ISDN-Vermittlungen sind _doof_.)
 
 Fehlermeldungen reorganisiert.
@@ -346,21 +346,21 @@ Support fuer Kernel 1.3 ist in Arbeit.
 
 *** 1995-02-04
 
-Euro-ISDN! Relativ rudimentär, sollte aber erstmal tun.
+Euro-ISDN! Relativ rudimentÃ¤r, sollte aber erstmal tun.
 (In der Doku steht was von FINGER WEG. Vorsicht -- ich garantiere nicht,
-daß sich der Kram nicht total danebenbenimmt. Ich wage es aber zu
-bezweifeln, daß mein Treiber dazu führt, daß der Anschluß gesperrt wird...)
+daÃŸ sich der Kram nicht total danebenbenimmt. Ich wage es aber zu
+bezweifeln, daÃŸ mein Treiber dazu fÃ¼hrt, daÃŸ der AnschluÃŸ gesperrt wird...)
 
-Support für 128kBit-Standleitungen.
+Support fÃ¼r 128kBit-Standleitungen.
 
-rm -rf streams/isdn isdn/cards/leonardo (für Leute, die den Patch
+rm -rf streams/isdn isdn/cards/leonardo (fÃ¼r Leute, die den Patch
 verwenden).
 
 
 *** 1995-01-18
 
 Na endlich... modularisierte Version, basierend auf 1.1.83.
-_Ohne_ Spezialkram (OK, ein kleines bißchen ;-) nachdem das Linux-TCP/IP
+_Ohne_ Spezialkram (OK, ein kleines biÃŸchen ;-) nachdem das Linux-TCP/IP
 endlich einen brauchbaren Status erreicht zu haben scheint.
 
 
@@ -368,7 +368,7 @@ endlich einen brauchbaren Status erreicht zu haben scheint.
 
 Interimsrelease, basierend auf 1.1.57.
 In libc.tar.gz beginden sich die letzten 4.5.26-Libraries und Include-
-dateien, angepaßt auf meinen Kernel. (Die nächste Version, basierend auf
+dateien, angepaÃŸt auf meinen Kernel. (Die nÃ¤chste Version, basierend auf
 4.6.xx, ist weit weniger schlimm.)
 
 In kernel.tar.gz sind die Quellen fuer den angepassten Kernel, komplett.
@@ -383,10 +383,10 @@ Alles andere (fast) wie gewohnt. Ohne MALLOC-TRACE gibt es Probleme mit
 der Speicherverwaltung; wenn jemand den Fehler findet, immer nur her mit
 einem Patch.
 
-INET_BSD braucht BSD-Utilities für die Konfiguration, die ich momentan
+INET_BSD braucht BSD-Utilities fÃ¼r die Konfiguration, die ich momentan
 nicht im Source habe (Plattenfehler).
 
-Die Übersetzung des Streams-Teils liefert haufenweise Warnings; ignorieren.
+Die Ãœbersetzung des Streams-Teils liefert haufenweise Warnings; ignorieren.
 
 
 *** 1994-08-07
@@ -412,7 +412,7 @@ arbeite dran.
 
 *** 1994-07-31
 
-Festverbindungen werden unterstützt.
+Festverbindungen werden unterstÃ¼tzt.
 Diffs auf PL37 generiert.
 Networking-Code generiert.
 include- und libc-Diffs generiert.
@@ -427,15 +427,15 @@ werden soll.
 
 *** 1994-07-27
 
-Patch 36 läßt sich problemlos einspielen.
+Patch 36 lÃ¤ÃŸt sich problemlos einspielen.
 
 
 *** 1994-07-26
 
-Die Datei "kernel-1.1.35.diff.gz" enthält die Diffs zu meinem Kernel.
-"streams-1.1.35.tar.gz" enthält den Streams-Teil (notwendig!).
+Die Datei "kernel-1.1.35.diff.gz" enthÃ¤lt die Diffs zu meinem Kernel.
+"streams-1.1.35.tar.gz" enthÃ¤lt den Streams-Teil (notwendig!).
 
 Warnung: Da ich selber leicht modifizierte Includedateien unter
-/usr/include einsetze, kann es sein, daß die Kompilation nicht
-durchläuft... in diesem Fall bitte Mail an mich.
+/usr/include einsetze, kann es sein, daÃŸ die Kompilation nicht
+durchlÃ¤uft... in diesem Fall bitte Mail an mich.
 

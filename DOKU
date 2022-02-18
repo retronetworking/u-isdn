@@ -9,16 +9,16 @@ Verwertung jedweder Art bedarf meiner Zustimmung. Das Anbieten auf
 FTP-Servern, in Mailboxen, etc.pp. ist ohne meine Zustimmung nicht
 gestattet.
 
-Obige Parameter gelten für diese Betaversion. Die Vollversion wird
-unter der GPL bzw. ihrem deutschen Äquivalent verfügbar sein.
+Obige Parameter gelten fÃ¼r diese Betaversion. Die Vollversion wird
+unter der GPL bzw. ihrem deutschen Ã„quivalent verfÃ¼gbar sein.
 
 
 Wenn ich Fehler suchen soll:
 ---------------------------
-- Support kaufen. (Kann man natürlich auch ohne Probleme machen :-)
+- Support kaufen. (Kann man natÃ¼rlich auch ohne Probleme machen :-)
 - DOKU LESEN. Wenn nicht verstanden, nochmal lesen. Wenn immer noch nicht
-  verstanden, Verständnisfrage stellen anstatt rumzubasteln und mich mit
-  dem Resultat der Bastelei zu beglücken.  :-/
+  verstanden, VerstÃ¤ndnisfrage stellen anstatt rumzubasteln und mich mit
+  dem Resultat der Bastelei zu beglÃ¼cken.  :-/
 - Wenn beim Verbindungsaufbau was nicht funktioniert:
   Master mit -wdmM starten, cu und AT/L starten, zugucken was passiert,
   Konfigdatei + Master-stderr + AT/L-Output mir schicken.
@@ -32,12 +32,12 @@ Es gibt eine Mailingliste zum Thema: linux-isdn@uranus.central.de.
 linux-isdn-request@uranus.central.de.
 
 
-Änderungen Version 45
+Ã„nderungen Version 45
 ---------------------
 
 Die ISDN-Modulliste steht jetzt nicht mehr in /lib/modules/modules.isdn
 oder so, sondern wird mit MOD-Zeilen in die /etc/isdn.conf-Datei geschrieben.
-Umsetzung (so ähnlich):
+Umsetzung (so Ã¤hnlich):
 # sed -e 's/isdn./MOD /' < /lib/modules/modules.isdn >> /etc/isdn.conf
 
 Die volle Liste findet sich in modules.isdn (im Hauptverzeichnis der
@@ -52,8 +52,8 @@ Geldmangel
 Die Entwicklung so eines Treibers kostet Zeit. Zeit ist Geld.  :-(
 
 Wer sich an den Entwicklungskosten des Treibers beteiligen will:
-Konto 2040206135, Hypo-Bank Nürnberg (BLZ 760 202 14). Für den überwiesenen
-Betrag kann ich eine Rechnung schreiben, wenn nötig inkl. Märchen...äh,
+Konto 2040206135, Hypo-Bank NÃ¼rnberg (BLZ 760 202 14). FÃ¼r den Ã¼berwiesenen
+Betrag kann ich eine Rechnung schreiben, wenn nÃ¶tig inkl. MÃ¤rchen...Ã¤h,
 Mehrwertsteuer.
 
 
@@ -61,35 +61,35 @@ Bekannte Fehler
 ===============
 
 Die Konfigurationsdatei ist manchmal etwas undurchsichtig.
-_Ich_ werde das nicht ändern, keine Zeit; wenn jemand ein Frontend
+_Ich_ werde das nicht Ã¤ndern, keine Zeit; wenn jemand ein Frontend
 schreiben will -- nur zu!
 
 Die Doku liegt nur auf deutsch vor.
 
-Bei manchen Leuten hängt sich der Treiber bzw. der ganze Rechner bei
+Bei manchen Leuten hÃ¤ngt sich der Treiber bzw. der ganze Rechner bei
 ankommenden (Voice-)anrufen kommentarlos auf. Ich konnte das leider bisher
 nicht nachvollziehen...
 
 
-Fragen? Probleme? (Gleich am Anfang, damit es keiner übersieht...)
+Fragen? Probleme? (Gleich am Anfang, damit es keiner Ã¼bersieht...)
 =================
 
 Bitte per Mail, und zwar an isdn-problem@smurf.noris.de.
-Wenn ohne Internetanschluß: Bitte per Fax, an 0911/59818-11.
+Wenn ohne InternetanschluÃŸ: Bitte per Fax, an 0911/59818-11.
 Telefonanrufe bekomme ich ziemlich ungern, weil sehr zeitaufwendig.
 
-Vollständige Konfigdatei und genaues Protokoll dessen, was man gemacht hat,
+VollstÃ¤ndige Konfigdatei und genaues Protokoll dessen, was man gemacht hat,
 was im Syslog oder auf der Konsole ausgegeben wurde, etc.pp., mitschicken.
 
 Probleme mit der Doku? DIES IST noch KEINE ENDVERSION. Also bitte selber
-nachdenken, in den Sourcen wühlen, rausfinden wo es hakt, und mir entweder
-genauere Fragen stellen oder einen Lösungsvorschlag, zB ergänzte Doku,
-schicken. Oder mich daür bezahlen, daß ich den Kram supporte -- das ist
-nämlich der eigentliche Grund, weshalb der Treiber nicht schon vor einem
-halben Jahr fertig wurde... Näheres zu meinem Supportangebot für Linux via
+nachdenken, in den Sourcen wÃ¼hlen, rausfinden wo es hakt, und mir entweder
+genauere Fragen stellen oder einen LÃ¶sungsvorschlag, zB ergÃ¤nzte Doku,
+schicken. Oder mich daÃ¼r bezahlen, daÃŸ ich den Kram supporte -- das ist
+nÃ¤mlich der eigentliche Grund, weshalb der Treiber nicht schon vor einem
+halben Jahr fertig wurde... NÃ¤heres zu meinem Supportangebot fÃ¼r Linux via
 Mail -> info@smurf.noris.de.
 
-Bei Systemcrashs und ähnlichen Widrigkeiten: Problem reproduzieren;
+Bei Systemcrashs und Ã¤hnlichen Widrigkeiten: Problem reproduzieren;
 Konfiguration, genaue Infos was wann wie, Fehlermeldungen in eine Mail
 verpacken und mir schicken.
 
@@ -97,16 +97,16 @@ verpacken und mir schicken.
 Support
 =======
 
-Support gibt es bei mir zu kaufen. Nähere Informationen und Preise -> Mail.
+Support gibt es bei mir zu kaufen. NÃ¤here Informationen und Preise -> Mail.
 
 Einen Treiberupdate gibts fuer DM 30 plus Medium. Fuer kommerzielle Kunden
 gibts dasselbe fuer DM 250, Erstsupport bis zur erfolgreichen Installation
-inbegriffen. Dieses Angebot gilt nicht für Leute, die mich jeden Tag
-dreimal nerven; für die kostet der Support DM 400 pro Monat. (Jawohl, ich
-habe solche Kunden...) Support für Nebenstellenanlagen, die sich nicht an
+inbegriffen. Dieses Angebot gilt nicht fÃ¼r Leute, die mich jeden Tag
+dreimal nerven; fÃ¼r die kostet der Support DM 400 pro Monat. (Jawohl, ich
+habe solche Kunden...) Support fÃ¼r Nebenstellenanlagen, die sich nicht an
 Wortlaut oder Sinn der Normen halten, wird gesondert berechnet.
 
-Fuer Privatleute etc. gibt es den Erstsupport für DM 150, ansonsten
+Fuer Privatleute etc. gibt es den Erstsupport fÃ¼r DM 150, ansonsten
 kostenlos via linux-isdn-request@uranus.central.de. Die Newsgroups
 de.comm.isdn und de.comp.os.linux lese ich momentan wegen Zeitmangel nicht,
 sorry.
@@ -119,31 +119,31 @@ Linux. GCC 2.7.2, Libraries 5.0.9, oder neuere (Testumgebung: Libraries
 5.4.1).
 Passive ISDN-Karte mit Hardware-Doku, oder Teles-8 oder -16 / Creatix.
 Support fuer BSC- und AVM A1-Karten ist in Vorbereitung, Source liegt bei,
-funktioniert aber noch nicht so ganz (BSC: B-Kanäle; beide: Interrupts?) --
-wer kann und will, möge sich dransetzen.
+funktioniert aber noch nicht so ganz (BSC: B-KanÃ¤le; beide: Interrupts?) --
+wer kann und will, mÃ¶ge sich dransetzen.
 
-Support für Teles S0/16.3 und Creatix PNP ist seit neuesten auch dabei;
-Dank an Peter Brückner.
+Support fÃ¼r Teles S0/16.3 und Creatix PNP ist seit neuesten auch dabei;
+Dank an Peter BrÃ¼ckner.
 
 
 Kernelpatches
 =============
 
 Die Patches basieren auf dem Kernel 1.2.11.
-Frühere bzw. spätere Kernels auf eigene Gefahr bzw. Bastelei. 
+FrÃ¼here bzw. spÃ¤tere Kernels auf eigene Gefahr bzw. Bastelei. 
 Insbesondere sollten die Leute, die meckern, weil sie den Kram nicht unter
 1.3.xx zum Laufen bekommen, sich ernsthaft fragen, wieso sie einen Kernel
-einsetzen, der ausdrücklich für Leute gedacht ist, die selber nach Bugs
-suchen können.
+einsetzen, der ausdrÃ¼cklich fÃ¼r Leute gedacht ist, die selber nach Bugs
+suchen kÃ¶nnen.
 
-Was die einzelnen Patches machen und ob sie benötigt werden,
-steht in den einzelnen Dateien am Anfang. Lesen, bevor der Kernel verändert
+Was die einzelnen Patches machen und ob sie benÃ¶tigt werden,
+steht in den einzelnen Dateien am Anfang. Lesen, bevor der Kernel verÃ¤ndert
 wird!
 
 Der Kernel sollte mit CONFIG_MODVERSIONS gebaut werden; das ist zwar nicht
 unbedingt notwendig, aber sinnvoll.
-Das modutils-1.2.8-Paket wird in jedem Fall benötigt, um Parameter an die
-einzelnen Module zu übergeben.
+Das modutils-1.2.8-Paket wird in jedem Fall benÃ¶tigt, um Parameter an die
+einzelnen Module zu Ã¼bergeben.
 
 
 Sonstiges
@@ -165,64 +165,64 @@ das "del ... netmask" versteht.
 Grundstruktur
 =============
 
-Das Modul "compat" stellt ein paar Funktionen zur Verfügung, wie sie aus 
+Das Modul "compat" stellt ein paar Funktionen zur VerfÃ¼gung, wie sie aus 
 anderen Unixkernelumgebungen bekannt sind.
 
-"streams" implementiert minimale Streamsunterstützung. Wegen der
+"streams" implementiert minimale StreamsunterstÃ¼tzung. Wegen der
 tty-Verwaltung unter Linux gibt es keinen clone-Treiber (die ist nicht
 darauf ausgelegt).
 
 Der ISDN-Treiber "isdn_2" ist die Low-Level-Schnittstelle zwischen den
-ISDN-Karten und dem Steuerprogramm (bin/master). Dieses öffnet /dev/isdnmon,
+ISDN-Karten und dem Steuerprogramm (bin/master). Dieses Ã¶ffnet /dev/isdnmon,
 liest eine Konfigdatei (siehe unten) etc. Der Treiber meldet dem
 Steuerprogramm, welche Karten sich bei ihm angemeldet haben.
-Es gibt _keine_ Devices für einzelne Karten.
+Es gibt _keine_ Devices fÃ¼r einzelne Karten.
 
-Der Treiber managt das Q.921-Protokoll für die Karten. Alles andere ist
-Sache des Steuerprogramms (D-Kanal) bzw. anderer Streams-Module (B-Kanäle).
+Der Treiber managt das Q.921-Protokoll fÃ¼r die Karten. Alles andere ist
+Sache des Steuerprogramms (D-Kanal) bzw. anderer Streams-Module (B-KanÃ¤le).
 
-Ein kommunikationswilliges Programm öffnet einen freien ISDN-Port
+Ein kommunikationswilliges Programm Ã¶ffnet einen freien ISDN-Port
 (/dev/isdn/isdnX, X von 1 bis 99 oder so) und sendet einen Verbindungs-
-wunsch an das Steuerprogramm ("atd/subnet/login", öffnen einer Verbindung
+wunsch an das Steuerprogramm ("atd/subnet/login", Ã¶ffnen einer Verbindung
 zum System "subnet" im Protokollmodus "login"). Das Steuerprogramm schiebt
 diesem Kanal nun automatisch die notwendigen B-Kanal-Module unter (X.75,
 T.70, V.110, was-auch-immer), baut die Verbindung auf, meldet den Zustand
-der Verbindung ("RRING", "CONNECT") und verbindet schließlich B-Kanal und
+der Verbindung ("RRING", "CONNECT") und verbindet schlieÃŸlich B-Kanal und
 Programm.  Es erscheint das login:-Prompt des Systems "subnet".
 
 Umgekehrt wird das Steuerprogframm bei einem ankommenden Anruf selbst einen
-freien Port öffnen und das zuständige Programm auf diesem Port starten.
-Dasselbe passiert bei abgehenden Anrufen, die auf das zuständige Programm
-beschränkt sind, zB TCP/IP.
+freien Port Ã¶ffnen und das zustÃ¤ndige Programm auf diesem Port starten.
+Dasselbe passiert bei abgehenden Anrufen, die auf das zustÃ¤ndige Programm
+beschrÃ¤nkt sind, zB TCP/IP.
 
 Beispiel:
 % cu -l isdn/isdn22
-  beliebig, muß nur frei sein.
+  beliebig, muÃŸ nur frei sein.
 AT
  OK
-  Der Interpreter im Kontrollprogramm tut so, als wäre er ein Modem mit
-  Hayes-Befehlssatz, und schickt ein OK zurück.
+  Der Interpreter im Kontrollprogramm tut so, als wÃ¤re er ein Modem mit
+  Hayes-Befehlssatz, und schickt ein OK zurÃ¼ck.
   Hinweis: Das Ding ist minimal und kann nichtmal ATEx oder ATVx.
 ATD/subnet/login
-  [ Virtuelles Rappeln einer Wählscheibe ]
+  [ Virtuelles Rappeln einer WÃ¤hlscheibe ]
  RRING
  CONNECT
  login:
-  Die Verbindung steht. Viel Spaß beim Hacken eines Paßworts. ;-)
+  Die Verbindung steht. Viel SpaÃŸ beim Hacken eines PaÃŸworts. ;-)
 
 BETA-BEMERKUNG: Loginverbindungen sind in der jetztigen Version nicht allzu
 gut getestet. Was sehr gut tut, ist TCP/IP; siehe dazu die Beispielkonfi-
 guration. Ein Anrufbeantworter existiert ebenfalls (leider noch ohne
 DMTF-Erkennung).
 
-Statt ATD/name funktioniert auch ATDnummer; /login ist der Default für das
+Statt ATD/name funktioniert auch ATDnummer; /login ist der Default fÃ¼r das
 Protokoll.
 
 
 Installation
 ============
 
-### Wer noch nie einen eigenen Kernel gebaut hat, lese zunächst
+### Wer noch nie einen eigenen Kernel gebaut hat, lese zunÃ¤chst
 ### das entsprechende HOWTO-Dokument.
 #
 cd /usr/src
@@ -240,7 +240,7 @@ done
 # Danach:
 
 make.isdn
-# Wenn er nun über config.new und config.data meckert:
+# Wenn er nun Ã¼ber config.new und config.data meckert:
 #   Siehe unten Probleme.
 #   mv config/config.new config/config.data ## nicht "cp" !!
 #   vi config/config.data
@@ -251,7 +251,7 @@ make.isdn
 # Nun als Superuser:
 make.isdn
 # oder einfach "make install".
-  eintragen. Näheres siehe "Treiberparameter" weiter unten.
+  eintragen. NÃ¤heres siehe "Treiberparameter" weiter unten.
 cd /usr/local/isdn/bin-Kernelversion  # also zB .../bin-1.3.29
 vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
                   # MOD-Zeilen anpassen Insbesondere
@@ -265,8 +265,8 @@ vi /etc/isdn.conf # ISDN-Nummern, Dienste, etc. eintragen
 ### .. je nach installierter Distribution
 # Wenn das alles funktioniert, rc.isdn via rc.local starten.
 
-Sämtliche Gerätedateien werden automatisch angelegt; die Zuordnung zu
-Gerätenummern erfolgt dynamisch.
+SÃ¤mtliche GerÃ¤tedateien werden automatisch angelegt; die Zuordnung zu
+GerÃ¤tenummern erfolgt dynamisch.
 
 
 Probleme bei der Installation
@@ -274,13 +274,13 @@ Probleme bei der Installation
 
 Als allererstes: Der obige Hinweis re Kernel installieren sollte ernst
 genommen werden. Grund: Jeder modularisierte Treiber _braucht_ Zugriff auf
-die korrekt konfigurierten Sourcen genau des Kernels, unter dem er später
+die korrekt konfigurierten Sourcen genau des Kernels, unter dem er spÃ¤ter
 laufen soll. Dies gilt ganz besonders, wenn der Kernel mit
 CONFIG_MODVERSIONS gebaut wurde (das ist um einiges sicherer!).
 
 Wenn sich die Module nicht laden lassen, weil insmod Sachen wie "kfree"
-nicht findet, dann liegt das daran, daß die Version der Sourcen des
-Kernels, des laufenden Kernels, und der ISDN-Treiber, nicht übereinstimmt.
+nicht findet, dann liegt das daran, daÃŸ die Version der Sourcen des
+Kernels, des laufenden Kernels, und der ISDN-Treiber, nicht Ã¼bereinstimmt.
 
 Also: cd /wo/auch/immer/ist/src/linux; make config; make dep; make;
 make modules; make modules_install; cp arch/i386/boot/zImage /boot/linux\
@@ -289,13 +289,13 @@ make modules; make modules_install; cp arch/i386/boot/zImage /boot/linux\
 Disclaimer: So mache ich das.
 
 
-config.new und config.dist und config.data. Das Problem ist, daß ich an der
-config.data gelegentlich was ändern muß, aber der Benutzer daran auch
+config.new und config.dist und config.data. Das Problem ist, daÃŸ ich an der
+config.data gelegentlich was Ã¤ndern muÃŸ, aber der Benutzer daran auch
 rumspielt (dazu ist die Datei da). Was tun?
 Einfach: Mit den Parametern der alten config.data wird die neue config.dist
 "geladen", und das Ergebnis liegt nun in config.new. Dasselbe passiert,
-wenn es noch keine config.data gibt. In beiden Fällen tut man gut daran,
-sich die Datei config.new näher anzusehen, evtl. mit der alten config.data
+wenn es noch keine config.data gibt. In beiden FÃ¤llen tut man gut daran,
+sich die Datei config.new nÃ¤her anzusehen, evtl. mit der alten config.data
 zu vergleichen, und dann "mv config.new config.data". Sicherheitshalber
 weigert sich das Makefile in config/, ohne diesen Schritt weiterzuarbeiten.
 
@@ -304,16 +304,16 @@ Autoconfig und wieso nicht: Nein, ich weigere mich (momentan), automatisch
 nach Karten, deren Interrupts, deren Konfigurationsregister etc.pp. zu
 suchen. Bei einem laufenden Kernel ist das alles andere als einfach!
 
-Stattdessen müssen die entsprechenden Daten in /etc/isdn.conf eingetragen
+Stattdessen mÃ¼ssen die entsprechenden Daten in /etc/isdn.conf eingetragen
 werden. Wenn irgendwas nicht stimmt, wird im allgemeinen die Karte nicht
 erkannt und das Treibermodul nicht geladen.
-Ausnahme: IRQs, die werden momentan nicht überprüft. Das kann man manuell
-machen: nach der installation der Treiber beim ISDN-Anschluß der Karte
+Ausnahme: IRQs, die werden momentan nicht Ã¼berprÃ¼ft. Das kann man manuell
+machen: nach der installation der Treiber beim ISDN-AnschluÃŸ der Karte
 anrufen. Dann "cat /proc/interrupts". Wenn neben dem Wort ISDN eine Zahl
 kleiner drei steht, stimmt was nicht -- anderen Interrupt probieren,
-BIOS-Konfiguration überprüfen: auch korrekt eingestellte Interrupts können
+BIOS-Konfiguration Ã¼berprÃ¼fen: auch korrekt eingestellte Interrupts kÃ¶nnen
 Probleme machen, wenn zB das BIOS eines PCI-Rechners den Interrupt zu einem
-PCI- anstatt zu einem ISA-Slot routet. (Evtl müssen da trotz BIOS-
+PCI- anstatt zu einem ISA-Slot routet. (Evtl mÃ¼ssen da trotz BIOS-
 Konfiguration noch Jumper auf dem Mainboard umgesetzt werden. Doku des
 Teils lesen!) 
 
@@ -321,33 +321,33 @@ Teils lesen!)
 Treiberparameter:
 -----------------
 
-Die Treiber für einzelne Karten werden wie folgt geladen:
-- Zunächst wird ein generischer Treiber installiert (d_XXX.o).
+Die Treiber fÃ¼r einzelne Karten werden wie folgt geladen:
+- ZunÃ¤chst wird ein generischer Treiber installiert (d_XXX.o).
 - Dann wird pro Interface ein Modul (XXX.o) geladen, das diesem Treiber
   genau eine Karte nennt, die er erkennen soll. Karte nicht erkannt ->
-  Laden schlägt fehl.
+  Laden schlÃ¤gt fehl.
 
  Alle Treiber verstehen:
 - name=XXXX
   XXXX ist eine Zahl. Die Zahl wird durch Aufruf des Programms "cardname"
   aus dem 'eigentlichen' Namen der Karte gewonnen; ich wollte mich nicht
-  darauf verlassen, daß insmod korrekt Strings in den Treiber einbaut.
+  darauf verlassen, daÃŸ insmod korrekt Strings in den Treiber einbaut.
 
  Treiber mit Adressen im Speicher verstehen;
 - mem=0xZZZZZ
   Lage der Karte im Hauptspeicher.
 
- Treiber mit I/O-Adreßbereich verstehen;
+ Treiber mit I/O-AdreÃŸbereich verstehen;
 - io=0xZZZ
-  Lage der Karte im I/O-Adreßbereich.
+  Lage der Karte im I/O-AdreÃŸbereich.
 
- Treiber für Karten mit Interrupt verstehen:
+ Treiber fÃ¼r Karten mit Interrupt verstehen:
 - irq=XX
   Interrupt der Karte.
 
- Treiber für softkonfigurierbare Karten verstehen:
+ Treiber fÃ¼r softkonfigurierbare Karten verstehen:
 - ipl=X
-  Für softwarekonfigurierte Karten: Verwende die Xte Karte.
+  FÃ¼r softwarekonfigurierte Karten: Verwende die Xte Karte.
   
 
 Beispiel:  insmod d_teles.o
@@ -356,7 +356,7 @@ Beispiel:  insmod d_teles.o
            rmmod Tel0 ; rmmod d_teles.o
 
 
-Alle Kartentreiber können vor oder nach Start des Masterprogramms geladen
+Alle Kartentreiber kÃ¶nnen vor oder nach Start des Masterprogramms geladen
 oder wieder entfernt werden. Aktive Verbindungen werden (unsauber)
 abgebrochen.
 
@@ -372,25 +372,25 @@ sollte die konfigurierten TCP-Verbindungen auflisten.
 
 AT-Befehle
 ==========
-Alle Schlüsselbuchstaben können groß oder klein geschrieben werden.
-Das "AT" muß entweder vollständig groß oder vollständig klein
+Alle SchlÃ¼sselbuchstaben kÃ¶nnen groÃŸ oder klein geschrieben werden.
+Das "AT" muÃŸ entweder vollstÃ¤ndig groÃŸ oder vollstÃ¤ndig klein
 geschrieben werden. Zeichen vor dem "AT" werden ignoriert.
 
 AT/Bn
     Schaltet Verbindung <n> von "off" auf "down" um. Siehe AT/L.
 AT/K
     Beendet alle laufenden Verbindungen.
-    Kann nur vom Superuser ausgeführt werden.
+    Kann nur vom Superuser ausgefÃ¼hrt werden.
 AT/Kn
     Beendet die Verbindung <n>, beendet das betreffende Programm.
 AT/L Karte
-    Listet den momentanen Status aller Verbindungen für die angegebene
+    Listet den momentanen Status aller Verbindungen fÃ¼r die angegebene
     Karte (kann weggelassen werden: alle Karten).
 <[minor:]id> <Art> <Partner> <Key> <pid> <Modus/Karte> <UnitNow> <UnitAll> <Status>
-    <minor>     Nummer der Verbindung, für AT/K o.ä.
+    <minor>     Nummer der Verbindung, fÃ¼r AT/K o.Ã¤.
     <n>         interne Folgenummer der Statusmeldung; Meldungen, die einen
                 alten Status ersetzen, bekommen dieselbe Nummer.
-    <pid>       PID des Prozesses, der für die Verbindung gestartet wurde.
+    <pid>       PID des Prozesses, der fÃ¼r die Verbindung gestartet wurde.
     <Modus>
         off     Verbindung nicht aktiv, wird bei ankommendem Ruf reaktiviert.
         down    Standby; sobald ein Datenpaket ansteht, wird die Verbindung 
@@ -398,7 +398,7 @@ AT/L Karte
         up      Verbindung steht
         ->down
         ->up    Verbindung wird gerade ab- bzw. aufgebaut.
-                Zusätzlich kann hinter <Modus> erscheinen:
+                ZusÃ¤tzlich kann hinter <Modus> erscheinen:
            .N   Nter Anwahlversuch
            -N   ... nachdem N Serien fehlgeschlagen sind.
     <UnitNow>   Einheiten in der aktuellen Verbindung.
@@ -413,9 +413,9 @@ AT/L Karte
                 :dM  Dialup, mehrfachaktiv
                 :dD  Dialup, nur einmal aktiv
                 :is  Verbindung ist unterbrechbar
-                :nc  entfernte Nummer ist vollständig
-                :lc  lokale Nummer ist vollständig
-                :oc  Info für abgehende Verbindung ist vollständig
+                :nc  entfernte Nummer ist vollstÃ¤ndig
+                :lc  lokale Nummer ist vollstÃ¤ndig
+                :oc  Info fÃ¼r abgehende Verbindung ist vollstÃ¤ndig
                 :si  Verbindung ist neu gestartet
                 :sl  Verbindung wird wieder aufgebaut
                 :nj, :xi, :yi, :bi, :il, :fX, :fr, :ib
@@ -424,52 +424,52 @@ AT/L Karte
                 doer weniger konstant) und in transienter (wird pro
                 Verbindungsaufbau neu generiert) Form. Der permanente Teil
                 wird zuerst ausgegeben, danach folgt entweder ein /
-                (der transiente Teil fängt bei Null an) oder ein ^ (der
-                zweite Teil übernimmt die vorher angegebenen Flags;
-                nochmals aufgeführte Flags werden wieder gelöscht).
-    <Status>    Text; Meldung der Vermittlung (Groß/Kleinschreibung) oder
-                      interner Zustand (Großschreibung).
-    Ein Ausrufezeichen an erster Stelle bedeutet, daß die Verbindung intern
+                (der transiente Teil fÃ¤ngt bei Null an) oder ein ^ (der
+                zweite Teil Ã¼bernimmt die vorher angegebenen Flags;
+                nochmals aufgefÃ¼hrte Flags werden wieder gelÃ¶scht).
+    <Status>    Text; Meldung der Vermittlung (GroÃŸ/Kleinschreibung) oder
+                      interner Zustand (GroÃŸschreibung).
+    Ein Ausrufezeichen an erster Stelle bedeutet, daÃŸ die Verbindung intern
     nicht mehr bekannt ist, der Zustand aber noch eine Zeitlang aufgehoben
     wird.
-    Ein Minuszeichen am Anfang meldet die Löschung eines internen
-    Zustands; das ist für Monitorprogramme interessant, die den aktuellen
-    Status anzeigen wollen, ohne sich darum zu kümmern, welche Meldungen
+    Ein Minuszeichen am Anfang meldet die LÃ¶schung eines internen
+    Zustands; das ist fÃ¼r Monitorprogramme interessant, die den aktuellen
+    Status anzeigen wollen, ohne sich darum zu kÃ¼mmern, welche Meldungen
     sie wie lange anzeigen sollen.
-    Jede Minute wird außerdem ein Zeitstempel der Form "#xx: hh:mm aa,bb,cc"
+    Jede Minute wird auÃŸerdem ein Zeitstempel der Form "#xx: hh:mm aa,bb,cc"
     ausgegeben. 'xx' ist die Zahl der Minuten, die der Master ununterbrochen
     aktiv ist; 'hh' und 'mm' sind die aktuelle Uhrzeit. 'aa' ist die Zahl
-    der offenen, 'cc' die der geschlossenen Verbindungen; 'bb' zählt die
-    Verbindungen, die gerade geöffnet oder geschlossen werden, und sollte
-    (fast) immer Null sein. Diese Angabe gilt für alle Karten, nicht nur
+    der offenen, 'cc' die der geschlossenen Verbindungen; 'bb' zÃ¤hlt die
+    Verbindungen, die gerade geÃ¶ffnet oder geschlossen werden, und sollte
+    (fast) immer Null sein. Diese Angabe gilt fÃ¼r alle Karten, nicht nur
     die bei AT/L evtl. angegebene.
 
-    Bis zum nächsten AT-Befehl bleibt der Kanal im Monitormodus und meldet
-    alle Zustandsänderungen automatisch. Außerdem kommt jede Minute eine
+    Bis zum nÃ¤chsten AT-Befehl bleibt der Kanal im Monitormodus und meldet
+    alle ZustandsÃ¤nderungen automatisch. AuÃŸerdem kommt jede Minute eine
     "Keepalive"-Zeile mit der aktuellen Uhrzeit sowie der Anzahl der
-    Minuten, die der Masterprozeß diesmal durchgelaufen ist. ;-)
+    Minuten, die der MasterprozeÃŸ diesmal durchgelaufen ist. ;-)
 AT/I
     Listet den internen Zustand. In der ersten Zeile stehen die erkannten
-    ISDN-Karten, die zweite Zeile enthält den internen Zustand des ISDN-
+    ISDN-Karten, die zweite Zeile enthÃ¤lt den internen Zustand des ISDN-
     Systems. Zum Debuggen.
 AT/W Karte
-    Beobachtet den Traffic auf den D-Kanälen der angegebenen Karte (kann
+    Beobachtet den Traffic auf den D-KanÃ¤len der angegebenen Karte (kann
     ein Pattern sein oder weggelassen werden: AT/W* auf allen Karten). Dazu
-    muß :de in der DL-Zeile stehen.
+    muÃŸ :de in der DL-Zeile stehen.
     Bei aktiven Karten sind das die Protokolldaten, zB CAPI-Nachrichten,
     bei passiven Karten die D-Kanal-Informationen.
     Die Daten werden _nicht_ interpretiert.
 
-    Zusätzlich werden dieselben Daten wie bei AT/L angezeigt.
+    ZusÃ¤tzlich werden dieselben Daten wie bei AT/L angezeigt.
 AT/M foo
-    Sendet den Systembefehl "foo" nach unten. Gefährlich.
+    Sendet den Systembefehl "foo" nach unten. GefÃ¤hrlich.
     Kann zum Online-Rekonfigurieren von Modulen verwendet werden. Beispiel:
         AT/M pr :mi 2 ::ms :ms timer :tr 30 :tw 30 :ti 10
-    würde auf Verbindung 2 den automatischen Verbindungsabbau dazu überreden,
+    wÃ¼rde auf Verbindung 2 den automatischen Verbindungsabbau dazu Ã¼berreden,
     alle 10 Sekunden nachzusehen, ob in den letzten 30 Sekunden keine Daten
-    übertragen wurden, und die Verbindung gegebenenfalls beenden.
+    Ã¼bertragen wurden, und die Verbindung gegebenenfalls beenden.
 AT/Q
-    Programmende. Kann nur vom Superuser ausgeführt werden.
+    Programmende. Kann nur vom Superuser ausgefÃ¼hrt werden.
 AT/Sn
     Sendet ein "Status schicken"-Kommando an die bezeichnete Verbindung.
     Der Status wird an alle AT/L- oder AT/W-Monitore gesendet.
@@ -477,111 +477,111 @@ AT/S
     Dasselbe wie AT/L, nur wird der aktuelle Zustand vorab _nicht_
     ausgespuckt.
 AT/R
-    Reload der Konfigdatei. Kann nur vom Superuser ausgeführt werden.
+    Reload der Konfigdatei. Kann nur vom Superuser ausgefÃ¼hrt werden.
     Alle wegen eines Fehlers deaktivierten Programme werden wieder aufgeweckt.
 AT/Xn
-    Abbruch der Verbindung <n>. Kann nur vom Superuser ausgeführt werden.
+    Abbruch der Verbindung <n>. Kann nur vom Superuser ausgefÃ¼hrt werden.
 ATD/sys/proto
-    Sucht Nummer und Protokoll in der Konfigdatei, wählt, macht Verbindung auf. 
+    Sucht Nummer und Protokoll in der Konfigdatei, wÃ¤hlt, macht Verbindung auf. 
 ATH
     trennt die Verbindung.
 <BREAK>
     wechselt vom Online- in den Befehlsmodus, falls erlaubt. Der Interpreter
     antwortet mit OK.
-    (zum Verbieten: entsprechenden Konfigurationsbefehl für das PROTO-Modul
+    (zum Verbieten: entsprechenden Konfigurationsbefehl fÃ¼r das PROTO-Modul
      verwenden.)
     "+++" zum Wechseln funktioniert _nicht_.
 
 Diverse andere Befehle sind 100% ungetestet. <BREAK> habe ich seit Ewigkeiten 
 nicht mehr ausprobiert.
-ATA existiert nicht; stattdessen Konfigdatei ändern.
+ATA existiert nicht; stattdessen Konfigdatei Ã¤ndern.
 
 
 Einschub: Was ist dieser Streams-Kram eigentlich?
-========  Was ist auf dem B-Kanal los, daß man sowas braucht?
+========  Was ist auf dem B-Kanal los, daÃŸ man sowas braucht?
 
 Nimm an, du willst TCP/IP-Pakete verschicken. Du packst also jedes dieser
 Pakete in einen Datenblock und schickst sie auf die Reise ... halt, so einfach
 geht das nicht. Normalerweise wird auf dem B-Kanal sowas wie eine gesicherte
 Verbindung gefahren. (Man kann sich streiten, ob das bei IP-Paketen, die
-eigentlich sowieso beliebig verlorengehen dürfen, Sinn macht.) Außerdem können
+eigentlich sowieso beliebig verlorengehen dÃ¼rfen, Sinn macht.) AuÃŸerdem kÃ¶nnen
 manche ISDN-Implementierungen nur ziemlich kleine Pakete verarbeiten; um
-zu vermeiden, daß die IP-Pakete fragmentiert werden (Overhead: ca. 20 Bytes
+zu vermeiden, daÃŸ die IP-Pakete fragmentiert werden (Overhead: ca. 20 Bytes
 pro Fragment) oder von der Gegenseite weggeschmissen werden (Overhead:
-unendlich ;-) , muß man sie so kennzeichnen, daß die Gegenseite sie direkt
+unendlich ;-) , muÃŸ man sie so kennzeichnen, daÃŸ die Gegenseite sie direkt
 wieder zusammensetzen kann (Overhead: 2 Bytes; braucht aber besagte gesicherte 
-Verbindung, um vernünftig zu funktionieren). BTX beispielsweise arbeitet
-so. Außerdem ist ISDN bytesynchrton, d.h. irgendjemand muß kennzeichnen, wo
-ein Datenpaket aufhört und wo/wann das nächste anfängt. Dafür gibt es, wie
-üblich, mehrere Methoden...
+Verbindung, um vernÃ¼nftig zu funktionieren). BTX beispielsweise arbeitet
+so. AuÃŸerdem ist ISDN bytesynchrton, d.h. irgendjemand muÃŸ kennzeichnen, wo
+ein Datenpaket aufhÃ¶rt und wo/wann das nÃ¤chste anfÃ¤ngt. DafÃ¼r gibt es, wie
+Ã¼blich, mehrere Methoden...
 
-Streams sind nun eine Möglichkeit, mehrere speziell geschriebene Module
-auf einem ebenfalls speziell geschriebenen Treiber so zu stapeln, daß jedes
+Streams sind nun eine MÃ¶glichkeit, mehrere speziell geschriebene Module
+auf einem ebenfalls speziell geschriebenen Treiber so zu stapeln, daÃŸ jedes
 Modul eine Einzelaufgabe dieser Arbeit erledigt. Im Idealfall sind die
 einzelnen Module recht klein und damit debugbar, lassen sich vielseitig
-zusammenstöpseln, etc.pp. In der Praxis ist die Sache natürlich nicht ganz
+zusammenstÃ¶pseln, etc.pp. In der Praxis ist die Sache natÃ¼rlich nicht ganz
 so einfach; insbesondere ist der Overhead, die Pakete von einem Modul zum
-nächsten zu schaufeln, nicht zu vernachlässigen. Er ist aber tolerierbar,
-vor allem wenn man auf die ganzen überflüssigen "Features" (von manchen
+nÃ¤chsten zu schaufeln, nicht zu vernachlÃ¤ssigen. Er ist aber tolerierbar,
+vor allem wenn man auf die ganzen Ã¼berflÃ¼ssigen "Features" (von manchen
 Menschen als "Bugs" oder "Designfehler" bezeichnet...) verzichtet, die
 USL und Co. in Sys5 Release 4 dazuerfunden haben.
 
-Die einzelnen Module müssen parametrisiert werden. Im Normalfall spricht
+Die einzelnen Module mÃ¼ssen parametrisiert werden. Im Normalfall spricht
 man sich mit der Gegenseite vorher ab, ob beispielsweise X.75 verwendet
 wird und in welchem Modus. Alternativ, und wenn man die Normen auswendig
-weiß, schaltet man ein Monitor-Modul zuunterst auf den Datenstrom, läßt
+weiÃŸ, schaltet man ein Monitor-Modul zuunterst auf den Datenstrom, lÃ¤ÃŸt
 sich von der Gegenseite anrufen, beobachtet genau was da passiert, und
 richtet die Konfiguration entsprechend ein. (Das klingt nicht nur
-kompliziert, das ist es auch. Außerdem gibt es ein paar Details, die sich
-nicht ohne weiteres beobachten lassen.) Zum Glück haben sich ein paar
+kompliziert, das ist es auch. AuÃŸerdem gibt es ein paar Details, die sich
+nicht ohne weiteres beobachten lassen.) Zum GlÃ¼ck haben sich ein paar
 "normale" Betriebsarten herauskristallisiert, an die sich die meisten
 Systeme halten.
 
 Paketformate
 ------------
 Im einfachsten Fall werden IP-Pakete direkt auf die Leitung geschickt. Wer
-zusätzlich noch Appletalk oder IPX oder so machen will, kann diese entweder
+zusÃ¤tzlich noch Appletalk oder IPX oder so machen will, kann diese entweder
 in IP einpacken (Overhead, kein Kernelsupport unter Linux) oder ein paar
-Bytes vor die Daten stellen, die angeben, um was für Daten es sich handelt.
+Bytes vor die Daten stellen, die angeben, um was fÃ¼r Daten es sich handelt.
 
-Die Bytes können entweder genauso aussehen wie im Ethernet, oder so wie der
+Die Bytes kÃ¶nnen entweder genauso aussehen wie im Ethernet, oder so wie der
 Pakettyp von PPP. Wer PPP macht, braucht offensichtlich letzteres (PPP
 selber wird auch bald kommen...); normale Leute nehmen die Ethernet-Codes.
 
 Noch ein Einschub: TCP-IP-Routing
 =================================
 
-So ein TCP/IP-Draht über ISDN mag ja ganz nett sein, aber irgendwie müssen
+So ein TCP/IP-Draht Ã¼ber ISDN mag ja ganz nett sein, aber irgendwie mÃ¼ssen
 andere wissen, wie sie vom lokalen Netz zum IP-Rechner zur Gegenstelle
-können. Und umgekehrt.
+kÃ¶nnen. Und umgekehrt.
 
 Das ganze Thema ist zu kompliziert, um es hier abzuhandeln. Man lese ein
-gutes Buch über den Kram, zB Stevens. 
+gutes Buch Ã¼ber den Kram, zB Stevens. 
 
-Wichtige Spezialfälle:
-- Das Große Internet ist auf der anderen Seite der ISDN-Leitung.
+Wichtige SpezialfÃ¤lle:
+- Das GroÃŸe Internet ist auf der anderen Seite der ISDN-Leitung.
   slipto mit -d starten und auf den ganzen anderen Rechnern im lokalen Netz 
   eine Defaultroute zum ISDN-Rechner eintragen. ACHTUNG! ALLE LOKALEN
   RECHNER BRAUCHEN OFFIZIELL ZUGETEILTE IP-NUMMERN. Das Weiterleiten von
-  Nummernbereichen nach RFC 1597 muß unterbunden werden (wenn diese lokal
+  Nummernbereichen nach RFC 1597 muÃŸ unterbunden werden (wenn diese lokal
   verwendet werden: unbedingt IP-Firewall in den Kernel einbauen und
-  rausfiltern); andere unzulässige Netznummern müssen durch einen zweiten
-  Gatewayrechner mit zwei Ethernetkarten o.ä. abgeschottet werden.
+  rausfiltern); andere unzulÃ¤ssige Netznummern mÃ¼ssen durch einen zweiten
+  Gatewayrechner mit zwei Ethernetkarten o.Ã¤. abgeschottet werden.
 
-- Ein System, das eigentlich Teil des lokalen Netzes wäre, sitzt am anderen
-  Ende der Leitung. Am einfachsten ist hier Proxy-ARP; der benötigte Befehl
+- Ein System, das eigentlich Teil des lokalen Netzes wÃ¤re, sitzt am anderen
+  Ende der Leitung. Am einfachsten ist hier Proxy-ARP; der benÃ¶tigte Befehl
   beim Booten lautet "arp -s IP_der_entfernten_Kiste Ether_des_ISDN_-
   _Rechners pub". Die Ethernetadresse spuckt "ifconfig eth0" aus.
 
-  diplogin (für IP über serielle Leitung) kann den arp-Eintrag automatisch
-  setzen. Wenn jemand entsprechende Patches für slipto macht -> her zu mir.
+  diplogin (fÃ¼r IP Ã¼ber serielle Leitung) kann den arp-Eintrag automatisch
+  setzen. Wenn jemand entsprechende Patches fÃ¼r slipto macht -> her zu mir.
 
 - Ein Netz mit stupidem ISDN-Router, der ein Transfernetz sehen will, ist
   auf der anderen Seite. Einfachste Methode: Vom lokalen Netzbereich wird
-  ein 4-Adressen-Bereich abgezwackt und als Transfernetz mißbraucht. Sei
+  ein 4-Adressen-Bereich abgezwackt und als Transfernetz miÃŸbraucht. Sei
   die lokale Adresse 129.130.131.x, so wird zum Beispiel der Bereich x =
   [224..227] verwendet (die beiden untersten Bits des unteren Endes des
-  Adressbereichs, hier 224, müssen(!!!) 00 sein). Die nächste Adresse
+  Adressbereichs, hier 224, mÃ¼ssen(!!!) 00 sein). Die nÃ¤chste Adresse
   (hier: 225) wird die lokale Adresse (entweder als lokale Adresse im
   slipto, oder via dummy-Interface: "ifconfig dummy0 129.130.131.225; route
   add -host 129.130.131.225 dev lo" -- in der Konfigdatei wird in diesem
@@ -592,43 +592,43 @@ Wichtige Spezialfälle:
   Auf der Gegenstelle wird dann das Transfernetz mit einer Netmask von
   255.255.255.252 konfiguriert, die ..225 wird dort die entfernte
   Adresse und die Defaultroute an der Gegenstelle zeigt darauf.
-  (Außerdem muß manchmal eine Route für das Netz, hier 129.130.131.0,
+  (AuÃŸerdem muÃŸ manchmal eine Route fÃ¼r das Netz, hier 129.130.131.0,
   eingetragen werden, die auf die Gegenseite, hier .225, zeigt.)
 
   Diese Methode verschwendet 75% des Adressbereichs (die Nummern .224,
   .225 und .227 werden im Internet nie in Erscheinung treten) und einer der
   Rechner auf der Gegenseite verwendet dummerweise eine Nummer aus dem
-  lokalen Netz, für die ein funktionierender Nameserver-Eintrag gepflegt
-  werden muß, hat aber den Vorteil, daß sie funktioniert.
+  lokalen Netz, fÃ¼r die ein funktionierender Nameserver-Eintrag gepflegt
+  werden muÃŸ, hat aber den Vorteil, daÃŸ sie funktioniert.
 
-  Es fällt außerdem auf, daß die lokale Adresse und Konfiguration des
-  ISDN-Links nichts mit dem zu tun haben muß, was die Gegenseite von uns
+  Es fÃ¤llt auÃŸerdem auf, daÃŸ die lokale Adresse und Konfiguration des
+  ISDN-Links nichts mit dem zu tun haben muÃŸ, was die Gegenseite von uns
   denkt. Das ist auch total egal -- im Gegensatz zu PPP werden die Adressen
   nicht mit der Gegenstelle abgeglichen. Das einzige, auf das es ankommt,
-  ist, daß die jeweils lokalen Adressen auch als lokal angesehen werden und
+  ist, daÃŸ die jeweils lokalen Adressen auch als lokal angesehen werden und
   _nicht_ irgendwie wieder zur Gegenseite geroutet werden. Pingpongpakete
   haben auf einer ISDN-Leitung nichts verloren! (Und auch nirgends anders.)
 
-  Es fällt außerdem auf, daß ich nichts von routed und ähnlichen Programmen
+  Es fÃ¤llt auÃŸerdem auf, daÃŸ ich nichts von routed und Ã¤hnlichen Programmen
   gesagt habe. Das ist Absicht. Konfiguriert eure Routen lieber statisch,
-  das ist gesünder...
+  das ist gesÃ¼nder...
 
 
 Die Konfigurationsdatei
 =======================
 
 Die Datei besteht aus verschiedenen Zeilentypen, die frei gemischt werden
-können. Der erste auf ein Problem passende Eintrag wird verwendet; auf eine
+kÃ¶nnen. Der erste auf ein Problem passende Eintrag wird verwendet; auf eine
 passende Zeile folgende solche werden bei manchen Zeilentypen ebenfalls 
 ausgewertet.
 Strings in spitzen Klammern sind Platzhalter. Ein Doppelpunkt mit zwei
-folgenden Buchstaben ist ein Parameter, dem eine vom Parameter abhängige
+folgenden Buchstaben ist ein Parameter, dem eine vom Parameter abhÃ¤ngige
 Anzahl Werte folgen kann.
 
 
 Vorgehensweise des Masterprogramms beim Aufbau einer Verbindung:
 --------------
-Das Zielsystem wird ausgewählt (D- und P-Zeile: ankommende Verbindung;
+Das Zielsystem wird ausgewÃ¤hlt (D- und P-Zeile: ankommende Verbindung;
     R-Zeile, bei Programmstart).
 Das in der R-Zeile angegebene Programm wird gestartet. 
 Die in der ML-Zeile angegebenen Module werden zwischen den ISDN-Treiber und
@@ -636,17 +636,17 @@ Die in der ML-Zeile angegebenen Module werden zwischen den ISDN-Treiber und
 Die Module werden mit Parametern (in MP-Zeilen angegeben) versorgt.
 Eine freie Karte (Liste der installierten Karten, DL-Zeile, CL-Zeile) wird
     gesucht.
-Eine Nummer des Zielsystems wird gewählt (D- und P-Zeile: abgehende
+Eine Nummer des Zielsystems wird gewÃ¤hlt (D- und P-Zeile: abgehende
     Verbindung).
 Ein freier B-Kanal (welcher, sagt uns die Vermittlung) wird der Verbindung
     zugeordnet. 
-Die Module (und optional das Programm, via Signal) werden informiert, daß
+Die Module (und optional das Programm, via Signal) werden informiert, daÃŸ
     die Verbindung steht.
 <Datenaustausch>
 
 Zueinander passende Zeilen haben jeweils gleiche oder via Shell-Pattern-
 matching zusammenpassende <Art>-, <Partner>- und <Karte>-Felder, in
-mindestens einem Zeichen übereinstimmende <Key>-Felder, und zur
+mindestens einem Zeichen Ã¼bereinstimmende <Key>-Felder, und zur
 aufzubauenden Verbindung passende Zeichen im <Mod>-Feld etc.; siehe die
 unten folgenden Detailbeschreibungen.
 
@@ -654,13 +654,13 @@ Nummern und ISDN-Karten werden im Rotationsverfahren durchprobiert; dadurch
 werden mehrere lokale und entfernte Nummern gleichberechtigt verwendet.
 Alle anderen Zeilen werden von oben nach unten durchsucht; die erste
 passende Zeile wird verwendet. (Beim Scannen der P-Zeilen werden Daten aus
-passenden Folgezeilen ebenfalls berücksichtigt -- siehe unten.)
+passenden Folgezeilen ebenfalls berÃ¼cksichtigt -- siehe unten.)
 
 Bei Problemen (Ggeenstelle besetzt...) wird bei permanenten Verbindungen
 ein paarmal probiert, dann werden anstehende Daten weggeworfen und die
-Verbindung eine bestimmte (exponentiell wachsende (ja, das muß sein) Zeit
+Verbindung eine bestimmte (exponentiell wachsende (ja, das muÃŸ sein) Zeit
 auf Eis gelegt. Ein ankommender Anruf weckt diese Verbindung
-selbstverständlich wieder auf.
+selbstverstÃ¤ndlich wieder auf.
 
 
 Konfigurationsdatei: Details
@@ -668,34 +668,34 @@ Konfigurationsdatei: Details
 
 Alle Zeilentypen:
 
-<Key> ist jeweils ein beliebiger String. Alle für eine Verbindung verwendeten
-      Zeilen in der Konfigdatei müssen zueinander passende Keys haben, d.h.
-      mindestens ein Zeichen muß in allen Keys übereinstimmen. "*" paßt zu
+<Key> ist jeweils ein beliebiger String. Alle fÃ¼r eine Verbindung verwendeten
+      Zeilen in der Konfigdatei mÃ¼ssen zueinander passende Keys haben, d.h.
+      mindestens ein Zeichen muÃŸ in allen Keys Ã¼bereinstimmen. "*" paÃŸt zu
       allen anderen Zeichen.
       Der resultierende String ist also die Schnittmenge aller Zeichen in
       den <Key>-Parametern aller verwendeter Konfigurationszeilen.
       <Key>-Zeilen mit einem Pluszeichen an erster Stelle werden nur auf
-      Vorhandensein eines Zeichens geprüft, aber die Menge wird nicht
-      eingeschränkt. Beispiel:
+      Vorhandensein eines Zeichens geprÃ¼ft, aber die Menge wird nicht
+      eingeschrÃ¤nkt. Beispiel:
       "ab"  "cd"       -> leere Menge
       "ab"  "xay"      -> "a"
       "ab"  "+x"       -> leere Menge
       "ab"  "+bx"      -> "ab+bx" (oder "ab+b", aber _nicht_ "ab" oder "b")
       "ab"  "+bx" "a"  -> leere Menge
-      "ab"  "+bx" "+a" -> "ab+bx+a" (oder so ähnlich)
-      Damit läßt sich sehr flexibel einstellen, wer wann auf welcher
+      "ab"  "+bx" "+a" -> "ab+bx+a" (oder so Ã¤hnlich)
+      Damit lÃ¤ÃŸt sich sehr flexibel einstellen, wer wann auf welcher
       Leitung / Nummer mit welchen Parametern anrufen kann.
 <Karte> ist der vierstellige Name der ISDN-Karte, der dieser beim Laden
-        des Treibers verpaßt wurde; üblich ist eine dreistellike Kennung
+        des Treibers verpaÃŸt wurde; Ã¼blich ist eine dreistellike Kennung
         des Kartentyps und eine fortlaufende Numerierung.
-        Ein angefügtes /# gibt an, daß die Zeile nur auf das Interface
+        Ein angefÃ¼gtes /# gibt an, daÃŸ die Zeile nur auf das Interface
         Nr. # der Karte angewendet werden kann; mehrere Ziffern sind
-        möglich (Beispiel: "Bin0/23".)
+        mÃ¶glich (Beispiel: "Bin0/23".)
 <Mod> sind einzelne Buchstaben, die der betreffenden Zeile eine Sonder-
       behandlung verpassen. Welche, ist jeweils beschrieben.
       Die Unterscheidung "mehrere gleichzeitig" oder "nur eine
-      gleichzeitig" bei Wählverbindungen bezieht sich jeweils auf eine
-      Art/Partner-Kombination; allgemeinere Einschränkungen werden mit
+      gleichzeitig" bei WÃ¤hlverbindungen bezieht sich jeweils auf eine
+      Art/Partner-Kombination; allgemeinere EinschrÃ¤nkungen werden mit
       einer Extra-CL-Zeile realisiert.
 <Parameter...> ist eine Folge von einem oder mehr Parameter-Wert-Angaben.
                (Manche Parameter haben keine Wertangabe.)
@@ -716,12 +716,12 @@ Parameter:
     "Verbindungs"handlers.)
 :dI Eine Verbinung dieses Typs soll persistent sein, d.h. zwischen zwei
     Verbindungen wird das handhabende Programm nicht unterbrochen.
-    Ein "reconn"-Streamsmodul (_muß_ in der zu dieser P-Zeile passenden
-    ML-Zeile auftauchen!) stellt sicher, daß das Programm davon nichts
-    mitbekommt, außer wenn der Wiederaufbau der Verbindung nicht klappt.
-:bc Zu verwendender B-Kanal, 1 oder 2 (oder 30, bei S2M). Nur für Fest-
+    Ein "reconn"-Streamsmodul (_muÃŸ_ in der zu dieser P-Zeile passenden
+    ML-Zeile auftauchen!) stellt sicher, daÃŸ das Programm davon nichts
+    mitbekommt, auÃŸer wenn der Wiederaufbau der Verbindung nicht klappt.
+:bc Zu verwendender B-Kanal, 1 oder 2 (oder 30, bei S2M). Nur fÃ¼r Fest-
     verbindungen interessant; im normalen ISDN managt die Vermittlung die
-    B-Kanäle für uns.
+    B-KanÃ¤le fÃ¼r uns.
 :nj Kann der Ruf nicht angenommen werden, wird BUSY statt CallRejected
     gesendet.
 :xi Wenn ankommende und abgehende Anrufe kollidieren, soll der an-
@@ -732,52 +732,52 @@ Parameter:
     ist manchmal notwendig, Symptom: der abgehende Ruf wird kurz nach
     dem Aufbau der Verbindung abgebrochen (beobachten mit AT/W).
 :bi Bei einem ankommenden Ruf, der nicht angenommen werden kann (belegt?),
-    wird automatisch auf einer anderen Leitung zurückgerufen.
+    wird automatisch auf einer anderen Leitung zurÃ¼ckgerufen.
     :fr ebenfalls zu setzen ist meist sinnvoll.
 :il Die CL-Zeile wird ignoriert.
 :fX Ankommende Anrufe, die (zB wegen besetzt) abgewiesen werden, werden
-    "schnell" abgelehnt. (Andere Geräte am Bus können nicht abheben, da die
+    "schnell" abgelehnt. (Andere GerÃ¤te am Bus kÃ¶nnen nicht abheben, da die
     Vermittlung nicht abwartet, ob sich noch jemand meldet.)
     Dieses Flag ist bei aktivem Callback meistens notwendig, wenn der
-    andere B-Kanal anderweitig beschäftig ist, weil die Vermittlung den
-    ankommenden Ruf noch hält und den abgehenden wegen Kanalmangel abweist.
+    andere B-Kanal anderweitig beschÃ¤ftig ist, weil die Vermittlung den
+    ankommenden Ruf noch hÃ¤lt und den abgehenden wegen Kanalmangel abweist.
     :-(
 :fr Abgehende Anrufe, die nicht durchkommen, werden "sofort" und "oft"
     wiederholt.
 :ib Wenn ankommend kein B-Kanal mitgeliefert wird, wird die Verbindung
-    abgewiesen. (zB wenn man dich den Anschluß mit einem anderen gerät
-    teilt.) Fehlt :ib, hört die Gegenseite in diesem Fall ein normales
+    abgewiesen. (zB wenn man dich den AnschluÃŸ mit einem anderen gerÃ¤t
+    teilt.) Fehlt :ib, hÃ¶rt die Gegenseite in diesem Fall ein normales
     Rufzeichen ("Anklopfen"); die Verbindung wird nach 40 Sekunden
-    ausgelöst, wenn bis dahin kein B-Kanal frei wird..
+    ausgelÃ¶st, wenn bis dahin kein B-Kanal frei wird..
 
     Logischerweise darf :xi oder :yi nicht auf beiden Seiten angegeben
     sein..!
 
-Spezifisch für 1TR6 und CAPI:
-:sv Dienstkennung; zwei Bytes in Hex. Telefon ist 0101 und 0102; DFÜ ist
-    07xx (xx ist üblicherweise 00).
+Spezifisch fÃ¼r 1TR6 und CAPI:
+:sv Dienstkennung; zwei Bytes in Hex. Telefon ist 0101 und 0102; DFÃœ ist
+    07xx (xx ist Ã¼blicherweise 00).
 :pv Semipermanente Verbindung bei abgehenden Rufen. 
-    Ankommend werden SPVs automatisch unterstützt.
+    Ankommend werden SPVs automatisch unterstÃ¼tzt.
 
-Spezifisch für Euro-ISDN:
+Spezifisch fÃ¼r Euro-ISDN:
 :vB Bearer Capability. Hexstring, evtl. mit Maske.
 :vL Lower Layer Compatibility. Hexstring, evtl. mit Maske.
 :vU Upper Layer Compatibility. Hexstring, evtl. mit Maske.
     Was diese Dinger bedeuten, steht in der Norm Q.931.
-    Die wichtigsten Codes für :vB stehen am Ende dieser Anleitung.
+    Die wichtigsten Codes fÃ¼r :vB stehen am Ende dieser Anleitung.
 
-Spezifisch für die Bearbeitung von Telefonnummern:
+Spezifisch fÃ¼r die Bearbeitung von Telefonnummern:
 :nr Entfernte Telefonnummer. Siehe unten unter Telefonnummernverarbeitung.
-:lr Lokal angewählte Telefonnummer, bzw. deren variabler Teil.
+:lr Lokal angewÃ¤hlte Telefonnummer, bzw. deren variabler Teil.
 
 Metaparameter:
-:om Die folgenden Nummernteile sind zum Rauswählen bestimmt, d.h. eindeutig.
-:im Die folgenden Nummernteile sind zum Einwählen bestimmt, d.h. Muster.
+:om Die folgenden Nummernteile sind zum RauswÃ¤hlen bestimmt, d.h. eindeutig.
+:im Die folgenden Nummernteile sind zum EinwÃ¤hlen bestimmt, d.h. Muster.
 :bm Die Nummernteile werden sowohl ankommend als auch abgehend verwendet
     (Default).
-:vr Ankommend: bei fehlender externer Nummer wird die Zeile übersprungen.
+:vr Ankommend: bei fehlender externer Nummer wird die Zeile Ã¼bersprungen.
 :vl Dito, fehlende lokale Nummer.
-:Vr Ankommend: bei mitgelieferter externer Nummer wird die Zeile übersprungen.
+:Vr Ankommend: bei mitgelieferter externer Nummer wird die Zeile Ã¼bersprungen.
 :Vl Dito, mitgelieferte lokale Nummer.
 
     Hierbei gilt: Angegeben werden nur die Nummernteile, die nicht in den
@@ -785,28 +785,28 @@ Metaparameter:
     Angaben lokale und entfernte Nummern.
 
 Mod:
-R  Die Zeile wird primär für einen Verbindungsaufbau verwendet.
-M  Die Zeile wird nur dann analysiert, wenn eine über ihr gefundene P-Zeile
-   "paßt".
-X  Wenn diese Zeile (oder eine darüberliegende) "paßt", wird das Scannen
+R  Die Zeile wird primÃ¤r fÃ¼r einen Verbindungsaufbau verwendet.
+M  Die Zeile wird nur dann analysiert, wenn eine Ã¼ber ihr gefundene P-Zeile
+   "paÃŸt".
+X  Wenn diese Zeile (oder eine darÃ¼berliegende) "paÃŸt", wird das Scannen
    nach weiteren passenden Angaben hier abgebrochen.
-i  für ankommende Verbindungen
-o  für abgehende Verbindungen
-f  für Festverbindungen
-d  für Wählverbindungen (nur eine gleichzeitig)
-m  für Wählverbindungen (mehrere gleichzeitig)
-p  für Verbindungsaufbau nach Bedarf
+i  fÃ¼r ankommende Verbindungen
+o  fÃ¼r abgehende Verbindungen
+f  fÃ¼r Festverbindungen
+d  fÃ¼r WÃ¤hlverbindungen (nur eine gleichzeitig)
+m  fÃ¼r WÃ¤hlverbindungen (mehrere gleichzeitig)
+p  fÃ¼r Verbindungsaufbau nach Bedarf
 ,# Ein Verbindungsaufbauversuch wird #-mal wiederholt, bevor ein Fehler
    gemeldet und Daten weggeworfen werden.
-.# Eine Verbindung muß mindestens # Sekunden lang bestehen, sonst wird sie
+.# Eine Verbindung muÃŸ mindestens # Sekunden lang bestehen, sonst wird sie
    als Fehler gewertet und erstmal als OFF markiert.
-   Dasselbe passiert, wenn eine Verbindung nicht vollständig aufgebaut
+   Dasselbe passiert, wenn eine Verbindung nicht vollstÃ¤ndig aufgebaut
    werden konnte, aber Kosten verursacht hat.
 
-Der Suchalgorithmus findet zunächst eine zur Verbindung passende Zeile mit
-R-Flag und hängt an deren Parameterliste alle ebenfalls passenden Zeilen
+Der Suchalgorithmus findet zunÃ¤chst eine zur Verbindung passende Zeile mit
+R-Flag und hÃ¤ngt an deren Parameterliste alle ebenfalls passenden Zeilen
 mit M-Flag an (dabei werden bereits angegebene Werte beibehalten, die
-spezifischen Einträge also nach oben!), bis er auf eine Zeile mit X-Flag
+spezifischen EintrÃ¤ge also nach oben!), bis er auf eine Zeile mit X-Flag
 trifft. 
 
 
@@ -820,56 +820,56 @@ Beispiel:
 ML login * * * - frame x75 t70
 
 Hiermit wird angegeben, wie die Karte eingestellt und welche Streams-Module
-für einen B-Kanal verwendet werden müssen, um zwischen diesem und einer
-Anwendung zu vermitteln. Die Beschreibung der verfügbaren Module folgt
+fÃ¼r einen B-Kanal verwendet werden mÃ¼ssen, um zwischen diesem und einer
+Anwendung zu vermitteln. Die Beschreibung der verfÃ¼gbaren Module folgt
 weiter unten; als erstes "Modul" wird der Modus angegeben, in den der
 B-Kanal beim Verbindungsaufbau geschaltet werden soll.
 
 Konzeptuell sind diese Module gestapelt; "unten" ist die Karte, "oben" das
 Anwendungsprogramm. Zwischen diesem und dem letzten Modul in der obigen
 Liste wird stets ein Spezialmodul namens "proto" eingeschoben, das die
-Meldungen zum Verbindungsaufbau etc. so verarbeitet, daß die Anwendung
+Meldungen zum Verbindungsaufbau etc. so verarbeitet, daÃŸ die Anwendung
 davon nichts mitbekommt."proto" darf nie in einer ML - Zeile erscheinen.
 
 Mod:
-i für ankommende Verbindungen
-o für abgehende Verbindungen
-f für Festverbindungen
-d für Wählverbindungen (nur eine gleichzeitig)
-m für Wählverbindungen (mehrere gleichzeitig)
-p für Verbindungsaufbau nach Bedarf
-,#  Verzögerung bei Verbindungsende, in Sekunden, für sauberes
+i fÃ¼r ankommende Verbindungen
+o fÃ¼r abgehende Verbindungen
+f fÃ¼r Festverbindungen
+d fÃ¼r WÃ¤hlverbindungen (nur eine gleichzeitig)
+m fÃ¼r WÃ¤hlverbindungen (mehrere gleichzeitig)
+p fÃ¼r Verbindungsaufbau nach Bedarf
+,#  VerzÃ¶gerung bei Verbindungsende, in Sekunden, fÃ¼r sauberes
     Herunterfahren des B-Kanalprotokolls.
 
 Modi:
 
-trans       volltransparente Verbindung. Es wird ständig ein synchroner 
-            64-kBit-Datenstrom übertragen. Wenn nichts gesendet wird,
-            werden 1-Bits übertragen. (Der Zustand "wenn nichts empfangen
+trans       volltransparente Verbindung. Es wird stÃ¤ndig ein synchroner 
+            64-kBit-Datenstrom Ã¼bertragen. Wenn nichts gesendet wird,
+            werden 1-Bits Ã¼bertragen. (Der Zustand "wenn nichts empfangen
             wird" kann nicht vorkommen!)
 transalaw   wie oben, aber statt Einsen wird 0xAA gesendet ("Ruhepegel" bei
             A-Law-Sprachkodierung). Das Senden von Rauschen, wie auf
             gemultiplexten Satellitenleitungen, habe ich mir erspart...
 transv110   wie oben, aber statt Einsen werden leere V.110-Frames (38.4 kBaud)
             gesendet.
-frame       Standardmodus für Datenübertragung; die Karte interpretiert den
+frame       Standardmodus fÃ¼r DatenÃ¼bertragung; die Karte interpretiert den
             B-Kanal als HDLC-Datenstrom, inkl. 0-Bit-Einschieben nach 5
-            1-Bits, Prüfsumme, etc.
-frame16     16-bit breite Datenübertragung auf entsprechenden
+            1-Bits, PrÃ¼fsumme, etc.
+frame16     16-bit breite DatenÃ¼bertragung auf entsprechenden
             Festverbindungen. Funktioniert nur auf dem ersten B-Kanal
-            (der Modus greift sich einfach beide Kanäle) und (unter anderem
-            wegen möglichen Laufzeitunterschieden) nicht bei zwei
-            Wählverbindungen zur gleichen Zielstation.
+            (der Modus greift sich einfach beide KanÃ¤le) und (unter anderem
+            wegen mÃ¶glichen Laufzeitunterschieden) nicht bei zwei
+            WÃ¤hlverbindungen zur gleichen Zielstation.
 /* die folgenden Modi sind noch nicht implementiert, bzw. nicht getestet */
-frame0      Wie 'frame', aber zusätzlich wird 1-Bit-Einschieben nach 7 0-Bits
-            aktiviert. Für Leitungen in manche Ecken der USA, die keine
+frame0      Wie 'frame', aber zusÃ¤tzlich wird 1-Bit-Einschieben nach 7 0-Bits
+            aktiviert. FÃ¼r Leitungen in manche Ecken der USA, die keine
             Nulloktetts auf der Leitung zulassen (weil sie keinen externen
             Takt verwenden).
 framehi     wie 'frame', nur werden nur die oberen 7 Bits verwendet.
 framelo     ... oder die unteren Bits. Sinnvoll dann, wenn jemand den Daten-
             strom auf eine 56-kBaud-Leitung umsetzt.
-ppp         PPP. Momentan (leider) nur für aktive Karten, die PPP on-board
-            können.
+ppp         PPP. Momentan (leider) nur fÃ¼r aktive Karten, die PPP on-board
+            kÃ¶nnen.
 
 
 MP-Zeile ("Modulparameter")
@@ -882,20 +882,20 @@ Beispiel:
 MP login * * * - proto :bk 0 :sg 0
 MP login * * * - x75 :cm 3
 
-Mit dieser Zeile können Module parametrisiert werden, um ihre interne
-Arbeitsweise so einzustellen, daß sie korrekt mit der Gegenseite zusammen-
-arbeiten. Die möglichen Parameter sind unter den einzelnen Modulen, unten, 
+Mit dieser Zeile kÃ¶nnen Module parametrisiert werden, um ihre interne
+Arbeitsweise so einzustellen, daÃŸ sie korrekt mit der Gegenseite zusammen-
+arbeiten. Die mÃ¶glichen Parameter sind unter den einzelnen Modulen, unten, 
 beschrieben.
 
 Mod:
-i für ankommende Verbindungen
-o für abgehende Verbindungen
-f für Festverbindungen
-d für Wählverbindungen (nur eine gleichzeitig)
-m für Wählverbindungen (mehrere gleichzeitig)
-p für Verbindungsaufbau nach Bedarf
-u für Parameter, die nur beim Programmstart gesetzt werden (x75-Kram zB)
-a für Parameter, die bei Neueinlesen der Konfigdaten gesetzt werden
+i fÃ¼r ankommende Verbindungen
+o fÃ¼r abgehende Verbindungen
+f fÃ¼r Festverbindungen
+d fÃ¼r WÃ¤hlverbindungen (nur eine gleichzeitig)
+m fÃ¼r WÃ¤hlverbindungen (mehrere gleichzeitig)
+p fÃ¼r Verbindungsaufbau nach Bedarf
+u fÃ¼r Parameter, die nur beim Programmstart gesetzt werden (x75-Kram zB)
+a fÃ¼r Parameter, die bei Neueinlesen der Konfigdaten gesetzt werden
 
 
 D-Zeile ("Dial")
@@ -912,20 +912,20 @@ D tcp xlink * Tel2 L
 
 Angabe der Telefonnummer, unter der eine Gegenstelle erreichbar ist bzw.
 mit der sie sich bei ankommenden Rufen meldet. Festverbindungen haben 
-natürlich keine Nummer. 
+natÃ¼rlich keine Nummer. 
 
 Mod:
-i  für ankommende Verbindungen
-o  für abgehende Verbindungen
-f  für Festverbindungen (der zu verwendende B-Kanal steht in der P-Zeile)
-d  für Wählverbindungen (nur eine gleichzeitig)
-m  für Wählverbindungen (mehrere gleichzeitig)
-p  für Verbindungsaufbau nach Bedarf
-,# Dies ist eine Backup-Nummer der Priorität #.
-   Zuerst werden alle Nummern mit Priorität Null (oder ohne Angabe)
-   probiert, dann die nächsthöhere Priorität, etc.
-   Der Verbindungsversuchszähler wird nach jedem Prioritätswechsel
-   zurückgesetzt.
+i  fÃ¼r ankommende Verbindungen
+o  fÃ¼r abgehende Verbindungen
+f  fÃ¼r Festverbindungen (der zu verwendende B-Kanal steht in der P-Zeile)
+d  fÃ¼r WÃ¤hlverbindungen (nur eine gleichzeitig)
+m  fÃ¼r WÃ¤hlverbindungen (mehrere gleichzeitig)
+p  fÃ¼r Verbindungsaufbau nach Bedarf
+,# Dies ist eine Backup-Nummer der PrioritÃ¤t #.
+   Zuerst werden alle Nummern mit PrioritÃ¤t Null (oder ohne Angabe)
+   probiert, dann die nÃ¤chsthÃ¶here PrioritÃ¤t, etc.
+   Der VerbindungsversuchszÃ¤hler wird nach jedem PrioritÃ¤tswechsel
+   zurÃ¼ckgesetzt.
 
 
 TM-Zeile ("Time")
@@ -937,13 +937,13 @@ TM <Key> <Zeitangabe>
 Beispiel:
 TM abcde SaSu,Mo-Fr18-08
 
-Schlüssel für Zeiten. Zu der angegebenen Zeit werden nur Verbindungen
+SchlÃ¼ssel fÃ¼r Zeiten. Zu der angegebenen Zeit werden nur Verbindungen
 zugelassen, deren <Key>-Parameter mit dem angegebenen Key kompatibel ist.
 
-Die gefundenen Schlüsselwerte werden geODERt, d.h.
+Die gefundenen SchlÃ¼sselwerte werden geODERt, d.h.
   TM ab Wk
   TM cd 08-10
-wird, wenn am Montag um neun Uhr aufgerufen, zu "abcd" aufgelöst.
+wird, wenn am Montag um neun Uhr aufgerufen, zu "abcd" aufgelÃ¶st.
 
 
 DL-Zeile ("Dial Local")
@@ -956,15 +956,15 @@ Beispiel:
 DL * Tel? +49=911-995962. :pr 0 :sp 65 :pr 63
 
 Eigene Telefonnummer. Im Beispiel sind alle Karten, auf die "Tel?"
-paßt, an einer ISDN-Leitung mit dieser Nummer angeschlossen.
+paÃŸt, an einer ISDN-Leitung mit dieser Nummer angeschlossen.
 
-Diese Zeile wird verwendet, um die kürzestmögliche Rufnummer für
+Diese Zeile wird verwendet, um die kÃ¼rzestmÃ¶gliche Rufnummer fÃ¼r
 abgehende Verbindungen zu finden und um die verwendeten Protokolle zu
 spezifizieren. Hat eine Karte mehrere Rufnummern (MSNs), werden die
 Protokolle nur in der ersten DL-Zeile angegeben.
 
-Zusätzlich werden in der DL-Zeile die Protokolle beschrieben, mit denen der
-ISDN-Treiber mit der Karte redet. Diese Protokolle müssen natürlich auch in
+ZusÃ¤tzlich werden in der DL-Zeile die Protokolle beschrieben, mit denen der
+ISDN-Treiber mit der Karte redet. Diese Protokolle mÃ¼ssen natÃ¼rlich auch in
 den Treiber eingebaut werden, und zwar in der Datei config/config.data,
 Eintrag PROTOCOLS (spitze Klammer) und SUBPROTOCOLS (eckige Klammer).
 
@@ -989,21 +989,21 @@ Protokolle und Flags in der DL-Zeile:
 Die Reihenfolge ist wichtig.
 
 :pp        Punkt-zu-Punkt-Verbindung, feste TEI (0x00).
-           Vorsicht: Anlagenanschluß wird vom 1TR6-Treiber nicht und vom
-           Euro-Treiber nur unvollständig unterstützt.
+           Vorsicht: AnlagenanschluÃŸ wird vom 1TR6-Treiber nicht und vom
+           Euro-Treiber nur unvollstÃ¤ndig unterstÃ¼tzt.
 :mp        Verbindung am Bus, variabler TEI-Identifier. Bei manchen 1TR6-
            Vermittlungen und Nebenstellenanlagen notwendig, in der DSS1-
            Norm vorgeschrieben.
 :mq        Verbindung am Bus, fester TEI-Identifier. Default, weil es an
            vielen Anlagen besser funktioniert als :mp.
-:mt        Verbindung am Bus, feste TEI(0x12). In Spezialfällen notwendig.
+:mt        Verbindung am Bus, feste TEI(0x12). In SpezialfÃ¤llen notwendig.
 :de        Debugging, macht D-Kanal-Datenaustausch beobachtbar (mit AT/W).
            Vorsicht: Diese Option verlangsamt das gesamte ISDN-System, auch
            wenn niemand mit AT/W zusieht.
            Die beobachteten Daten sind bei manchen aktiven Karten entweder
-           verzögert, oder sie können nicht dargestellt werden!
+           verzÃ¶gert, oder sie kÃ¶nnen nicht dargestellt werden!
 
-:ud XX     Verzögerung zwischen dem Verbindungsaufbau (D-Kanal) und dem
+:ud XX     VerzÃ¶gerung zwischen dem Verbindungsaufbau (D-Kanal) und dem
            eigentlichen Datenaustausch (B-Kanal). Zehntelsekunden; max.
            2 Sekunden; Default 1/4 Sekunde. Mit :ud 0 geht der Verbindungs-
            aufbau entweder etwas schneller, oder das erste Paket wird
@@ -1015,45 +1015,45 @@ Die Reihenfolge ist wichtig.
            verwendet werden. <phone>
   :kl      Level-2-Verbindung zur Vermittlung nicht trennen. Bei Punkt-
            zu-Punkt-Verbindungen und bei entsprechend konfigurierten
-           ISDN-Anschlüssen ("Dauerüberwachung" oder sowas ähnliches)
+           ISDN-AnschlÃ¼ssen ("DauerÃ¼berwachung" oder sowas Ã¤hnliches)
            notwendig.
   :cl      Level-2-Verbindung zur Vermittlung trennen, wenn keine
            Verbindung besteht. Default.
 
-           Entweder :sp 8 oder :sp 65 muß angegeben werden, NICHT beides!
+           Entweder :sp 8 oder :sp 65 muÃŸ angegeben werden, NICHT beides!
   :sp 8    DSS1, Euro-ISDN. [euro]
     :b1    an manchen Nebenstellen zur korrekten Nummernerkennung notwendig.
            Einschalten, wenn die Nebenstellennummer nicht mit . oder /
            eingeleitet wird.
-    :b2    anscheinend senden manche Idioten (holländische PTT?) die
-           Gebühreninfo in DISPLAY- Datenblöcken.  Grummel hoch drei.
+    :b2    anscheinend senden manche Idioten (hollÃ¤ndische PTT?) die
+           GebÃ¼hreninfo in DISPLAY- DatenblÃ¶cken.  Grummel hoch drei.
   :sp 65   1TR6, deutscher Standard. [german]
 
-  :ai      Ankommenden Anruf mit dem ISDN-Äquivalent von "RINGING"
-           beantworten, dann prüfen ob der Anruf angenommen werden kann. 
+  :ai      Ankommenden Anruf mit dem ISDN-Ã„quivalent von "RINGING"
+           beantworten, dann prÃ¼fen ob der Anruf angenommen werden kann. 
            Notwendig bei langsamen Rechnern.
-  :ad      Ankommende Anrufe erst prüfen, dann annehmen (oder auch nicht).
+  :ad      Ankommende Anrufe erst prÃ¼fen, dann annehmen (oder auch nicht).
            Default.
 :pr 63     TEI-Handler (Transport Endpoint Identifier). <tei>
   :ti      TEI sofort zuordnen lassen. Notwendig bei langsamen / sehr
-           beschäftigten Rechnern und bei manchen Telefonanlagen.
+           beschÃ¤ftigten Rechnern und bei manchen Telefonanlagen.
   :td      TEI beim ersten Verbindungsaufbau zuordnen lassen. Default.
 :pr 64     Festverbindung: kein D-Kanal. <fixed>
 :pr 65     Intelligente Karte mit CAPI-1.x-Schnittstelle.
-           In der Konfiguration verhält sich eine CAPI-Karte ansonsten wie
+           In der Konfiguration verhÃ¤lt sich eine CAPI-Karte ansonsten wie
            der 1TR6-Treiber, und zwar AUCH DANN WENN DAS TEIL AM EURO-ISDN
-           HÄNGT. <capi>
-  :pb      Die Karte hängt an einem Anlagenanschluß / S2M und verhält sich
+           HÃ„NGT. <capi>
+  :pb      Die Karte hÃ¤ngt an einem AnlagenanschluÃŸ / S2M und verhÃ¤lt sich
            wie eine Nebenstellenanlage.
   :b1      Externe Nummern bei ankommenden Rufen haben eine Vorwahl mit
-           führender Null _und_ ein voranstehendes =. (U-ISDN versteht
+           fÃ¼hrender Null _und_ ein voranstehendes =. (U-ISDN versteht
            das nicht.)
   :sp 0    Bintec-Karte. [bintec]
-           Auf diese Karte muß zunächst boot.68k und dann entweder bri.68k
+           Auf diese Karte muÃŸ zunÃ¤chst boot.68k und dann entweder bri.68k
            oder pmx.68k geladen werden (LF-Zeile).
      :sc X      Die folgenden Optionen betreffen nur das Xte Interface
                 auf der Karte. X in 1..4.
-     :lp X X X  CAPI-Bitmasken für EAZ, Service, Infos. Hexadezimal.
+     :lp X X X  CAPI-Bitmasken fÃ¼r EAZ, Service, Infos. Hexadezimal.
                 Default: 03FF E7BF 003F.
      :st XXXXX  Protokollstack XXXXX laden. Siehe Handbuch zur Karte.
                 Default ist u_1tr6_pmp (wenn "german", aber nicht "euro", in
@@ -1061,7 +1061,7 @@ Die Reihenfolge ist wichtig.
      :ea N NNN  EAZ N auf lokale Nummer (MSN) NNN mappen.
                 Default ist die letzte Ziffer der Nummer.
                 Nicht bei :pb verwenden.
-     :lw X      Warte bis zu X Sekunden auf nachgewählte Ziffern.
+     :lw X      Warte bis zu X Sekunden auf nachgewÃ¤hlte Ziffern.
                 Nur bei :pb verwenden.
 
 
@@ -1069,26 +1069,26 @@ DP-Zeile ("Dial Prefix")
 --------
 
 Form: 
-DP <Karte> <Präfixe-Dialout> <Präfixe-Dialin>
+DP <Karte> <PrÃ¤fixe-Dialout> <PrÃ¤fixe-Dialin>
 
 Beispiel:
 DP Tel? +00=0- +00=0-
 
-Definition von Nummernpräfixen, um Vermittlungsbereiche erreichen zu können.
+Definition von NummernprÃ¤fixen, um Vermittlungsbereiche erreichen zu kÃ¶nnen.
 
-Das erste Präfix ist für abgehende, das zweite (das weggelassen werden kann)
-für ankommende Verbindungen; 1TR6-Nebenstellenanlagen wollen beim Wählen
-typischerweise eine vorgestellte Null o.ä. sehen, die aber bei ankommenden
-Gesprächen nicht mit angezeigt wird. (Ich habe keine Ahnung, wie Gespräche
-innerhalb einer Anlage signalisiert werden; zum Glück stirbt 1TR6 langsam
+Das erste PrÃ¤fix ist fÃ¼r abgehende, das zweite (das weggelassen werden kann)
+fÃ¼r ankommende Verbindungen; 1TR6-Nebenstellenanlagen wollen beim WÃ¤hlen
+typischerweise eine vorgestellte Null o.Ã¤. sehen, die aber bei ankommenden
+GesprÃ¤chen nicht mit angezeigt wird. (Ich habe keine Ahnung, wie GesprÃ¤che
+innerhalb einer Anlage signalisiert werden; zum GlÃ¼ck stirbt 1TR6 langsam
 aber sicher aus.)
 
-Die Zeichen sind _immer_ "+" für internationale Verbindungen, "=" für 
-nationale Verbindungen, "-" für Ortsverbindungen, "." für Nummern an einer
-Nebenstellenanlage und "/" für EAZs/MSNs etc. Der Unterschied zwischen "."
-und "/" ist, daß Nummern einer Nebenstellenanlage direkt angerufen werden
-können, während man für eine Verbindung zu einer anderen MSN am gleichen
-Basisanschluß die Teilnehmernummer mitwählen muß. In der DP-Zeile erscheint
+Die Zeichen sind _immer_ "+" fÃ¼r internationale Verbindungen, "=" fÃ¼r 
+nationale Verbindungen, "-" fÃ¼r Ortsverbindungen, "." fÃ¼r Nummern an einer
+Nebenstellenanlage und "/" fÃ¼r EAZs/MSNs etc. Der Unterschied zwischen "."
+und "/" ist, daÃŸ Nummern einer Nebenstellenanlage direkt angerufen werden
+kÃ¶nnen, wÃ¤hrend man fÃ¼r eine Verbindung zu einer anderen MSN am gleichen
+BasisanschluÃŸ die Teilnehmernummer mitwÃ¤hlen muÃŸ. In der DP-Zeile erscheint
 folglich niemals ein "/".
 
 Beispiel: Eine Konfiguration
@@ -1096,7 +1096,7 @@ D ... -1234/[456]
 DL... -23456
 DP... -
 MP... :nr /5
-würde die Nummer 12345 wählen.
+wÃ¼rde die Nummer 12345 wÃ¤hlen.
 
 Siehe auch unten unter "Bugs anderer Leute".
 
@@ -1111,8 +1111,8 @@ Beispiel:
 R login * * * root IDUST /bin/login
 
 Hiermit wird ein Programm (plus Parameter) angegeben, das bei ankommenden
-oder abgehenden Gesprächen aufgerufen wird. Ein Dialout zu einem System
-mit "R"-Zeile ist also direkt nicht möglich, da der Datenaustausch zum
+oder abgehenden GesprÃ¤chen aufgerufen wird. Ein Dialout zu einem System
+mit "R"-Zeile ist also direkt nicht mÃ¶glich, da der Datenaustausch zum
 betreffenden Programm geht.
 
 Eine R-Zeile wird ignoriert, sobald das betreffende Programm einen Fehler
@@ -1124,40 +1124,40 @@ die Parameter bekannt sind:
 SITE      <Partner>
 PROTOCOL  <Art>
 CLASS     <Key>
-PHONE     Telefonnummer der Gegenstelle, so wie sie ankam bzw. gewählt wurde
+PHONE     Telefonnummer der Gegenstelle, so wie sie ankam bzw. gewÃ¤hlt wurde
 LPHONE    Lokale Nummer bzw. deren Endteil
 DIRECTION "IN" oder "OUT"
 DEVICE    im Normalfall: /dev/ttyiXX
 
 Mod:
-.n Die Antwort wird um n Sekunden verzögert, beispielsweise um einen Anruf-
+.n Die Antwort wird um n Sekunden verzÃ¶gert, beispielsweise um einen Anruf-
    beantworter nicht sofort abheben zu lassen.
 ,n Wenn eine automatische Verbindung nicht hergestellt werden konnte, wird
    nach n Sekunden der Verbindungsaufbau wieder erlaubt. (Noch nicht 
    implementiert)
-$ Die Befehlszeile wird nicht direkt ausgeführt, sondern der Shell übergeben.
+$ Die Befehlszeile wird nicht direkt ausgefÃ¼hrt, sondern der Shell Ã¼bergeben.
 B Die Verbindung wird beim Hochfahren des Managers automatisch aufgebaut.
-D /dev/ttyiXX wird angelegt und nach Programmende gelöscht.
+D /dev/ttyiXX wird angelegt und nach Programmende gelÃ¶scht.
 E Beim Auftreten eines Fehlers wird dieses Programm deaktiviert.
   (Reaktivieren: AT/R.)
 F Das Programm wird sofort gestartet, und die Verbindung wird aufgebaut.
   Interessant insbesondere bei Festverbindungen und SPVs.
 L nur der angegebene Benutzer kann die Verbindung aktivieren.
-Q strace(1) wird automatisch auf den neuen Prozeß losgelassen.
-R kein Dialout via ATD möglich.
+Q strace(1) wird automatisch auf den neuen ProzeÃŸ losgelassen.
+R kein Dialout via ATD mÃ¶glich.
 S stderr des Programms liegt auf ISDN (sonst: stderr des Treiberprogramms)
 T Verbindung im Terminalmodus (ankommend, also zB beim Start von /bin/login).
-U ein Eintrag in /etc/utmp wird angelegt (wichtig zB für login).
+U ein Eintrag in /etc/utmp wird angelegt (wichtig zB fÃ¼r login).
 X der Verbindungsaufbau wird erst vollendet, wenn FD 3 geschlossen wird
   (Fehlercode, wenn ein Zeichen kommt).
-i für ankommende Verbindungen
-o für abgehende Verbindungen
-f für Festverbindungen. "B" wird hier normalerweise ebenfalls angegeben.
-d für Wählverbindungen (nur eine gleichzeitig)
-m für Wählverbindungen (mehrere gleichzeitig)
-p für Verbindungsaufbau nach Bedarf ("reconn"-Modul nicht vergessen!);
+i fÃ¼r ankommende Verbindungen
+o fÃ¼r abgehende Verbindungen
+f fÃ¼r Festverbindungen. "B" wird hier normalerweise ebenfalls angegeben.
+d fÃ¼r WÃ¤hlverbindungen (nur eine gleichzeitig)
+m fÃ¼r WÃ¤hlverbindungen (mehrere gleichzeitig)
+p fÃ¼r Verbindungsaufbau nach Bedarf ("reconn"-Modul nicht vergessen!);
   wird beim Programmstart automatisch mitgestartet. Die eigentliche
-  ISDN-Verbindung wird hierdurch _nicht_ aufgebaut, dafür ist "B" gedacht.
+  ISDN-Verbindung wird hierdurch _nicht_ aufgebaut, dafÃ¼r ist "B" gedacht.
 
 
 CL-Zeile ("Connection Limit")
@@ -1168,8 +1168,8 @@ Form: CL <Art> <Partner> <Key> <Karte> <Zahl>
 Beispiel>
 CL * * * Tel? 2 
 
-Begrenzt die Zahl der für einen gegebenen Verbindungstyp verwendbaren
-B-Kanäle. Ueber das Limit hinausgehende Anrufe werden mit BUSY abgelehnt,
+Begrenzt die Zahl der fÃ¼r einen gegebenen Verbindungstyp verwendbaren
+B-KanÃ¤le. Ueber das Limit hinausgehende Anrufe werden mit BUSY abgelehnt,
 es sei denn in der entsprechenden P-Zeile steht der entsprechende
 Parameter.
 
@@ -1177,13 +1177,13 @@ Parameter.
 LF-Zeile ("Load File")
 --------
 
-Form: LF <Karte> <Segmentgröße> <Delay> <Dateiname>
+Form: LF <Karte> <SegmentgrÃ¶ÃŸe> <Delay> <Dateiname>
 
-Lädt die Datei auf die (aktive) Karte. Mehrere LF-Zeilen können angegeben
-werden (in der richtigen Reihenfolge! Doku beachten!). Die maximal mögliche
-Segmentgröße ist 4096. Der Delay gibt an, wie lange das Programm nach dem
-Laden dieser Datei mit dem nächsten Schritt warten soll (Karte macht
-Speichertest über 8 MB, und ähnliche Feinheiten).
+LÃ¤dt die Datei auf die (aktive) Karte. Mehrere LF-Zeilen kÃ¶nnen angegeben
+werden (in der richtigen Reihenfolge! Doku beachten!). Die maximal mÃ¶gliche
+SegmentgrÃ¶ÃŸe ist 4096. Der Delay gibt an, wie lange das Programm nach dem
+Laden dieser Datei mit dem nÃ¤chsten Schritt warten soll (Karte macht
+Speichertest Ã¼ber 8 MB, und Ã¤hnliche Feinheiten).
 
 
 RP-Zeile ("Run Program")
@@ -1197,45 +1197,45 @@ RP login * * * root IDUST$u echo "Login von $PHONE auf $DEVICE" >>/var/log/isdn.
 
 Hiermit wird ein Programm (plus Parameter) angegeben, das bei Eintreten
 eines bestimmten Zustands einer Verbindung gestartet wird. Parameter siehe
-R-Zeile; zusätzliche Flags sind
+R-Zeile; zusÃ¤tzliche Flags sind
 c  Stdin/out des Programms wird auf ein freies ISDN-Device gelegt.
    (Sonst: /dev/null.)
 s  schicke keine Signale
 
-Die folgenden zusätzlichen Flags werden außerdem in der
-"REASON"-Environmentvariable übergeben:
+Die folgenden zusÃ¤tzlichen Flags werden auÃŸerdem in der
+"REASON"-Environmentvariable Ã¼bergeben:
 u  Start nach erfolgtem Aufbau der Verbindung
 d  Start bei Abbau einer Verbindung
 f  Start nach erfolglosem Verbindungsversuch (abgehend)
-x  Start bei temporärer Deaktivierung eines Interface (zu viele Versuche),
+x  Start bei temporÃ¤rer Deaktivierung eines Interface (zu viele Versuche),
    anstehende Datenpakete werden weggeworfen
 y  Start bei Reaktivierung des Interface
 i  Start bei Aufruf des Verbindungshandlers (zB des "slipto"-Programms)
 r  Start bei abgelehntem Anruf
 t  Start nach Tod des Verbindungshandlers
-k  Start bei laufenden Gebühreninformationen (während oder nach der Verbindung)
-l  Start bei endgültigen Gebühreninformationen (nach Verbindungsende)
+k  Start bei laufenden GebÃ¼hreninformationen (wÃ¤hrend oder nach der Verbindung)
+l  Start bei endgÃ¼ltigen GebÃ¼hreninformationen (nach Verbindungsende)
 
-Die folgenden Flags werden bei Programmen übergeben, die via R-Zeile
+Die folgenden Flags werden bei Programmen Ã¼bergeben, die via R-Zeile
 gestartet wurden:
 B  Start beim Booten oder bei Reload der Konfigdatei
 I  Start bei ankommendem Anruf
 
 Ein mit "u" gestartetes Programm bekommt SIGHUP gesendet, wenn es bei
-Verbindungsende noch läuft; dito ein mit "d" gestartetes Programm zu
-Beginn des mächsten Verbindungsaufbaus. Einem Programm, das kontinuierlich
-läuft, wird bei jedem Statuswechsel SIGUSR1 gesendet. SIGQUIT wird an alle
+Verbindungsende noch lÃ¤uft; dito ein mit "d" gestartetes Programm zu
+Beginn des mÃ¤chsten Verbindungsaufbaus. Einem Programm, das kontinuierlich
+lÃ¤uft, wird bei jedem Statuswechsel SIGUSR1 gesendet. SIGQUIT wird an alle
 Programme gesendet, die laufen, wenn die zugeordnete Verbindung beendet
 wird.
 
 Vorsicht: Mehrere Programme unter demselben Flag laufen zu lassen
-funktioniert nur dann sicher, wenn sich alle (möglicherweise bis auf eines)
+funktioniert nur dann sicher, wenn sich alle (mÃ¶glicherweise bis auf eines)
 ziemlich schnell wieder beenden, sonst gibt es Probleme (mehrfach oder
 nicht gestartete Programme).
 
-Im Environment finden sich zusätzlich:
+Im Environment finden sich zusÃ¤tzlich:
 
-COST      für die laufende Verbindung angefallene Kosten
+COST      fÃ¼r die laufende Verbindung angefallene Kosten
 CCOST     insgesamt angefallene Kosten
 CAUSE     Aktueller Fehlerzustand (bei 
 
@@ -1252,15 +1252,15 @@ A-Law-Coder "alaw"
 Wandelt einen A-Law-Datenstrom in einen 8-Bit-Datenstrom. Dabei werden nur
 die Bytes umkodiert, die Daten aber nicht auf 12 Bit aufgeblasen. Gibt nach
 oben Bytes _mit_ Vorzeichen weiter.
-Zusätzlich können für beide Richtungen Schwellwerte definiert werden, 
-unterhalb derer keine Uebertragung zugelassen wird, um Gesprächspausen
+ZusÃ¤tzlich kÃ¶nnen fÃ¼r beide Richtungen Schwellwerte definiert werden, 
+unterhalb derer keine Uebertragung zugelassen wird, um GesprÃ¤chspausen
 herauszufiltern.
 
 :ro 0-127    Ansprechschwelle beim Empfang. Null schaltet permanent auf
              "Durchgang".
-:rx 0-127    Abschaltschwelle. Töne werden blockiert, wenn mehr als ..:
+:rx 0-127    Abschaltschwelle. TÃ¶ne werden blockiert, wenn mehr als ..:
 :rc 1-32767  aufeinanderfolgende Samples unterhalb der :rx-Schwelle liegen.
-:xo :xx :xc  wie :ro :rx :rc, aber für den Sendeteil.
+:xo :xx :xc  wie :ro :rx :rc, aber fÃ¼r den Sendeteil.
 
 
 Befehlsinterpreter "proto"
@@ -1269,21 +1269,21 @@ Sitzt immer automatisch zuoberst auf dem durch den ISDN-Treiber
 definierten Stream. Interpretiert im Befehlsmodus die eingetippten Zeichen
 und schickt sie zeilenweise an das Managementprogramm.
 Im Online-Modus wird keine Spezialzeichenfolge wie etwa "+++" gesondert
-interpretiert; stattdessen wird ein _BREAK_ zum Zurückschalten verwendet.
+interpretiert; stattdessen wird ein _BREAK_ zum ZurÃ¼ckschalten verwendet.
 
 :cr 0-255  0x13  ASCII Carriage return
 :lf 0-255  0x10  ASCII line feed
 :bs 0-255  0x08  ASCII Backspace
-:cc 0-255  0x03  Zeile löschen (Abbruch, ^C)
+:cc 0-255  0x03  Zeile lÃ¶schen (Abbruch, ^C)
 :ca 0-2    2     0: kein Hangup
                  1: Hangup bei NO CARRIER
                  2: Hangup bei CONNECT...NO CARRIER
-:bk 0-1    1     BREAK bewirkt Rückkehr in den Befehlsmodus.
+:bk 0-1    1     BREAK bewirkt RÃ¼ckkehr in den Befehlsmodus.
 :sg 0-1    0     wenn 1, sende SIGUSR1 beim Aufbau der Verbindung und
                  SIGUSR2 beim Abbau der Verbindung
 
 Die folgenden Codes werden normalerweise vom L4-Treiberprogramm gesendet:
-:on      schaltet auf Datenübertragung
+:on      schaltet auf DatenÃ¼bertragung
 :of      schaltet auf Befehlsmodus
 
 
@@ -1292,21 +1292,21 @@ Streams->IP-Wandler (str_if)
 Implementiert ein TCP/IP-Modul. Daten werden nicht in Richtung Anwender-
 programm, sondern in das TCP/IP-Networking des Kernels umgeleitet.
 
-:mt 120-4096  512  MTU des Treibers. (Die MRU hängt vom ISDN-
+:mt 120-4096  512  MTU des Treibers. (Die MRU hÃ¤ngt vom ISDN-
                    Kartentreiber ab.)
 Paketformat:
 :.N                TCP/IP (Default).
 :.E                Ethernet-Paketheader.
 :.P                PPP-Paketheader.
-:eT xxxx           xxxx: hexadezimal. Angabe des übertragenen Pakettyps (:.N).
-                   TCP/IP ist 0800 (Default). Damit können zB statt
+:eT xxxx           xxxx: hexadezimal. Angabe des Ã¼bertragenen Pakettyps (:.N).
+                   TCP/IP ist 0800 (Default). Damit kÃ¶nnen zB statt
                    "nackter" IP-Pakete ebensolche Appletalk-Pakete
-                   übertragen werden.
+                   Ã¼bertragen werden.
 
 ioctl(x,SIOCGETU,int) ioctl-Aufruf zur Uebertragung der Unit-Nummer ("strX",
 0 <= X <= 15) an ein Anwenderprogramm. Das Programm kann damit die IP-
 Adressen auf beiden Seiten des Links konfigurieren. Ein einfaches
-Treiberprogramm, "slipto", dem lokale und entfernte IP-Adresse übergeben
+Treiberprogramm, "slipto", dem lokale und entfernte IP-Adresse Ã¼bergeben
 werden, ist im Verzeichnis str_if.
 
 
@@ -1314,20 +1314,20 @@ PPP-Modul "ppp"
 ---------
 ACHTUNG: Momentan existiert dieses Modul NICHT. Der Treiber kann PPP nur in
 Verbindung mit intelligenten Karten (momentan: Bintec BRI/PMX), die PPP
-on-board haben. "Richtiges" PPP muß leider noch ein wenig warten.
+on-board haben. "Richtiges" PPP muÃŸ leider noch ein wenig warten.
 
 Bei Verwendung von PAP/CHAP-Authentifizierung: ACHTUNG: /etc/isdn.conf
 SOLLTE NICHT WORLD-LESBAR SEIN. Im Normalfall erledigt die
-Authentifizierung aber bereits das ISDN. Dieser Treiber unterstützt bei PPP
+Authentifizierung aber bereits das ISDN. Dieser Treiber unterstÃ¼tzt bei PPP
 sowieso (noch?) _keine_ Identifizierung nur via PAP oder CHAP, die
-ISDN-Rufnummer _muß_ also trotzdem korrekt übermittelt werden. PAP/CHAP
-bieten nur _zusätzliche_ Sicherheit.
+ISDN-Rufnummer _muÃŸ_ also trotzdem korrekt Ã¼bermittelt werden. PAP/CHAP
+bieten nur _zusÃ¤tzliche_ Sicherheit.
 
 str_if-Modul mit :.P konfigurieren!
 
 :iv    TCP/IP-Headerkompression aushandeln. vanj-Modul nicht vergessen...
 :in    TCP/IP-Headerkompression nicht aushandeln.
-       Entweder :iv oder :in muß angegeben werden, sonst wird kein IP
+       Entweder :iv oder :in muÃŸ angegeben werden, sonst wird kein IP
        konfiguriert...
 :pc    lokal_user lokal_pw entfernt_user entfernt_pw
        CHAP-Geheimnisse
@@ -1336,9 +1336,9 @@ str_if-Modul mit :.P konfigurieren!
 
 Cisco-HDLC-Modul "fakeh"
 ----------------
-Verwendet das Cisco-eigene "HDLC"-Protokoll. Auf der Gegenseite muß
+Verwendet das Cisco-eigene "HDLC"-Protokoll. Auf der Gegenseite muÃŸ
 (noch... hat jemand Doku zu den Tieren?) "no keepalives" konfiguriert
-werden. Die Option für das Paketformat muß genauso wie bei str_if
+werden. Die Option fÃ¼r das Paketformat muÃŸ genauso wie bei str_if
 eingestellt sein!
 
 :.N    TCP/IP (Default).
@@ -1348,7 +1348,7 @@ eingestellt sein!
 IP-Monitor "ipmon"
 ----------
 Loggt IP-Pakete mit. Das Programm "monitor" liest dieses Protokoll aus dem
-Kernel. Die Option für das Paketformat muß genauso wie bei str_if
+Kernel. Die Option fÃ¼r das Paketformat muÃŸ genauso wie bei str_if
 eingestellt sein!
 
 :.N    TCP/IP (Default).
@@ -1359,7 +1359,7 @@ eingestellt sein!
 :ps    Es wird nur die Paketsumme mitprotokolliert.
 :pf    Das erste Paket einer Verbindung wird direkt mitgeloggt, danach
        nur noch die Summe. Default.
-:to 10 Timeout in Sekunden, nach dessen Ablauf die nächste Summenmeldung
+:to 10 Timeout in Sekunden, nach dessen Ablauf die nÃ¤chste Summenmeldung
        an den Monitor geschickt werden.
 
 
@@ -1367,27 +1367,27 @@ Verbindungshalter "reconn"
 -----------------
 
 Verhindert (in Zusammenarbeit mit korrekten P- und R-Zeilen, siehe oben),
-daß eine Verbindungstrennung sich auf eine Anwendung auswirkt; die
+daÃŸ eine Verbindungstrennung sich auf eine Anwendung auswirkt; die
 Verbindung wird automatisch neu aufgebaut, sobald wieder Daten anstehen.
 
-Sollte logischerweise nicht unterhalb von X.75 oder ähnlichen Modulen zur
-Übertragungssicherung eingesetzt werden, weil die ständig Daten
-austauschen, um zu prüfen, ob die Gegenstelle noch da ist.
+Sollte logischerweise nicht unterhalb von X.75 oder Ã¤hnlichen Modulen zur
+Ãœbertragungssicherung eingesetzt werden, weil die stÃ¤ndig Daten
+austauschen, um zu prÃ¼fen, ob die Gegenstelle noch da ist.
 
 :pf  Das jeweils erste Datenpaket (das, das zum Verbindungsneuaufbau
-     geführt hat), wird in den Syslog mitgeschrieben.
+     gefÃ¼hrt hat), wird in den Syslog mitgeschrieben.
 :nf  Es wird nicht mitgeschrieben. (Default.)
 
 
 Zeitbegrenzer "timer"
 -------------
 Bricht die Verbindung ab, wenn eine bestimmte Zeit lang keine Daten
-übertragen wurden.
+Ã¼bertragen wurden.
 Alle Zeitangaben sind in Sekunden.
 
-:ti 60  Abstand zwischen den möglichen Abbruchpunkten (zB Gebührenzeittakt)
+:ti 60  Abstand zwischen den mÃ¶glichen Abbruchpunkten (zB GebÃ¼hrenzeittakt)
 :to 55  Zeit zwischen Verbindungsaufbau und erster Messung
-:tw  0  wenn zum Meßzeitpunkt soviele Sekunden nichts gesendet wurde,
+:tw  0  wenn zum MeÃŸzeitpunkt soviele Sekunden nichts gesendet wurde,
         wird die Verbindung abgebrochen
 :tr  0  dto., gelesen; eine der beiden Bedingungen reicht aus.
 :li     unterbrochen wird nur bei ankommenden Verbindungen.
@@ -1395,21 +1395,21 @@ Alle Zeitangaben sind in Sekunden.
 :lb     dto, beide Verbindungsarten (Default).
 
 Vorsicht: Es macht absolut keinen Sinn, den Timer unterhalb von
-übertragungssichernden Modulen wie x.75 oder gar Datenstrom-Modulen wie
+Ã¼bertragungssichernden Modulen wie x.75 oder gar Datenstrom-Modulen wie
 v110 anzuordnen.
 
-Der Timeout sollte mindestens dreimal so groß sein wie die Zeit, die
-typischerweise zum Verbindungsaufbau benötigt wird, weil es sonst
-scheußliche Interaktionen mit den TCP-Retryalgorithmen gebenb kann.
+Der Timeout sollte mindestens dreimal so groÃŸ sein wie die Zeit, die
+typischerweise zum Verbindungsaufbau benÃ¶tigt wird, weil es sonst
+scheuÃŸliche Interaktionen mit den TCP-Retryalgorithmen gebenb kann.
 
 
 T.70 "t70"
 ----
 Implementiert das T-70-Minimalprotokoll -- spaltet abgehende Dateneinheiten
-auf, wenn sie zu groß sind, und faßt ankommende zusammen, wenn das ent-
+auf, wenn sie zu groÃŸ sind, und faÃŸt ankommende zusammen, wenn das ent-
 sprechende Bit im T70-Header gesetzt ist.
 
-:mt  0,4-4096 256 Maximale Datenblockgröße (exklusive T70-Header (2 Bytes)).
+:mt  0,4-4096 256 Maximale DatenblockgrÃ¶ÃŸe (exklusive T70-Header (2 Bytes)).
                   ":mt 0": Maximum "unendlich".
 
 
@@ -1421,7 +1421,7 @@ Dateneinheiten wird nur der Protokollheader entfernt.
 /* TODO: Momentan wird die Aufspaltung _nicht_ markiert -- soll/darf das
    passieren, wenn ja wie? */
 
-:mt  1-4096 128 Maximale Datenblockgröße. Darf fuer T-Online auf keinen Fall
+:mt  1-4096 128 Maximale DatenblockgrÃ¶ÃŸe. Darf fuer T-Online auf keinen Fall
                 128 ueberschreiten.
 
 
@@ -1429,7 +1429,7 @@ V.110 "v110"
 -----
 Implementiert V.110 im 38400-Baud-Modus. Mehr oder weniger ungetestete
 Experimentierversion. Warnung: Exzessive Kernelbelastung durch
-Bitschieberei etc. Für ernsthafte Anwendungen braucht es einen
+Bitschieberei etc. FÃ¼r ernsthafte Anwendungen braucht es einen
 entsprechenden Wandler in Firmware / Hardware auf der Karte.
 
 
@@ -1440,22 +1440,22 @@ Die meisten Module haben einen ziemlich kleinen Datenpuffer (ca. 200 Bytes).
 Wenn das zuwenig ist, zB beim Empfangen von Audiodaten oder beim
 Weiterleiten von IP-Paketen, kann ein Puffer zwischengeschaltet werden.
 
-:br  XXX  Puffergröße beim Lesen / Empfangen
-:bw  XXX  Puffergröße beim Schreiben / Senden
-:bb  XXX  Puffergröße beim Lesen und Schreiben
-          Wertebereich für die Puffergröße: 10 bis 16*1024 Bytes.
+:br  XXX  PuffergrÃ¶ÃŸe beim Lesen / Empfangen
+:bw  XXX  PuffergrÃ¶ÃŸe beim Schreiben / Senden
+:bb  XXX  PuffergrÃ¶ÃŸe beim Lesen und Schreiben
+          Wertebereich fÃ¼r die PuffergrÃ¶ÃŸe: 10 bis 16*1024 Bytes.
           Default: 4 kBytes.
-          Der Puffer füllt sich bis zur angegebenen Größe und leert sich
+          Der Puffer fÃ¼llt sich bis zur angegebenen GrÃ¶ÃŸe und leert sich
           bis auf 1/4 dieses Werts.
 
 
 Datenrate "rate" (ungetestet!)
 ---------
 
-Begrenzt die mögliche Übertragungsrate. "Überschüssige" Daten werden
-zunächst gepuffert, dann weggeworfen; daher ist es sinnvoll, "rate" vor
+Begrenzt die mÃ¶gliche Ãœbertragungsrate. "ÃœberschÃ¼ssige" Daten werden
+zunÃ¤chst gepuffert, dann weggeworfen; daher ist es sinnvoll, "rate" vor
 "x75" zu verwenden. Bei TCP/IP, das sowieso keinen gesicherten Kanal
-voraussetzt, geht es natürlich auch ohne X75.
+voraussetzt, geht es natÃ¼rlich auch ohne X75.
 
 :ri XXX  Begrenzung der ankommenden Daten auf XXX bytes pro Sekunden.
 :ro XXX  dito, gesendete Daten.
@@ -1466,7 +1466,7 @@ Van-Jacobsen-Kompression "vanj"
 ------------------------
 Komprimiert TCP-IP-Header.
 Sollte nur auf einer gesicherten Verbindung verwendet werden.
-Option für das Paketformat muß genauso wie bei str_if eingestellt sein!
+Option fÃ¼r das Paketformat muÃŸ genauso wie bei str_if eingestellt sein!
 
 :sz tx rx  16 16  Zahl der gleichzeitig gecachten Verbindungen.
                   Zwischen 16 und 128; jeweils Sende- und Empfangsrichtung.
@@ -1479,74 +1479,74 @@ Option für das Paketformat muß genauso wie bei str_if eingestellt sein!
 
 X.75 "x75"
 ----
-Implementiert Ebene 2 des X75-Protokolls. Das Framing (Prüfsumme, 1-Stopfen,
+Implementiert Ebene 2 des X75-Protokolls. Das Framing (PrÃ¼fsumme, 1-Stopfen,
 Interframezeichen etc.) wird von der Hardware auf der Karte erledigt.
 
 :nk  1-7 (127) 1 Parameter "k" -- Anzahl der maximal ausstehenden
-                 Datenblöcke. (Die Länge dieser Blöcke wird nicht
+                 DatenblÃ¶cke. (Die LÃ¤nge dieser BlÃ¶cke wird nicht
                  begrenzt -- siehe T70-Modul)
-:wd              2-Byte-Befehlswörter: SABME, max(k) 127.
-:nw              1-Byte-Befehlswörter: SABM, max(k) 7.
+:wd              2-Byte-BefehlswÃ¶rter: SABME, max(k) 127.
+:nw              1-Byte-BefehlswÃ¶rter: SABM, max(k) 7.
 :n1  1-100    3  Parameter "N1" -- Anzahl der Wiederholungen von Poll-Frames,
                  bis ein Fehler angenommen wird.
-:t1  1-100   10  Parameter "t1" -- Timeout für unbestätigte Daten- und
+:t1  1-100   10  Parameter "t1" -- Timeout fÃ¼r unbestÃ¤tigte Daten- und
                  Poll-Frames in Zehntelsekunden.
-:t3 1-1000  100  Parameter "t3" -- Timer für Test, ob die Verbindung noch
-                 aktiv ist. In Zehntelsekunden, muß > 2*t1 sein.
+:t3 1-1000  100  Parameter "t3" -- Timer fÃ¼r Test, ob die Verbindung noch
+                 aktiv ist. In Zehntelsekunden, muÃŸ > 2*t1 sein.
 :ad 0-255 0-255  (dieser Parameter braucht zwei Wertangaben!)
-        1     3  Adreßbytes für Befehls- und Meldungsframes. Sollten
+        1     3  AdreÃŸbytes fÃ¼r Befehls- und Meldungsframes. Sollten
                  das niederwertige Bit gesetzt haben und verschieden sein.
-                 Wegen Abwärtskompatibilität mit dummen Implementierungen
+                 Wegen AbwÃ¤rtskompatibilitÃ¤t mit dummen Implementierungen
                  werden "falsche" Einstellungen akzeptiert.
-:po              Pollmodus -- löst beim Empfang einer RNR-Meldung sofort
-                 einen RR/RNR-Befehl aus. Für Kompatibilität mit dummen
+:po              Pollmodus -- lÃ¶st beim Empfang einer RNR-Meldung sofort
+                 einen RR/RNR-Befehl aus. FÃ¼r KompatibilitÃ¤t mit dummen
                  Gegenstellen, die vergessen, sich mit RR bereit zu melden,
                  nachdem sie RNR gesendet hatten.
 :np              schaltet den Pollmodus ab (Default).
 :cm 012348  1    wann die X75-"Verbindung" aufgebaut wird
             0    gar nicht -- es wird angenommen, die Verbindung existiert.
-                 Zur Kompatibilität mit dummen Gegenstellen, die sich
+                 Zur KompatibilitÃ¤t mit dummen Gegenstellen, die sich
                  auf die Steuerung im D-Kanal verlassen.
-            1    Baldmöglichst (abgehend)
-            2    Baldmöglichst (ankommend)
-            3    Baldmöglichst (an- und abgehend)
-            4    wenn der erste Datenblock zur Übertragung ansteht.
+            1    BaldmÃ¶glichst (abgehend)
+            2    BaldmÃ¶glichst (ankommend)
+            3    BaldmÃ¶glichst (an- und abgehend)
+            4    wenn der erste Datenblock zur Ãœbertragung ansteht.
             8    gar nicht -- es werden UI-Frames verwendet.
 
 pr_on
 -----
 Spezialmodul, um die "Verbindung hergestellt"-Kennung auf einem Stream
-abzusenden, der nicht über ISDN arbeitet. Wird zB vom slipto-Programm
+abzusenden, der nicht Ã¼ber ISDN arbeitet. Wird zB vom slipto-Programm
 verwendet.
 
 
 Verzeichnisstruktur der Sourcen
 ===================
 
-alaw/       Streamsmodul für alaw-Coder.
+alaw/       Streamsmodul fÃ¼r alaw-Coder.
 bin/        fertige Programme (Symlinks)
-cards/      Treiber für Karten.
- dumb/        .. für dumme Karten (mit Siemens-Chipsatz).
+cards/      Treiber fÃ¼r Karten.
+ dumb/        .. fÃ¼r dumme Karten (mit Siemens-Chipsatz).
 config/     Konfigurationsteil.
 fakeh/      "Cisco-HDLC"-Modul.
 final/      Installationsteil; final/Makefile wird als letztes aufgerufen
 include/    Includedateien (was sonst...)
 ip_mon/     TCP/IP-Monitorprogramm nebst Streamstreiber/Modul.
-isdn_2/     Schicht-2-Treiber für ISDN (D-Kanalsteuerung, B-Kanal-Routing).
+isdn_2/     Schicht-2-Treiber fÃ¼r ISDN (D-Kanalsteuerung, B-Kanal-Routing).
 isdn_3/     Schicht-3-Treiber (1TR6 etc.).
 isdn_4/     Steuerprogramm (besagter wilder Hack).
-ksupport/   Supportkram für den Kernel, diverse Streamsmodule,
-            Supportcode für die ISDN-Protokollhandler.
+ksupport/   Supportkram fÃ¼r den Kernel, diverse Streamsmodule,
+            Supportcode fÃ¼r die ISDN-Protokollhandler.
 reconnect/  Streamsmodul zum dynamischen Wiederaufbau einer Verbindung.
-strslip/    Streamsmodul für SLIP-Framing.
-str_if/     Streamsmodul für Anbindung an TCP/IP.
-support/    Supportkram für Anwendungsprogramme.
-t70/        Streamsmodul für T-70.
+strslip/    Streamsmodul fÃ¼r SLIP-Framing.
+str_if/     Streamsmodul fÃ¼r Anbindung an TCP/IP.
+support/    Supportkram fÃ¼r Anwendungsprogramme.
+t70/        Streamsmodul fÃ¼r T-70.
 timer/      Streamsmodul zum Trennen einer Verbindung (Timeout).
-v110/       Streamsmodul für V.110. Momentan ungetestet.
-van_j/      Streamsmodul für VanJ-TCP/IP-Headerkompression. Funktioniert
+v110/       Streamsmodul fÃ¼r V.110. Momentan ungetestet.
+van_j/      Streamsmodul fÃ¼r VanJ-TCP/IP-Headerkompression. Funktioniert
             momentan nur auf gesicherten Verbindungen 100%ig.
-x75/        Streamsmodul für X.75-Handling.
+x75/        Streamsmodul fÃ¼r X.75-Handling.
 
 
 Programme und -Optionen
@@ -1556,21 +1556,21 @@ Programme und -Optionen
 isdn_4/master alias bin/isdn
 ----------------------------
 
-Steuerprogramm für den gesamten ISDN-Kram.
+Steuerprogramm fÃ¼r den gesamten ISDN-Kram.
 
--d      Debugging; verhindert daß das Programm sich selber in den
+-d      Debugging; verhindert daÃŸ das Programm sich selber in den
         Hintergrund setzt.
 -f dev  Steuerdevice anstelle von /dev/isdnmon.
 -I      Debugbefehle werden von stdin gelesen.
 -l      setzt ein strlog-Modul auf die Steuerverbindung. Debugging.
 -w      setzt ein logh-Modul auf die programminterne Verbindung zwischen
-        dem Treiber im Kernel und dem Masterprozeß. Debugging.
+        dem Treiber im Kernel und dem MasterprozeÃŸ. Debugging.
 -L, -W  wie -l / -w, jedoch im Kernel-Log anstatt auf stderr.
 -m      schreibt die programminterne Verbindung zwischen Ebene 3 und 4 
         auf stderr mit. Sehr wichtig beim Debuggen.
 -M      schreibt diverse andere Debugginginfo nach stderr.
--x file Datei mit (internen) Steuerbefehlen, die nach dem vollständigen Start
-        des ISDN-Krams ausgeführt wird. Ungetestet.
+-x file Datei mit (internen) Steuerbefehlen, die nach dem vollstÃ¤ndigen Start
+        des ISDN-Krams ausgefÃ¼hrt wird. Ungetestet.
 file... Konfigurationsdateien.
 
 
@@ -1584,7 +1584,7 @@ Protokolliert die vom ip_mon-Modul gemeldeten IP-Daten.
 -l      Debugging; setzt strlog-Modul ein.
 -n      Die network/services-Dateien werden nicht permanent offengehalten.
 -h      Die hosts-Dateien werden nicht permanent offengehalten.
-        Das gilt auch für die Verbindung zum Nameserver.
+        Das gilt auch fÃ¼r die Verbindung zum Nameserver.
 
 Monitor kann auch zum Blockieren von IP-Paketen verwendet werden. Das ist
 allerdings ungetestet; besser ist es, Firewall-Support in den Kernel
@@ -1594,8 +1594,8 @@ einzubauen.
 slipto
 ------
 
-Kontrollprogramm für den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
-"slip"; wenn jemand (zB ein Amiga mit KA9Q) auf SLIP besteht, muß das
+Kontrollprogramm fÃ¼r den TCP/IP-Kram. Macht bei Verwendung mit ISDN _kein_
+"slip"; wenn jemand (zB ein Amiga mit KA9Q) auf SLIP besteht, muÃŸ das
 "slip"-Modul via ML-Zeile explizit eingesetzt werden.
 
 -D       Debugging-Output nach stderr.
@@ -1620,20 +1620,20 @@ eingestellt.
 
 -L       protokolliert den Dialog zum Modem.
 -l       Debugging: setzt qinfo-Modul ein.
--ll       zusätzlich count-Modul.
--lll       zusätzlich strlog-Modul.
+-ll       zusÃ¤tzlich count-Modul.
+-lll       zusÃ¤tzlich strlog-Modul.
 -M       setzt IP-Monitor-Modul ein.
 -S       Betrieb auf synchroner Leitung: verwende kein "slip"-Modul.
 -E       Autoenable; wenn slipto auf einer bestehenden Verbindung gestartet
          wird.
 -o       schickt ATA zur Leitung und wartet auf CONNECT.
--p dev   öffnet Device "dev". (Man verwende "/dev/tty" für stdin/out.)
+-p dev   Ã¶ffnet Device "dev". (Man verwende "/dev/tty" fÃ¼r stdin/out.)
 -v       verwende Van-Jacobsen-Headerkompression.
 -f       verwende Cisco-HDLC-Header.
 -m mtu   setzt die MTU auf den angegebenen Wert. (Die MRU ist auf 4000 Bytes
          begrenzt.)
 
-Die folgenden Parameter müssen immer angegeben werden:
+Die folgenden Parameter mÃ¼ssen immer angegeben werden:
 
 ip_loc   lokale IP-Nummer.
          Kann auch auf anderen Interfaces (Ethernet) verwendet werden!
@@ -1645,14 +1645,14 @@ Hackers Corner
 
 Debuggingoptionen:
 Das Masterprogramm schickt Debugkram nach stderr und manches andere nach
-stdout. Umleiten nach /dev/null wenn's stört; die Debugsachen werden
+stdout. Umleiten nach /dev/null wenn's stÃ¶rt; die Debugsachen werden
 sukzessive abgestellt, wenn ich mal wieder ein wenig Zeit habe. :-/
 
-Das Debuggingverhalten des Haupttreibers im Kernel läßt sich durch die
+Das Debuggingverhalten des Haupttreibers im Kernel lÃ¤ÃŸt sich durch die
 isdn2_debug- und isdn2_log-Flags steuern; siehe isdn_2/isdn_2.c.
 
 Hinweis: Wenn alles funktioniert, kann man die Debuggerei getrost
-abschalten. Allerdings ist dann die Fehlersuche so gut wie unmöglich...
+abschalten. Allerdings ist dann die Fehlersuche so gut wie unmÃ¶glich...
 
 
 Module
@@ -1661,25 +1661,25 @@ Module
 strlog
 ------
 
-protokolliert absolut alles mit, was über dieses Modul an Daten läuft.
+protokolliert absolut alles mit, was Ã¼ber dieses Modul an Daten lÃ¤uft.
 
 "xstrlog" macht dasselbe wie "strlog", nur werden DATA-Pakete (also die
-eigentlichen übertragenen Informationen) nicht mitgeschrieben.
+eigentlichen Ã¼bertragenen Informationen) nicht mitgeschrieben.
 
 
 qinfo
 -----
 
-Gibt alle N Sekunden eine Meldung über den aktuellen Zustand des
-Datenstroms vom ISDN-Modul zum Anwendungsprogramm aus. Nützlich, wenn
-man sehen will, wo die Daten hängenbleiben.
+Gibt alle N Sekunden eine Meldung Ã¼ber den aktuellen Zustand des
+Datenstroms vom ISDN-Modul zum Anwendungsprogramm aus. NÃ¼tzlich, wenn
+man sehen will, wo die Daten hÃ¤ngenbleiben.
 :tm   60   Zeit zwischen Meldungen, in Sekunden.
 
 
 count
 -----
 
-Zählt mit, wieviele Datenpakete durchlaufen und wie lang diese sind.
+ZÃ¤hlt mit, wieviele Datenpakete durchlaufen und wie lang diese sind.
 
 
 Systemmeldungen
@@ -1692,15 +1692,15 @@ Verbindung.
 
 in   die Verbindung wird ankommend sein (->Cmd)
 ou   die Verbindung wird abgehend sein (->Cmd)
-os X Reserviert zusätzlichen Pufferplatz am Anfang von Datenblöcken.
-     (Separat für beide Richtungen, wird automatisch initiiert.)
+os X Reserviert zusÃ¤tzlichen Pufferplatz am Anfang von DatenblÃ¶cken.
+     (Separat fÃ¼r beide Richtungen, wird automatisch initiiert.)
      Module inkrementieren X, um die Zahl der Bytes, die sie selbst maximal
      als Header vor die Daten stellen, und reservieren eine entsprechende
      Anzahl beim Anfordern eines neuen Datenblocks.
-     "os" signalisiert außerdem, daß der Aufbau des Modulstacks abge-
-     schlossen ist. Module können sich also nach der Weitergabe dieser
-     Meldung untereinander unterhalten, wenn nötig.
-li   B-Kanal ankommend geschaltet, zB Wählton beim Telefon (->Cmd)
+     "os" signalisiert auÃŸerdem, daÃŸ der Aufbau des Modulstacks abge-
+     schlossen ist. Module kÃ¶nnen sich also nach der Weitergabe dieser
+     Meldung untereinander unterhalten, wenn nÃ¶tig.
+li   B-Kanal ankommend geschaltet, zB WÃ¤hlton beim Telefon (->Cmd)
 hl   B-Kanal-Durchschaltung akzeptiert (->L2)
 co   B-Kanal bidirektional geschaltet (->Cmd)
 hc   Verbindung hergestellt (->L2)
@@ -1708,11 +1708,11 @@ hc   Verbindung hergestellt (->L2)
 wi   Befehl zur Herstellung einer Unterbrechung (->Cmd)
 is   Verbindung unterbrechen (->L2)
 is   Verbindung ist unterbrochen (->Cmd)
-hi   Rückmeldung: Verbindung unterbrochen(->L2)
+hi   RÃ¼ckmeldung: Verbindung unterbrochen(->L2)
 wd   Befehl zum "sauberen" Abbau der Verbindung(->Cmd)
 di   Verbindung abbauen (->L2)
 di   Verbindung ist abgebaut (->Cmd)
-hd   Rückmeldung: Verbindung ist getrennt, evtl wird NO CARRIER gemeldet.
+hd   RÃ¼ckmeldung: Verbindung ist getrennt, evtl wird NO CARRIER gemeldet.
 
 Wer beobachten will, wie genau diese Meldungen transpoortiert werden,
 verwende ein xstrlog-Modul.
@@ -1721,9 +1721,9 @@ verwende ein xstrlog-Modul.
 Euro-ISDN: Bearer Capability und andere Feinheiten
 =========
 
-Die Informationselemente sind in mehrere Blöcke aufgeteilt. Jeder Block
-wird dadurch begrenzt, daß das höchstwertige Bit auf 1 steht. Die
-weggelassenen Bytes haben Defaultwerte. Ich führe hier die wichtigsten
+Die Informationselemente sind in mehrere BlÃ¶cke aufgeteilt. Jeder Block
+wird dadurch begrenzt, daÃŸ das hÃ¶chstwertige Bit auf 1 steht. Die
+weggelassenen Bytes haben Defaultwerte. Ich fÃ¼hre hier die wichtigsten
 Codierungen auf; der Rest steht in der Q.931. 
 
 1  1AABBBBB      AA       Codierungsstandard
@@ -1734,7 +1734,7 @@ Codierungen auf; der Rest steht in der Q.931.
                  10000    Audio, 3.1 kHz
 2  1AABBBBB      AA       Modus
                  00       Standard
-                 BBBBB    Übertragungsgeschwindigkeit
+                 BBBBB    Ãœbertragungsgeschwindigkeit
                  10000    64 kBit
 3  x01AAAAA      AAAAA    Schicht-1-Protokoll
                  00001    V.110
@@ -1743,13 +1743,13 @@ Codierungen auf; der Rest steht in der Q.931.
                  01001    X.31 mit HDLC-Flags.
 
 Hinter einem Hexstring kann ein weiterer String angegeben werden, der als
-Maske dient, welche Bits bei ankommenden Rufen beachtet werden. Die höchst-
-wertigen Bits haben dieselbe Bedeutung wie oben und können zum Abkürzen
+Maske dient, welche Bits bei ankommenden Rufen beachtet werden. Die hÃ¶chst-
+wertigen Bits haben dieselbe Bedeutung wie oben und kÃ¶nnen zum AbkÃ¼rzen
 verwendet werden. Siehe support/vectcmp.c.
 
 Beispiel:
-:vB 9090A3 EFFFFF   -- Sprache oder 3.1kHz Audio, für den Anrufbeantworter
-:vB 8890            -- (alle Bits signifikant) entspricht :sv 0700, für
+:vB 9090A3 EFFFFF   -- Sprache oder 3.1kHz Audio, fÃ¼r den Anrufbeantworter
+:vB 8890            -- (alle Bits signifikant) entspricht :sv 0700, fÃ¼r
                        Datenverbindungen aus dem 1TR6-Raum
 
 [ Falls jemand anders den Rest der relevanten Teile der Q.931 abtippen
@@ -1762,21 +1762,21 @@ Daten einfach einzutragen ist wohl die einfachste Methode.
 Karten mit CAPI: Die CAPI ist doof...
 ===============
 
-Im Internet heißt es in so gut wie jedem RFC, daß reservierte Bits beim
+Im Internet heiÃŸt es in so gut wie jedem RFC, daÃŸ reservierte Bits beim
 Senden auf Null zu setzen und beim Empfangen zu ignorieren sind. Nicht so
-in der CAPI 1.1, dort sind gesetzte reservierte Bits ein Grund für eine
+in der CAPI 1.1, dort sind gesetzte reservierte Bits ein Grund fÃ¼r eine
 Fehlermeldung. Da aber nirgends definiert oder abfragbar ist, welche Bits
-eigentlich erlaubt sind, ist es so gut wie unmöglich, ohne Ratespiel neue
-Features zu unterstützen...
+eigentlich erlaubt sind, ist es so gut wie unmÃ¶glich, ohne Ratespiel neue
+Features zu unterstÃ¼tzen...
 
 Wie dem auch sei, die Infobits haben folgende Bedeutung:
-00000001  Gebühreneinheiten
+00000001  GebÃ¼hreneinheiten
 00000002  Datum
 00000004  Display
 00000008  User-User Info
 00000010  Cause
 00000020  Status des gerufenen Teilnehmers
-00000040  Rufnummernübergabe (Anlagenanschluß)
+00000040  RufnummernÃ¼bergabe (AnlagenanschluÃŸ)
 00000080...
 20000000  reserviert
 40000000  SPVs
@@ -1797,7 +1797,7 @@ Die Dienstkennungen, entsprechend :sv 00xx ... 0Fxx:
 0010  Telefax Gruppe 4
 0020  BTX, 64 KBit/sec
 0040  ?
-0080  DFÜ
+0080  DFÃœ
 0100  X.25
 0200  Teletext
 0400  Mixed Mode
@@ -1817,26 +1817,26 @@ Bugs anderer Leute
 
 (1)
 An manchen Nebenstellenanlagen werden ankommende Rufe teilweise mit,
-teilweise ohne der zum Rauswählen notwendigen Null ausgeliefert.
+teilweise ohne der zum RauswÃ¤hlen notwendigen Null ausgeliefert.
 
 Das liegt an der Quelle der Anrufe; die Telekom signalisiert 1TR6-Anrufe
 etwas anders als Euro-ISDN (ist aber beides legal), die Telefonanlage setzt
 aber nur eine Version korrekt um.
 
 Workaround: Keiner.
-Bugfix: Hersteller kräftig treten.
+Bugfix: Hersteller krÃ¤ftig treten.
 
 (2)
-Manche Anlagen treiben es noch schlimmer und übergeben ankommende Anrufe
-mit "unbekannter Nummerntyp" aber _ohne_ führende Null. Sorry, leider
+Manche Anlagen treiben es noch schlimmer und Ã¼bergeben ankommende Anrufe
+mit "unbekannter Nummerntyp" aber _ohne_ fÃ¼hrende Null. Sorry, leider
 daneben -- evtl. hilft :b1 in der DL-Zeile.
 
 Noch schlimmer treibt es zB die Ackerman Euracom 181, Firmware 1.05, die
-ankommend die Nebenstellennummer als "örtliche Nummer" kennzeichnet.
-Workaround: Auch :b1. Abgesehen davon: Hersteller _kräftig_ treten, sowas
+ankommend die Nebenstellennummer als "Ã¶rtliche Nummer" kennzeichnet.
+Workaround: Auch :b1. Abgesehen davon: Hersteller _krÃ¤ftig_ treten, sowas
 ist einfach Unsinn.
 
 (3)
-Die Niederländer übergeben die Einheiten nicht im dafür vorgesehenen
+Die NiederlÃ¤nder Ã¼bergeben die Einheiten nicht im dafÃ¼r vorgesehenen
 Format, sondern als DISPLAY-String. Grummel. :b2 in die DL-Zeile.
 

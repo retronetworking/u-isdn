@@ -1,6 +1,6 @@
-Dieser Patch markiert die Debuggingmeldungen, die beim Drücken der mit
+Dieser Patch markiert die Debuggingmeldungen, die beim DrÃ¼cken der mit
 show_* belegten Tasten ausgespuckt werden, als EMERGency-Meldungen. Sie
-werden dann auch ausgegeben, wenn der Kernel normale Ausgaben unterdrückt
+werden dann auch ausgegeben, wenn der Kernel normale Ausgaben unterdrÃ¼ckt
 (klogd -c N, 1<=N<=7).
 
 Optional aber sehr sinnvoll.

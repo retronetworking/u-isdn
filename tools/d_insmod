@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-## Diese Version von "insmod" fügt ein Modul nicht in diesen, sondern in
-## den nächsten Kernel ein...
+## Diese Version von "insmod" fÃ¼gt ein Modul nicht in diesen, sondern in
+## den nÃ¤chsten Kernel ein...
 
 FILE=$1
 

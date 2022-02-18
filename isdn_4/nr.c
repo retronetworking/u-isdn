@@ -15,7 +15,7 @@
 
 char *match_nr (char *extnr, char *locnr, char *locpref)
 /* Vergleicht ankommende Nummern mit dem Eintrag einer D-Zeile. */
-/* liefert evtl. ein ungematchtes Suffix zurück */
+/* liefert evtl. ein ungematchtes Suffix zurÃ¼ck */
 /* 09119599131,+911-959913/[1-3],=00+0-   ->   /[1-3] */
 /* 91234, +*, =00+0-  -> "" */
 /* +9119599131,+911-959913/[1-3],=00+0-   ->   /[1-3] */
@@ -24,7 +24,7 @@ char *match_nr (char *extnr, char *locnr, char *locpref)
 {
 	char *extpos, *locpos;
 	if(isdigit(*extnr)) {
-		/* finde das passende Präfix */
+		/* finde das passende PrÃ¤fix */
 		while(*locpref != '\0') {
 			extpos=extnr;
 			if(isdigit(*locpref)) {
@@ -46,7 +46,7 @@ char *match_nr (char *extnr, char *locnr, char *locpref)
 		}
 		return NULL;
 	} else {
-		/* Wirf zusammenpassende Präfixe raus */
+		/* Wirf zusammenpassende PrÃ¤fixe raus */
 		extpos = extnr;
 		locpref = strchr(locpref,*extpos);
 		if(locpref == NULL) {
@@ -124,7 +124,7 @@ int match_suffix(char *extsuf, char *extnr)
 }
 
 char *build_nr (char *extnr, char *locnr, char *locpref, int islocal)
-/* baut eine zu wählende Nummer zusammmen, bzw. deren Anfang 
+/* baut eine zu wÃ¤hlende Nummer zusammmen, bzw. deren Anfang 
  * =911-959913.[1-3],-959913.[1-3],+00=0-,0  -> .[1-3]
  * =911-959913/[1-3],=911-959913/[1-3],+00=0-,0  -> 959913/[1-3]
  * =911-959913/[1-3],=911-959913/[1-3],+00=0-,1  -> /[1-3]
@@ -218,8 +218,8 @@ char *append_nr(char *extnr, char *extext)
 }
 
 char *strip_nr(char *extnr, int keepfirst)
-/* entfernt die Spezialzeichen aus einer vollständigen Nummer,
-   zwecks Dialout; NULL wenn die Nummer unvollständig ist */
+/* entfernt die Spezialzeichen aus einer vollstÃ¤ndigen Nummer,
+   zwecks Dialout; NULL wenn die Nummer unvollstÃ¤ndig ist */
 /* 123.45 -> 12345 */
 /* 123.[45] -> NULL */
 /* 123. -> NULL */

@@ -9,7 +9,7 @@ set -e
 
 . /etc/rc.config
 
-if [ "$1" = "config" ] ; then # smurfsche Spezialit‰ten
+if [ "$1" = "config" ] ; then # smurfsche Spezialit√§ten
 	cat <<'END' >/tmp/cf.$$
 #
 ## welcher ISDN-Treiber? uisdn, i4l, off
